@@ -1,0 +1,55 @@
+# Ігнорувати віртуальне середовище
+venv/
+env/
+.venv/
+
+# Ігнорувати файли середовища
+.env
+.env.local
+.env.production
+
+# Ігнорувати базу даних
+*.db
+*.sqlite3
+
+# Ігнорувати логи
+*.log
+logs/
+
+# Ігнорувати кеш Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Ігнорувати IDE файли
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ігнорувати системні файли
+.DS_Store
+Thumbs.db
+
+# Ігнорувати тимчасові файли
+*.tmp
+*.temp
+
+# Ігнорувати файли розповсюдження
+build/
+dist/
+*.egg-info/
+
+# Ігнорувати pytest кеш
+.pytest_cache/
+
+# Ігнорувати coverage звіти
+htmlcov/
+.coverage
+.coverage.*
+
+# Ігнорувати mypy кеш
+.mypy_cache/
+.dmypy.json
+dmypy.json
