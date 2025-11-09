@@ -3,7 +3,7 @@
 """
 import os
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, List
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     webhook_host: str = Field(default="0.0.0.0", env="WEBHOOK_HOST")
     webhook_port: int = Field(default=8000, env="WEBHOOK_PORT")
     webhook_path: str = Field(default="/webhook", env="WEBHOOK_PATH")
-    reminder_intervals: list[int] = Field(default=[1, 2], env="REMINDER_INTERVALS")
+    reminder_intervals: List[int] = Field(default=[1, 2], env="REMINDER_INTERVALS")
     subscription_reminder_days: int = Field(default=7, env="SUBSCRIPTION_REMINDER_DAYS")
     payment_retry_hours: int = Field(default=24, env="PAYMENT_RETRY_HOURS")
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
