@@ -11,8 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    model_config = {"extra": "allow"}
-    
     # Telegram Bot - береться з БД якщо доступний, інакше з .env
     telegram_bot_token: Optional[str] = Field(default=None, env="TELEGRAM_BOT_TOKEN")
     
@@ -55,9 +53,8 @@ class Settings(BaseSettings):
     jwt_secret: Optional[str] = Field(default=None, env="JWT_SECRET")
     admin_default_password: str = Field(default="admin123", env="ADMIN_DEFAULT_PASSWORD")
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    # Використовуємо model_config замість Config class
+    model_config = {"extra": "allow", "env_file": ".env", "env_file_encoding": "utf-8"}
         
     def __init__(self, **kwargs):
         """Ініціалізуємо з автоматичним заповненням полів з БД"""
