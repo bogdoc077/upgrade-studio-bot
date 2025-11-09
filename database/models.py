@@ -11,19 +11,6 @@ from config import settings
 Base = declarative_base()
 
 
-class InviteLink(Base):
-    __tablename__ = "invite_links"
-    
-    id = Column(Integer, primary_key=True)
-    chat_id = Column(String(50), nullable=False)  # ID каналу/чату
-    chat_type = Column(String(20), nullable=False)  # "channel" або "group"
-    chat_title = Column(String(255), nullable=True)  # Назва каналу/чату
-    invite_link = Column(String(255), nullable=False)  # Посилання для приєднання
-    is_active = Column(Boolean, default=True)  # Чи активне посилання
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
 class User(Base):
     __tablename__ = "users"
     
@@ -43,6 +30,7 @@ class User(Base):
     
     # Підписка
     subscription_active = Column(Boolean, default=False)
+    subscription_status = Column(String(20), default="inactive")  # 'active', 'inactive', 'paused', 'cancelled'
     subscription_paused = Column(Boolean, default=False)
     subscription_cancelled = Column(Boolean, default=False)
     subscription_end_date = Column(DateTime, nullable=True)
@@ -122,6 +110,7 @@ class Payment(Base):
     
     # Дати
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     paid_at = Column(DateTime, nullable=True)
     
     # Зв'язки
@@ -133,31 +122,125 @@ class Payment(Base):
 
 class InviteLink(Base):
     __tablename__ = "invite_links"
-    __table_args__ = {'extend_existing': True}
     
     id = Column(Integer, primary_key=True)
     
     # ID чату
     chat_id = Column(String(50), nullable=False)
     
-    # Тип чату
-    chat_type = Column(String(20), nullable=False)  # 'channel' або 'chat'
-    
-    # Назва чату
-    chat_title = Column(String(255), nullable=True)
+    # Тип чату/посилання
+    link_type = Column(String(20), nullable=False)  # 'channel' або 'chat'
     
     # Посилання запрошення
-    invite_link = Column(String(255), nullable=False)
+    link = Column(String(255), nullable=False)
     
-    # Статус
-    is_active = Column(Boolean, default=True)
+    # Хто створив посилання
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Час закінчення дії (опціонально)
+    expires_at = Column(DateTime, nullable=True)
     
     # Дати
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    @property
+    def is_expired(self):
+        """Перевірити, чи закінчився час дії посилання"""
+        if self.expires_at is None:
+            return False
+        return datetime.utcnow() > self.expires_at
+        
     def __repr__(self):
-        return f"<InviteLink(chat_type={self.chat_type}, chat_title={self.chat_title}, active={self.is_active})>"
+        return f"<InviteLink(id={self.id}, link_type={self.link_type}, link={self.link})>"
+
+
+class Admin(Base):
+    __tablename__ = "admins"
+    
+    id = Column(Integer, primary_key=True)
+    
+    # Дані для входу
+    username = Column(String(100), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    
+    # Персональні дані
+    first_name = Column(String(255), nullable=False)
+    last_name = Column(String(255), nullable=True)
+    
+    # Права доступу
+    role = Column(String(50), default="admin")  # 'superadmin', 'admin', 'moderator'
+    is_active = Column(Boolean, default=True)
+    is_superadmin = Column(Boolean, default=False)
+    
+    # Права на функції
+    can_manage_users = Column(Boolean, default=True)
+    can_manage_payments = Column(Boolean, default=True)
+    can_manage_settings = Column(Boolean, default=False)  # Тільки superadmin
+    can_manage_admins = Column(Boolean, default=False)    # Тільки superadmin
+    
+    # Дати
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)
+    
+    def __repr__(self):
+        return f"<Admin(username={self.username}, email={self.email}, role={self.role})>"
+    
+    def check_permission(self, permission: str) -> bool:
+        """Перевірити чи є у адміна дозвіл на дію"""
+        if not self.is_active:
+            return False
+            
+        if self.is_superadmin:
+            return True
+            
+        permission_mapping = {
+            'manage_users': self.can_manage_users,
+            'manage_payments': self.can_manage_payments,
+            'manage_settings': self.can_manage_settings,
+            'manage_admins': self.can_manage_admins,
+        }
+        
+        return permission_mapping.get(permission, False)
+
+
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+    
+    id = Column(Integer, primary_key=True)
+    
+    # Ключ налаштування
+    key = Column(String(100), unique=True, nullable=False)
+    
+    # Зашифроване значення
+    encrypted_value = Column(Text, nullable=False)
+    
+    # Опис налаштування
+    description = Column(Text, nullable=True)
+    
+    # Тип даних (для валідації)
+    value_type = Column(String(20), default="string")  # 'string', 'integer', 'boolean', 'json'
+    
+    # Чи є значення чутливим (пароль, ключ)
+    is_sensitive = Column(Boolean, default=False)
+    
+    # Категорія
+    category = Column(String(50), default="general")  # 'bot', 'payment', 'database', 'general'
+    
+    # Хто останній змінював
+    updated_by = Column(Integer, ForeignKey("admins.id"), nullable=True)
+    
+    # Дати
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Зв'язки
+    updated_by_admin = relationship("Admin", foreign_keys=[updated_by])
+    
+    def __repr__(self):
+        return f"<SystemSettings(key={self.key}, category={self.category}, sensitive={self.is_sensitive})>"
 
 
 # Створення підключення до бази даних
@@ -650,3 +733,27 @@ class DatabaseManager:
                 db.commit()
             
             return count
+
+
+def get_database():
+    """
+    Отримати з'єднання з базою даних для адмін-панелі
+    Повертає raw MySQL connection для простих запитів
+    """
+    import mysql.connector
+    from urllib.parse import urlparse
+    
+    # Парсимо DATABASE_URL
+    parsed = urlparse(settings.database_url)
+    
+    config = {
+        'host': parsed.hostname,
+        'port': parsed.port or 3306,
+        'user': parsed.username,
+        'password': parsed.password,
+        'database': parsed.path.lstrip('/'),
+        'charset': 'utf8mb4',
+        'autocommit': False
+    }
+    
+    return mysql.connector.connect(**config)

@@ -2,53 +2,173 @@
 Конфігурація бота
 """
 import os
-from typing import Optional
+import logging
+from typing import Optional, Any
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
+logger = logging.getLogger(__name__)
+
 
 class Settings(BaseSettings):
-    # Telegram Bot
-    telegram_bot_token: str = Field(..., env="TELEGRAM_BOT_TOKEN")
+    # Telegram Bot - береться з БД якщо доступний, інакше з .env
+    telegram_bot_token: Optional[str] = Field(default=None, env="TELEGRAM_BOT_TOKEN")
     
-    # Stripe
-    stripe_secret_key: str = Field(..., env="STRIPE_SECRET_KEY")
-    stripe_publishable_key: str = Field(..., env="STRIPE_PUBLISHABLE_KEY")
-    stripe_webhook_secret: str = Field(..., env="STRIPE_WEBHOOK_SECRET")
+    # Stripe - беруться з БД якщо доступні, інакше з .env
+    stripe_secret_key: Optional[str] = Field(default=None, env="STRIPE_SECRET_KEY")
+    stripe_publishable_key: Optional[str] = Field(default=None, env="STRIPE_PUBLISHABLE_KEY")
+    stripe_webhook_secret: Optional[str] = Field(default=None, env="STRIPE_WEBHOOK_SECRET")
     
-    # Subscription settings
+    # Subscription - береться з БД якщо доступна, інакше з .env
     subscription_price: int = Field(default=1500, env="SUBSCRIPTION_PRICE")  # в центах
     subscription_currency: str = Field(default="eur", env="SUBSCRIPTION_CURRENCY")
     
-    # Telegram channels and groups
+    # Webhook URL - береться з БД якщо доступний, інакше з .env
+    webhook_url: Optional[str] = Field(default=None, env="WEBHOOK_URL")
+    
+    # Всі інші налаштування ТІЛЬКИ з .env (не керуються через адмін панель)
     private_channel_id: str = Field(..., env="PRIVATE_CHANNEL_ID")
     private_chat_id: str = Field(..., env="PRIVATE_CHAT_ID")
     admin_chat_id: str = Field(..., env="ADMIN_CHAT_ID")
-    
-    # Database
     database_url: str = Field(default="sqlite:///./upgrade_studio_bot.db", env="DATABASE_URL")
-    
-    # Web server for webhooks
     webhook_host: str = Field(default="0.0.0.0", env="WEBHOOK_HOST")
     webhook_port: int = Field(default=8000, env="WEBHOOK_PORT")
     webhook_path: str = Field(default="/webhook", env="WEBHOOK_PATH")
-    webhook_url: str = Field(..., env="WEBHOOK_URL")  # https://yourdomain.com/webhook
-    
-    # Bot settings
-    reminder_intervals: list[int] = Field(default=[1, 2], env="REMINDER_INTERVALS")  # дні
+    reminder_intervals: list[int] = Field(default=[1, 2], env="REMINDER_INTERVALS")
     subscription_reminder_days: int = Field(default=7, env="SUBSCRIPTION_REMINDER_DAYS")
     payment_retry_hours: int = Field(default=24, env="PAYMENT_RETRY_HOURS")
-    
-    # Logging
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    admin_username: str = Field(default="admin", env="ADMIN_USERNAME")
+    admin_password: str = Field(..., env="ADMIN_PASSWORD")
+    admin_host: str = Field(default="0.0.0.0", env="ADMIN_HOST")
+    admin_port: int = Field(default=8001, env="ADMIN_PORT")
     
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        
+    def __init__(self, **kwargs):
+        """Ініціалізуємо з автоматичним заповненням полів з БД"""
+        # Спочатку ініціалізуємо базові налаштування
+        super().__init__(**kwargs)
+        
+        # Заповнюємо обов'язкові поля з БД якщо вони не встановлені
+        if not self.telegram_bot_token:
+            self.telegram_bot_token = self._get_db_setting_simple('bot_token')
+        if not self.stripe_secret_key:
+            self.stripe_secret_key = self._get_db_setting_simple('stripe_secret_key')
+        if not self.stripe_publishable_key:
+            self.stripe_publishable_key = self._get_db_setting_simple('stripe_publishable_key')
+        if not self.stripe_webhook_secret:
+            self.stripe_webhook_secret = self._get_db_setting_simple('stripe_webhook_secret')
+        if not self.webhook_url:
+            self.webhook_url = self._get_db_setting_simple('webhook_url')
+    
+    def _get_db_setting_simple(self, key: str) -> Optional[str]:
+        """Простий метод для отримання налаштування з БД без fallback"""
+        try:
+            from database.models import get_database
+            from database.encryption import decrypt_setting
+            
+            db = get_database()
+            cursor = db.cursor(dictionary=True)
+            
+            try:
+                cursor.execute(
+                    "SELECT value_type, encrypted_value FROM system_settings WHERE `key` = %s",
+                    (key,)
+                )
+                result = cursor.fetchone()
+                
+                if result:
+                    return decrypt_setting(
+                        result['encrypted_value'], 
+                        result['value_type']
+                    )
+                return None
+                    
+            finally:
+                cursor.close()
+                db.close()
+                
+        except Exception as e:
+            logger.debug(f"Помилка при отриманні налаштування '{key}' з БД: {e}")
+            return None
+    
+    def _get_db_setting(self, key: str, fallback_value: Any) -> Any:
+        """Отримати налаштування з бази даних з fallback до .env"""
+        try:
+            from database.models import get_database
+            from database.encryption import decrypt_setting
+            
+            db = get_database()
+            cursor = db.cursor(dictionary=True)
+            
+            try:
+                cursor.execute(
+                    "SELECT value_type, encrypted_value FROM system_settings WHERE `key` = %s",
+                    (key,)
+                )
+                result = cursor.fetchone()
+                
+                if result:
+                    # Дешифруємо значення
+                    decrypted_value = decrypt_setting(
+                        result['encrypted_value'], 
+                        result['value_type']
+                    )
+                    return decrypted_value
+                else:
+                    logger.debug(f"Налаштування '{key}' не знайдено в базі, використовуємо .env")
+                    return fallback_value
+                    
+            finally:
+                cursor.close()
+                db.close()
+                
+        except Exception as e:
+            logger.debug(f"Помилка при отриманні налаштування '{key}' з БД: {e}, використовуємо .env")
+            return fallback_value
+    
+    # Перевизначаємо ТІЛЬКИ ті поля, що керуються через адмін панель (6 штук)
+    def __getattribute__(self, name):
+        """Перехоплюємо доступ до полів, що керуються через адмін панель"""
+        # Поля з адмін панелі - беремо з БД
+        if name == 'telegram_bot_token':
+            return self._get_db_setting('bot_token', super().__getattribute__(name))
+        elif name == 'stripe_secret_key':
+            return self._get_db_setting('stripe_secret_key', super().__getattribute__(name))
+        elif name == 'stripe_publishable_key':
+            return self._get_db_setting('stripe_publishable_key', super().__getattribute__(name))
+        elif name == 'stripe_webhook_secret':
+            return self._get_db_setting('stripe_webhook_secret', super().__getattribute__(name))
+        elif name == 'subscription_price':
+            # Особлива логіка для ціни - в БД в євро, в .env в центах
+            db_price = self._get_db_setting('subscription_price', None)
+            if db_price is not None:
+                return float(db_price)  # З БД - вже в євро
+            else:
+                return super().__getattribute__(name) / 100.0  # З .env - конвертуємо центи в євро
+        elif name == 'webhook_url':
+            return self._get_db_setting('webhook_url', super().__getattribute__(name))
+        
+        # Всі інші поля - беремо з .env як завжди
+        return super().__getattribute__(name)
 
 
-# Глобальні налаштування
+    def invalidate_cache(self):
+        """Очистити кеш налаштувань (просто recreate екземпляр)"""
+        # Pydantic автоматично перезавантажить .env, а БД буде перевірена знову
+        self.__init__()
+        logger.info("Кеш налаштувань очищено")
+
+
+# Глобальні налаштування - тепер з автоматичною підтримкою БД
 settings = Settings()
+
+# Admin panel settings (for convenience)
+ADMIN_USERNAME = settings.admin_username
+ADMIN_PASSWORD = settings.admin_password
 
 # Константи для стану користувачів
 class UserState:

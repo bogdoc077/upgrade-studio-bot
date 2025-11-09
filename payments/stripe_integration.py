@@ -63,6 +63,9 @@ class StripeManager:
                 
                 user.stripe_customer_id = customer_id
             
+            # Отримуємо ціну в центах
+            price_in_cents = int(settings.subscription_price * 100)
+            
             # Створюємо Checkout Session
             session = stripe.checkout.Session.create(
                 customer=user.stripe_customer_id,
@@ -75,7 +78,7 @@ class StripeManager:
                             'name': 'Upgrade Studio - Місячна підписка',
                             'description': 'Доступ до тренувань та спільноти Upgrade Studio'
                         },
-                        'unit_amount': settings.subscription_price,
+                        'unit_amount': price_in_cents,
                         'recurring': {
                             'interval': 'month'
                         }
@@ -198,10 +201,10 @@ class StripeManager:
                     user.stripe_subscription_id = subscription_id
                     user.updated_at = datetime.utcnow()
                     
-                    # Створюємо запис про платіж
+                    # Створюємо запис про платіж (зберігаємо в центах)
                     payment = Payment(
                         user_id=user.id,
-                        amount=settings.subscription_price,
+                        amount=int(settings.subscription_price * 100),
                         currency=settings.subscription_currency,
                         status="succeeded",
                         stripe_subscription_id=subscription_id,

@@ -17,9 +17,30 @@ WEBHOOK_PORT = 8000
 WEBHOOK_HOST = "0.0.0.0"
 NGROK_API_URL = "http://localhost:4040/api/tunnels"
 
+def check_existing_ngrok():
+    """Перевірити чи вже запущено ngrok"""
+    try:
+        response = requests.get(NGROK_API_URL, timeout=5)
+        if response.status_code == 200:
+            tunnels = response.json()["tunnels"]
+            for tunnel in tunnels:
+                if tunnel["config"]["addr"] == f"localhost:{WEBHOOK_PORT}":
+                    public_url = tunnel["public_url"]
+                    if public_url.startswith("https://"):
+                        return public_url
+        return None
+    except:
+        return None
+
 def start_ngrok():
-    """Запустити ngrok для webhook сервера"""
-    print("🚀 Запуск ngrok...")
+    """Запустити ngrok для webhook сервера (якщо ще не запущено)"""
+    # Спочатку перевіряємо чи вже працює ngrok
+    existing_url = check_existing_ngrok()
+    if existing_url:
+        print(f"✅ ngrok вже запущено: {existing_url}")
+        return None, existing_url  # Не повертаємо процес, оскільки він вже працює
+    
+    print("🚀 Запуск нового ngrok...")
     
     # Перевіряємо чи налаштований auth token
     try:
@@ -166,10 +187,35 @@ def cleanup_processes(*processes):
             except subprocess.TimeoutExpired:
                 process.kill()
 
+def is_production_mode():
+    """Перевірити чи це продакшен режим"""
+    # Перевіряємо змінні оточення
+    env_mode = os.getenv('ENVIRONMENT', '').lower()
+    if env_mode in ['production', 'prod']:
+        return True
+    
+    # Перевіряємо чи налаштований реальний WEBHOOK_URL
+    try:
+        from config import settings
+        webhook_url = settings.webhook_url
+        if webhook_url and not 'ngrok' in webhook_url.lower() and webhook_url != 'https://yourdomain.com/webhook':
+            return True
+    except:
+        pass
+    
+    return False
+
 def main():
     """Головна функція"""
-    print("Upgrade Studio Bot - Webhook Server з ngrok")
-    print("=" * 50)
+    production_mode = is_production_mode()
+    
+    if production_mode:
+        print("Upgrade Studio Bot - Webhook Server (Production)")
+        print("=" * 50)
+        print("🏭 Режим продакшену - ngrok не використовується")
+    else:
+        print("Upgrade Studio Bot - Webhook Server з ngrok")
+        print("=" * 50)
     
     # Перевіряємо залежності
     if not check_dependencies():
@@ -188,38 +234,67 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
-        # Запускаємо ngrok
-        ngrok_process, public_url = start_ngrok()
-        if not ngrok_process or not public_url:
-            return 1
-        
-        # Показуємо інструкції для Stripe
-        update_stripe_webhook_endpoint(public_url)
-        
-        # Запускаємо webhook сервер
-        webhook_process = start_webhook_server()
-        
-        print("✅ Все готово!")
-        print(f"🌐 Webhook server: http://localhost:{WEBHOOK_PORT}")
-        print(f"🔗 Public URL: {public_url}")
-        print(f"📨 Webhook endpoint: {public_url}/webhook")
-        print(f"💡 Health check: {public_url}/health")
-        print()
-        print("Для зупинки натисніть Ctrl+C")
-        print()
-        
-        # Моніторимо процеси
-        while True:
-            time.sleep(1)
+        if production_mode:
+            # Продакшен режим - тільки webhook сервер
+            print("🌐 Запуск webhook сервера...")
+            webhook_process = start_webhook_server()
             
-            # Перевіряємо чи працюють процеси
-            if ngrok_process.poll() is not None:
-                print("❌ ngrok зупинився")
-                break
+            try:
+                from config import settings
+                webhook_url = settings.webhook_url
+                print("✅ Webhook сервер запущено!")
+                print(f"🌐 Local server: http://localhost:{WEBHOOK_PORT}")
+                print(f"📨 Configured webhook: {webhook_url}")
+                print(f"💡 Health check: http://localhost:{WEBHOOK_PORT}/health")
+                print()
+                print("Для зупинки натисніть Ctrl+C")
+            except Exception as e:
+                print(f"⚠️ Не вдалося отримати налаштування: {e}")
+            
+            # Моніторимо тільки webhook процес
+            while True:
+                time.sleep(1)
+                if webhook_process.poll() is not None:
+                    print("❌ Webhook сервер зупинився")
+                    break
+        else:
+            # Режим розробки з ngrok
+            ngrok_process, public_url = start_ngrok()
+            if not public_url:
+                print("❌ Не вдалося запустити ngrok")
+                return 1
+            
+            # Показуємо інструкції для Stripe тільки якщо це новий ngrok
+            if ngrok_process:  # Новий процес ngrok
+                update_stripe_webhook_endpoint(public_url)
+            else:  # Використовуємо існуючий ngrok
+                print(f"🔗 Використовуємо існуючий ngrok: {public_url}")
+                print(f"📨 Webhook endpoint: {public_url}/webhook")
+            
+            # Запускаємо webhook сервер
+            webhook_process = start_webhook_server()
+            
+            print("✅ Все готово!")
+            print(f"🌐 Webhook server: http://localhost:{WEBHOOK_PORT}")
+            print(f"🔗 Public URL: {public_url}")
+            print(f"📨 Webhook endpoint: {public_url}/webhook")
+            print(f"💡 Health check: {public_url}/health")
+            print()
+            print("Для зупинки натисніть Ctrl+C")
+            print()
+            
+            # Моніторимо процеси
+            while True:
+                time.sleep(1)
                 
-            if webhook_process.poll() is not None:
-                print("❌ Webhook сервер зупинився")
-                break
+                # Перевіряємо чи працюють процеси
+                if ngrok_process and ngrok_process.poll() is not None:
+                    print("❌ ngrok зупинився")
+                    break
+                    
+                if webhook_process.poll() is not None:
+                    print("❌ Webhook сервер зупинився")
+                    break
     
     except KeyboardInterrupt:
         print("\n👋 Зупинка за запитом користувача")
