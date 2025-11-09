@@ -8,13 +8,14 @@ stripe==7.6.0
 sqlalchemy==2.0.23
 alembic==1.12.1
 PyMySQL==1.1.0
+psycopg2-binary==2.9.9
 
 # Web server for webhooks and admin panel
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 jinja2==3.1.2
 python-multipart==0.0.20
-mysql-connector-python==9.4.0
+mysql-connector-python==9.0.0
 
 # Environment variables
 python-dotenv==1.0.0
@@ -32,6 +33,12 @@ loguru==0.7.2
 # Configuration management
 pydantic==2.5.0
 pydantic-settings==2.1.0
+
+# Security and authentication
+PyJWT==2.8.0
+bcrypt==4.1.2
+passlib[bcrypt]==1.7.4
+cryptography==41.0.7
 
 # Task scheduling
 apscheduler==3.10.4
