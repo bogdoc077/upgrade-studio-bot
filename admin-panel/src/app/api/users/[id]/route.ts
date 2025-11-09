@@ -3,10 +3,11 @@ import { apiClient } from '@/utils/api-client';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const userId = parseInt(params.id);
+    const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+    const userId = parseInt(resolvedParams.id);
     
     if (isNaN(userId)) {
       return NextResponse.json({
@@ -41,10 +42,11 @@ export async function DELETE(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const userId = parseInt(params.id);
+    const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+    const userId = parseInt(resolvedParams.id);
     const body = await request.json();
     
     if (isNaN(userId)) {

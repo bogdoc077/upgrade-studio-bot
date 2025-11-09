@@ -65,10 +65,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const adminId = parseInt(params.id);
+    const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+    const adminId = parseInt(resolvedParams.id);
     const authHeader = request.headers.get('authorization');
     const cookieToken = request.cookies.get('auth_token')?.value;
     const token = authHeader?.replace('Bearer ', '') || cookieToken || '';
