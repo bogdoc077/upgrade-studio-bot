@@ -2,7 +2,7 @@
 Моделі бази даних для бота
 """
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
@@ -382,7 +382,7 @@ class DatabaseManager:
             return reminder
     
     @staticmethod
-    def get_pending_reminders() -> list[Reminder]:
+    def get_pending_reminders() -> List[Reminder]:
         """Отримати нагадування для надсилання"""
         with DatabaseManager() as db:
             now = datetime.utcnow()
@@ -449,7 +449,7 @@ class DatabaseManager:
                 return new_link
     
     @staticmethod
-    def get_active_invite_links() -> list[InviteLink]:
+    def get_active_invite_links() -> List[InviteLink]:
         """Отримати всі активні посилання"""
         with DatabaseManager() as db:
             links = db.query(InviteLink).filter(InviteLink.is_active == True).all()
