@@ -3,11 +3,14 @@
 """
 import os
 import base64
+import logging
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing import Union, Any
 import json
+
+logger = logging.getLogger(__name__)
 
 
 class SettingsEncryption:
@@ -114,24 +117,29 @@ class SettingsManager:
         self._cache_loaded = False
     
     def _load_cache(self):
-        """Завантажити всі налаштування в кеш"""
+        """Завантажити кеш з бази даних"""
         if self._cache_loaded:
             return
             
-        from database.models import DatabaseManager, SystemSettings
-        
-        with DatabaseManager() as db:
-            settings = db.query(SystemSettings).all()
+        try:
+            from database.models import DatabaseManager, SystemSettings
             
-            for setting in settings:
-                decrypted_value = decrypt_setting(setting.encrypted_value, setting.value_type)
-                self._cache[setting.key] = {
-                    'value': decrypted_value,
-                    'type': setting.value_type,
-                    'category': setting.category,
-                    'is_sensitive': setting.is_sensitive,
-                    'description': setting.description
-                }
+            with DatabaseManager() as db:
+                settings = db.query(SystemSettings).all()
+                
+                for setting in settings:
+                    decrypted_value = decrypt_setting(setting.encrypted_value, setting.value_type)
+                    self._cache[setting.key] = {
+                        'value': decrypted_value,
+                        'type': setting.value_type,
+                        'category': setting.category,
+                        'is_sensitive': setting.is_sensitive,
+                        'description': setting.description
+                    }
+        except Exception as e:
+            logger.warning(f"Cannot load settings from database: {e}. Using fallback values.")
+            # Якщо не можемо завантажити з БД, просто працюємо з .env
+            pass
         
         self._cache_loaded = True
     
