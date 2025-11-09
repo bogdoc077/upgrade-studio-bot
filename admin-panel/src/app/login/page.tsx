@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ShieldCheckIcon,
@@ -9,7 +9,7 @@ import {
   ExclamationCircleIcon,
 } from '@heroicons/react/24/outline'
 
-export default function Login() {
+function LoginForm() {
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -171,5 +171,13 @@ export default function Login() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }
