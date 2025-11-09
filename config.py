@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
+    model_config = {"extra": "allow"}
+    
     # Telegram Bot - береться з БД якщо доступний, інакше з .env
     telegram_bot_token: Optional[str] = Field(default=None, env="TELEGRAM_BOT_TOKEN")
     
@@ -42,6 +44,16 @@ class Settings(BaseSettings):
     admin_password: str = Field(..., env="ADMIN_PASSWORD")
     admin_host: str = Field(default="0.0.0.0", env="ADMIN_HOST")
     admin_port: int = Field(default=8001, env="ADMIN_PORT")
+    
+    # Додаткові поля для production
+    api_host: str = Field(default="0.0.0.0", env="API_HOST")
+    api_port: int = Field(default=8000, env="API_PORT")
+    admin_panel_port: int = Field(default=3000, env="ADMIN_PANEL_PORT")
+    redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
+    environment: str = Field(default="development", env="ENVIRONMENT")
+    db_encryption_key: Optional[str] = Field(default=None, env="DB_ENCRYPTION_KEY")
+    jwt_secret: Optional[str] = Field(default=None, env="JWT_SECRET")
+    admin_default_password: str = Field(default="admin123", env="ADMIN_DEFAULT_PASSWORD")
     
     class Config:
         env_file = ".env"
