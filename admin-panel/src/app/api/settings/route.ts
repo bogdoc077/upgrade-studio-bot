@@ -4,18 +4,30 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export async function GET(request: NextRequest) {
   try {
-    // Використовуємо Basic Auth з даними з .env
-    const username = process.env.ADMIN_USERNAME || 'admin';
-    const password = process.env.ADMIN_PASSWORD || 'Qwerty21';
-    const basicAuth = Buffer.from(`${username}:${password}`).toString('base64');
+    // Отримання токена з cookies або заголовків
+    const authHeader = request.headers.get('authorization');
+    const cookieToken = request.cookies.get('auth_token')?.value;
+    const token = authHeader?.replace('Bearer ', '') || cookieToken;
+
+    let headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Спочатку спробуємо JWT токен, якщо є
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      // Fallback на Basic Auth
+      const username = process.env.ADMIN_USERNAME || 'admin';
+      const password = process.env.ADMIN_PASSWORD || 'Qwerty21';
+      const basicAuth = Buffer.from(`${username}:${password}`).toString('base64');
+      headers['Authorization'] = `Basic ${basicAuth}`;
+    }
     
     // Прямий запит до FastAPI з аутентифікацією
     const apiResponse = await fetch(`${API_BASE_URL}/api/settings`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${basicAuth}`,
-      },
+      headers,
     });
 
     if (!apiResponse.ok) {
@@ -76,4 +88,5 @@ export async function GET(request: NextRequest) {
     });
   }
 }
+
 
