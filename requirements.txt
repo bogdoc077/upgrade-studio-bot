@@ -49,6 +49,9 @@ httpx==0.25.2
 # JSON handling
 orjson==3.9.10
 
+# Excel export
+openpyxl==3.1.5
+
 # Image processing
 Pillow==11.3.0
 
