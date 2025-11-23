@@ -102,7 +102,7 @@ if [ -d "${SCRIPT_DIR}/admin-panel" ]; then
   # Запуск Next.js
   echo "→ Запуск Admin Panel..."
   nohup npm run dev >"${SCRIPT_DIR}/logs/admin_panel.log" 2>&1 &
-  local pid=$!
+  pid=$!
   echo $pid >"${SCRIPT_DIR}/.pids_admin_panel"
   
   # Очікування запуску (Next.js довше стартує)
