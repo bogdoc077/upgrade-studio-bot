@@ -13,7 +13,7 @@ export async function GET() {
       }, { status: 401 });
     }
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const API_URL = process.env.API_INTERNAL_URL || 'http://localhost:8001';
     
     // Get dashboard stats from FastAPI
     const dashboardResponse = await fetch(`${API_URL}/api/dashboard`, {
