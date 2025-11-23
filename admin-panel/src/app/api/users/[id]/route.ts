@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { apiClient } from '@/utils/api-client';
+
+const API_BASE_URL = process.env.API_INTERNAL_URL || 'http://localhost:8001';
 
 export async function DELETE(
   request: NextRequest,
@@ -16,14 +17,36 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    const response = await apiClient.deleteUser(userId);
-    
-    if (!response.success) {
+    // Get token from cookies
+    const authHeader = request.headers.get('authorization');
+    const cookieToken = request.cookies.get('auth_token')?.value;
+    const token = authHeader?.replace('Bearer ', '') || cookieToken;
+
+    if (!token) {
       return NextResponse.json({
         success: false,
-        error: response.error || 'Failed to delete user'
-      }, { status: 500 });
+        error: 'Authorization required'
+      }, { status: 401 });
     }
+
+    // Direct call to FastAPI
+    const apiResponse = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!apiResponse.ok) {
+      const errorData = await apiResponse.json().catch(() => ({}));
+      return NextResponse.json({
+        success: false,
+        error: errorData.detail || 'Failed to delete user'
+      }, { status: apiResponse.status });
+    }
+
+    const data = await apiResponse.json();
 
     return NextResponse.json({
       success: true,
@@ -56,16 +79,37 @@ export async function PUT(
       }, { status: 400 });
     }
 
+    // Get token from cookies
+    const authHeader = request.headers.get('authorization');
+    const cookieToken = request.cookies.get('auth_token')?.value;
+    const token = authHeader?.replace('Bearer ', '') || cookieToken;
+
+    if (!token) {
+      return NextResponse.json({
+        success: false,
+        error: 'Authorization required'
+      }, { status: 401 });
+    }
+
     // Оновлення підписки
     if (body.action && ['activate', 'deactivate', 'extend'].includes(body.action)) {
-      const response = await apiClient.updateUserSubscription(userId, body.action);
-      
-      if (!response.success) {
+      const apiResponse = await fetch(`${API_BASE_URL}/api/users/${userId}/subscription/${body.action}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json().catch(() => ({}));
         return NextResponse.json({
           success: false,
-          error: response.error || 'Failed to update subscription'
-        }, { status: 500 });
+          error: errorData.detail || 'Failed to update subscription'
+        }, { status: apiResponse.status });
       }
+
+      const data = await apiResponse.json();
 
       return NextResponse.json({
         success: true,
