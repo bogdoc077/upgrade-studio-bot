@@ -43,8 +43,10 @@ ps aux | grep "webhook_server.py" | grep -v grep | awk '{print $2}' | xargs kill
 ps aux | grep "main.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null && echo "✓ Зупинено Telegram Bot" || true
 
 # Next.js Admin Panel
-pkill -f "next dev" 2>/dev/null && echo "✓ Зупинено Admin Panel" || true
+pkill -f "next dev" 2>/dev/null && echo "✓ Зупинено Admin Panel (dev)" || true
+pkill -f "next start" 2>/dev/null && echo "✓ Зупинено Admin Panel (production)" || true
 pkill -f "npm run dev" 2>/dev/null && echo "✓ Зупинено npm dev" || true
+pkill -f "npm start" 2>/dev/null && echo "✓ Зупинено npm start" || true
 
 # Звільнення портів (додаткова перевірка)
 echo "Звільнення портів..."
