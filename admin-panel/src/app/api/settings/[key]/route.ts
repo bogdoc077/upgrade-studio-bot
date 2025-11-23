@@ -31,7 +31,7 @@ export async function PUT(
     if (!token) {
       console.log('Немає JWT токена, використовую Basic Auth fallback');
       const username = process.env.ADMIN_USERNAME || 'admin';
-      const password = process.env.ADMIN_PASSWORD || 'Qwerty21';
+      const password = process.env.ADMIN_PASSWORD || 'admin123';
       const basicAuth = Buffer.from(`${username}:${password}`).toString('base64');
       token = `Basic_${basicAuth}`; // Маркер для Basic Auth
     } else {

@@ -21,7 +21,7 @@ api.interceptors.request.use((config) => {
   // Fallback до Basic Auth якщо немає токена
   if (!config.headers.Authorization) {
     const username = process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'admin'
-    const password = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'Qwerty21'
+    const password = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123'
     const credentials = btoa(`${username}:${password}`)
     config.headers.Authorization = `Basic ${credentials}`
   }

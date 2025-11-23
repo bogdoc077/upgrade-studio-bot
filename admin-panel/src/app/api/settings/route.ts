@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Fallback на Basic Auth
       const username = process.env.ADMIN_USERNAME || 'admin';
-      const password = process.env.ADMIN_PASSWORD || 'Qwerty21';
+      const password = process.env.ADMIN_PASSWORD || 'admin123';
       const basicAuth = Buffer.from(`${username}:${password}`).toString('base64');
       headers['Authorization'] = `Basic ${basicAuth}`;
     }
