@@ -102,20 +102,29 @@ export default function UsersPage() {
 
   const handleDeleteUser = async (userId: number) => {
     try {
+      console.log('[Client] Deleting user:', userId);
       setIsDeleting(true);
       const response = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
       
+      console.log('[Client] Delete response status:', response.status);
+      
       if (response.ok) {
+        console.log('[Client] Delete successful');
         setShowDeleteModal(false);
         setSelectedUser(null);
         await fetchUsers(); // Refresh the list
       } else {
-        throw new Error('Помилка видалення користувача');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[Client] Delete failed:', errorData);
+        throw new Error(errorData.error || 'Помилка видалення користувача');
       }
     } catch (err) {
-      console.error('Error deleting user:', err);
+      console.error('[Client] Error deleting user:', err);
       alert('Помилка видалення користувача');
     } finally {
       setIsDeleting(false);
