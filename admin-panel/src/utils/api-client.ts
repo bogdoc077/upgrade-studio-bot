@@ -1,5 +1,5 @@
 // API client для з'єднання з FastAPI сервером
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
 export interface ApiResponse<T = any> {
   success?: boolean;
@@ -196,3 +196,46 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+/**
+ * Wrapper функція для прямих API викликів
+ * Використовує той самий механізм авторизації що і ApiClient
+ */
+export async function makeApiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+  
+  const getAuthHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {};
+    
+    if (typeof localStorage !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        return headers;
+      }
+    }
+    
+    const basicAuth = btoa('admin:admin123');
+    headers['Authorization'] = `Basic ${basicAuth}`;
+    
+    return headers;
+  };
+  
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+      ...options.headers,
+    },
+    ...options,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}

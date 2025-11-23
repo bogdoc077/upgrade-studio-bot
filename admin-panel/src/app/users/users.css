@@ -1,0 +1,571 @@
+/* ============================================
+   Users Page - Minimalist Styles
+   ============================================ */
+
+.users-page {
+  min-height: 100vh;
+  background: #fafafa;
+  padding: 2rem;
+}
+
+.users-page__header {
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.users-page__header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.users-page__icon-wrapper {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: #3b82f6;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.users-page__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: white;
+}
+
+.users-page__title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.users-page__add-button {
+  padding: 0.625rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.users-page__add-button:hover {
+  background: #2563eb;
+}
+
+/* ============================================
+   Loading State
+   ============================================ */
+
+.users-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  gap: 1rem;
+}
+
+.users-loading__spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.users-loading__text {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* ============================================
+   Users Table
+   ============================================ */
+
+.users-table-container {
+  background: white;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table__head {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.users-table__header-cell {
+  padding: 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.users-table__body {
+  background: white;
+}
+
+.users-table__row {
+  border-bottom: 1px solid #e5e7eb;
+  transition: background 0.15s ease;
+}
+
+.users-table__row:last-child {
+  border-bottom: none;
+}
+
+.users-table__row:hover {
+  background: #f9fafb;
+}
+
+.users-table__cell {
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.users-table__cell--bold {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.users-table__cell--muted {
+  color: #9ca3af;
+  font-size: 0.8125rem;
+}
+
+/* ============================================
+   Status Badge
+   ============================================ */
+
+.users-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.users-badge--active {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.users-badge--inactive {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.users-badge__dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+}
+
+.users-badge--active .users-badge__dot {
+  background: #10b981;
+}
+
+.users-badge--inactive .users-badge__dot {
+  background: #dc2626;
+}
+
+/* ============================================
+   Action Buttons
+   ============================================ */
+
+.users-actions {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.users-action-button {
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.users-action-button:hover {
+  background: #f9fafb;
+  border-color: #3b82f6;
+}
+
+.users-action-button--edit:hover {
+  border-color: #3b82f6;
+}
+
+.users-action-button--delete:hover {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.users-action-button__icon {
+  width: 1rem;
+  height: 1rem;
+  color: #6b7280;
+}
+
+.users-action-button--edit:hover .users-action-button__icon {
+  color: #3b82f6;
+}
+
+.users-action-button--delete:hover .users-action-button__icon {
+  color: #dc2626;
+}
+
+/* ============================================
+   Modal Window
+   ============================================ */
+
+.users-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 1rem;
+  animation: fadeIn 0.15s ease;
+}
+
+.users-modal__content {
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  max-width: 32rem;
+  width: 100%;
+  animation: scaleIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.users-modal__header {
+  background: #3b82f6;
+  color: white;
+  padding: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.users-modal__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.users-modal__close {
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: white;
+}
+
+.users-modal__close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.users-modal__close-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.users-modal__body {
+  padding: 1.5rem;
+}
+
+.users-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.users-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.users-modal__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.users-modal__input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+
+.users-modal__input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.users-modal__select {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+  background: white;
+}
+
+.users-modal__select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.users-modal__actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 0.5rem;
+}
+
+.users-modal__button {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.users-modal__button--primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.users-modal__button--primary:hover {
+  background: #2563eb;
+}
+
+.users-modal__button--secondary {
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+}
+
+.users-modal__button--secondary:hover {
+  background: #e5e7eb;
+}
+
+/* ============================================
+   Empty State
+   ============================================ */
+
+.users-empty {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: white;
+  border-radius: 0.5rem;
+  border: 1px dashed #d1d5db;
+}
+
+.users-empty__icon-wrapper {
+  width: 4rem;
+  height: 4rem;
+  background: #f3f4f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.users-empty__icon {
+  width: 2rem;
+  height: 2rem;
+  color: #9ca3af;
+}
+
+.users-empty__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 0.25rem;
+}
+
+.users-empty__text {
+  font-size: 0.875rem;
+  color: #9ca3af;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .users-page {
+    padding: 1.5rem;
+  }
+  
+  .users-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .users-table {
+    min-width: 700px;
+  }
+}
+
+@media (max-width: 768px) {
+  .users-page {
+    padding: 1rem 0.75rem;
+    padding-top: 4rem;
+  }
+
+  .users-page__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .users-page__title {
+    font-size: 1.5rem;
+  }
+  
+  .users-page__add-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .users-table-container {
+    overflow-x: auto;
+    border-radius: 0.375rem;
+  }
+
+  .users-table {
+    min-width: 600px;
+    font-size: 0.8125rem;
+  }
+  
+  .users-table th,
+  .users-table td {
+    padding: 0.625rem 0.5rem;
+  }
+  
+  .users-stats {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .users-stats__card {
+    padding: 1rem;
+  }
+  
+  .users-filter {
+    padding: 1rem;
+  }
+  
+  .users-filter__search {
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+}
+
+@media (max-width: 480px) {
+  .users-page {
+    padding: 0.75rem 0.5rem;
+    padding-top: 3.75rem;
+  }
+  
+  .users-page__header-content {
+    gap: 0.5rem;
+  }
+  
+  .users-page__icon-wrapper {
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  .users-page__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  
+  .users-page__title {
+    font-size: 1.25rem;
+  }
+  
+  .users-page__add-button {
+    padding: 0.6875rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+  
+  .users-table {
+    min-width: 550px;
+    font-size: 0.75rem;
+  }
+  
+  .users-stats__card {
+    padding: 0.875rem;
+  }
+  
+  .users-filter {
+    padding: 0.875rem;
+  }
+}

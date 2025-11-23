@@ -117,11 +117,9 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-page__loading">
-          <div className="admin-page__loading-content">
-            <div className="admin-page__loading-spinner"></div>
-            <p className="admin-page__loading-text">Завантаження...</p>
-          </div>
+        <div className="admin-loading">
+          <div className="admin-loading__spinner"></div>
+          <p className="admin-loading__text">Завантаження...</p>
         </div>
       </div>
     );
@@ -130,17 +128,15 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="admin-page">
-        <div className="admin-page__error">
-          <div className="admin-page__error-content">
-            <p className="admin-page__error-message">{error}</p>
-            <button 
-              onClick={fetchDashboardData}
-              className="admin-btn admin-btn--primary"
-            >
-              Спробувати знову
-            </button>
-          </div>
+        <div className="admin-alert admin-alert--danger" style={{marginBottom: 'var(--spacing-base)'}}>
+          {error}
         </div>
+        <button 
+          onClick={fetchDashboardData}
+          className="admin-btn admin-btn--primary"
+        >
+          Спробувати знову
+        </button>
       </div>
     );
   }

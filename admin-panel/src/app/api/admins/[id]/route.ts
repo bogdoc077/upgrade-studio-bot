@@ -1,6 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { apiClient } from '@/utils/api-client';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> | { id: string } }
@@ -28,7 +30,7 @@ export async function PUT(
     }
 
     // Прямий запит до FastAPI з токеном
-    const apiResponse = await fetch(`http://localhost:8000/api/admins/${adminId}`, {
+    const apiResponse = await fetch(`${API_BASE_URL}/api/admins/${adminId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -89,7 +91,7 @@ export async function DELETE(
     }
 
     // Прямий запит до FastAPI з токеном
-    const apiResponse = await fetch(`http://localhost:8000/api/admins/${adminId}`, {
+    const apiResponse = await fetch(`${API_BASE_URL}/api/admins/${adminId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,

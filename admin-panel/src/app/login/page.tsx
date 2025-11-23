@@ -2,8 +2,8 @@
 
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 import {
-  ShieldCheckIcon,
   EyeIcon,
   EyeSlashIcon,
   ExclamationCircleIcon,
@@ -74,10 +74,14 @@ function LoginForm() {
           {/* Header */}
           <div className="login__header">
             <div className="login__logo">
-              <ShieldCheckIcon className="login__logo-icon" />
-              <h1 className="login__title">Upgrade Studio</h1>
+              <Image 
+                src="/logo.svg" 
+                alt="Upgrade Studio Logo" 
+                width={80} 
+                height={80}
+                priority
+              />
             </div>
-            <p className="login__subtitle">Адміністративна панель</p>
           </div>
 
           {/* Form */}
@@ -154,20 +158,6 @@ function LoginForm() {
               )}
             </button>
           </form>
-
-          {/* Default credentials info */}
-          <div className="login__info">
-            <p className="login__info-text">
-              Дефолтні дані для входу:
-            </p>
-            <p className="login__credentials">
-              <strong>Користувач:</strong> admin<br />
-              <strong>Пароль:</strong> admin123
-            </p>
-            <p className="login__warning">
-              ⚠️ Змініть пароль після першого входу!
-            </p>
-          </div>
         </div>
       </div>
     </div>

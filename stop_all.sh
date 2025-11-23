@@ -2,40 +2,56 @@
 set -euo pipefail
 
 # stop_all.sh
-# Stops processes started by start_all.sh by reading pid files (.pids_*)
+# Stops all project services: API, Webhook, Bot, Admin Panel
 
 SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-pids=(.pids_api .pids_webhook .pids_bot .pids_admin_panel)
+echo "=== Зупинка всіх сервісів ==="
 
-for pf in "${pids[@]}"; do
-  if [ -f "$pf" ]; then
-    pid=$(cat "$pf")
+# Функція для зупинки процесів за PID файлом
+stop_by_pidfile() {
+  local pidfile=$1
+  local name=$2
+  
+  if [ -f "$pidfile" ]; then
+    pid=$(cat "$pidfile")
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      echo "Stopping $pid (from $pf)"
-      kill "$pid" || echo "Could not kill $pid"
-    else
-      echo "No running pid found in $pf"
+      echo "Зупинка $name (PID: $pid)"
+      kill -9 "$pid" 2>/dev/null || echo "Не вдалося зупинити $pid"
     fi
-    rm -f "$pf"
+    rm -f "$pidfile"
   fi
-done
+}
 
-# Зупиняємо залишені процеси за назвами (fallback)
-echo "Checking for remaining processes..."
+# Зупинка за PID файлами
+stop_by_pidfile ".pids_api" "API Server"
+stop_by_pidfile ".pids_webhook" "Webhook Server"
+stop_by_pidfile ".pids_bot" "Telegram Bot"
+stop_by_pidfile ".pids_admin_panel" "Admin Panel"
 
-# Зупиняємо FastAPI процеси
-pkill -f "start_api.py" 2>/dev/null && echo "Stopped remaining API processes" || true
+# Зупинка процесів за назвами (fallback)
+echo "Перевірка залишкових процесів..."
 
-# Зупиняємо webhook процеси
-pkill -f "start_webhook.py" 2>/dev/null && echo "Stopped remaining webhook processes" || true
+# API Server
+ps aux | grep "start_api.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null && echo "✓ Зупинено API Server" || true
 
-# Зупиняємо bot процеси
-pkill -f "main.py.*telegram" 2>/dev/null && echo "Stopped remaining bot processes" || true
+# Webhook Server
+ps aux | grep "webhook_server.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null && echo "✓ Зупинено Webhook Server" || true
 
-# Зупиняємо Next.js процеси
-pkill -f "npm run dev" 2>/dev/null && echo "Stopped remaining npm dev processes" || true
-pkill -f "next dev" 2>/dev/null && echo "Stopped remaining next dev processes" || true
+# Bot
+ps aux | grep "main.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null && echo "✓ Зупинено Telegram Bot" || true
 
-echo "Finished stopping known services. Check ./logs for output or manually inspect running processes if something remains."
+# Next.js Admin Panel
+pkill -f "next dev" 2>/dev/null && echo "✓ Зупинено Admin Panel" || true
+pkill -f "npm run dev" 2>/dev/null && echo "✓ Зупинено npm dev" || true
+
+# Звільнення портів (додаткова перевірка)
+echo "Звільнення портів..."
+lsof -ti:8001 | xargs kill -9 2>/dev/null && echo "✓ Порт 8001 звільнено" || true
+lsof -ti:8000 | xargs kill -9 2>/dev/null && echo "✓ Порт 8000 звільнено" || true
+lsof -ti:3000 | xargs kill -9 2>/dev/null && echo "✓ Порт 3000 звільнено" || true
+
+echo ""
+echo "=== Всі сервіси зупинено ==="
+echo "Перевірте логи в ./logs/ якщо потрібно"

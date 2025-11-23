@@ -110,8 +110,8 @@ class StripeManager:
             return {
                 'id': subscription.id,
                 'status': subscription.status,
-                'current_period_start': datetime.fromtimestamp(subscription.current_period_start),
-                'current_period_end': datetime.fromtimestamp(subscription.current_period_end),
+                'current_period_start': subscription.current_period_start,  # Повертаємо timestamp
+                'current_period_end': subscription.current_period_end,      # Повертаємо timestamp
                 'customer_id': subscription.customer
             }
         except Exception as e:

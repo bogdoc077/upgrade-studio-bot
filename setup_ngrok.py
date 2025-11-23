@@ -7,7 +7,7 @@ import sys
 
 def setup_ngrok_auth():
     """Налаштувати ngrok auth token"""
-    print("🔧 Налаштування ngrok auth token")
+    print(" Налаштування ngrok auth token")
     print("=" * 40)
     print()
     print("1. Відкрийте https://dashboard.ngrok.com/get-started/your-authtoken")
@@ -20,11 +20,11 @@ def setup_ngrok_auth():
         token = input("Вставте ваш ngrok auth token: ").strip()
         
         if not token:
-            print("❌ Токен не може бути пустим")
+            print(" Токен не може бути пустим")
             continue
             
         if len(token) < 20:
-            print("❌ Токен занадто короткий")
+            print(" Токен занадто короткий")
             continue
             
         break
@@ -36,17 +36,17 @@ def setup_ngrok_auth():
         ], capture_output=True, text=True)
         
         if result.returncode == 0:
-            print("✅ Auth token налаштовано успішно!")
+            print(" Auth token налаштовано успішно!")
             print()
             print("Тепер можете запустити:")
             print("python start_webhook.py")
             return True
         else:
-            print(f"❌ Помилка налаштування токену: {result.stderr}")
+            print(f" Помилка налаштування токену: {result.stderr}")
             return False
             
     except Exception as e:
-        print(f"❌ Помилка: {e}")
+        print(f" Помилка: {e}")
         return False
 
 if __name__ == "__main__":
@@ -57,11 +57,11 @@ if __name__ == "__main__":
     try:
         result = subprocess.run(["ngrok", "version"], capture_output=True)
         if result.returncode != 0:
-            print("❌ ngrok не встановлений")
+            print(" ngrok не встановлений")
             print("Встановіть: brew install ngrok/ngrok/ngrok")
             sys.exit(1)
     except FileNotFoundError:
-        print("❌ ngrok не знайдено")
+        print(" ngrok не знайдено")
         print("Встановіть: brew install ngrok/ngrok/ngrok") 
         sys.exit(1)
     

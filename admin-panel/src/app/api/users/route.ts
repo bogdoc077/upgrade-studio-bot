@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { apiClient } from '@/utils/api-client';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,16 +9,49 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const search = searchParams.get('search') || '';
 
-    const response = await apiClient.getUsers({ page, limit, search });
+    // Отримуємо токен авторизації з заголовків
+    const authHeader = request.headers.get('authorization');
     
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to fetch users');
+    if (!authHeader) {
+      return NextResponse.json(
+        { success: false, error: 'Authorization required' },
+        { status: 401 }
+      );
     }
+
+    // Робимо прямий запит до FastAPI з токеном
+    const queryParams = new URLSearchParams();
+    if (page) queryParams.append('page', page.toString());
+    if (limit) queryParams.append('limit', limit.toString());
+    if (search) queryParams.append('search', search);
+    
+    const query = queryParams.toString();
+    const url = `${API_BASE_URL}/api/users${query ? `?${query}` : ''}`;
+    
+    console.log('Making request to FastAPI:', url);
+    
+    const apiResponse = await fetch(url, {
+      headers: {
+        'Authorization': authHeader,
+      },
+    });
+
+    console.log('FastAPI response status:', apiResponse.status);
+
+    if (!apiResponse.ok) {
+      const errorData = await apiResponse.json().catch(() => ({}));
+      console.log('FastAPI error:', errorData);
+      throw new Error(errorData.detail || `HTTP ${apiResponse.status}`);
+    }
+
+    const response = await apiResponse.json();
+    console.log('FastAPI response data:', response);
 
     return NextResponse.json({
       success: true,
-      data: response.data.users || [],
-      pagination: response.data.pagination || {}
+      data: response.data || [],
+      total: response.total || 0,
+      pagination: response.pagination || {}
     });
 
   } catch (error) {
@@ -25,7 +59,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: false,
-      error: 'Failed to fetch users',
+      error: error instanceof Error ? error.message : 'Failed to fetch users',
       data: [],
       pagination: {
         current_page: 1,

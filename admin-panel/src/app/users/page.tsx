@@ -3,22 +3,42 @@
 import { useState, useEffect } from 'react';
 import { 
   UsersIcon,
-  PlusIcon,
   MagnifyingGlassIcon,
   EyeIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  XCircleIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
+import ViewModal from '@/components/ViewModal';
+import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import UserEditModal from '@/components/UserEditModal';
+import Pagination from '@/components/Pagination';
 
 interface User {
   id: number;
-  telegram_id: string;
+  telegram_id: number;
   username?: string;
   first_name?: string;
   last_name?: string;
-  is_premium: boolean;
-  subscription_end?: string;
+  state: string;
+  goals?: string;
+  injuries?: string;
+  subscription_active: number;
+  subscription_paused: number;
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  joined_channel: number;
+  joined_chat: number;
+  workouts_completed: number;
+  member_since: string;
   created_at: string;
+  updated_at: string;
+  role: string;
+  subscription_cancelled: number;
+  subscription_end_date?: string;
+  next_billing_date?: string;
+  subscription_status: string;
 }
 
 export default function UsersPage() {
@@ -26,42 +46,70 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Modal states
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/users');
+      // Отримуємо токен з localStorage або cookie
+      const token = localStorage.getItem('auth_token');
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`/api/users?page=${currentPage}&limit=${itemsPerPage}`, {
+        headers,
+      });
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Users data:', data); // Для діагностики
         setUsers(data.data || []);
+        setTotalItems(data.total || 0);
       } else {
-        throw new Error('Помилка завантаження користувачів');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Помилка завантаження користувачів');
       }
     } catch (err) {
       console.error('Error fetching users:', err);
-      setError('Помилка завантаження користувачів');
+      setError(err instanceof Error ? err.message : 'Помилка завантаження користувачів');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteUser = async (userId: number) => {
-    if (!confirm('Ви впевнені, що хочете видалити цього користувача?')) {
-      return;
-    }
-
     try {
+      setIsDeleting(true);
       const response = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
       });
       
       if (response.ok) {
+        setShowDeleteModal(false);
+        setSelectedUser(null);
         await fetchUsers(); // Refresh the list
       } else {
         throw new Error('Помилка видалення користувача');
@@ -69,28 +117,90 @@ export default function UsersPage() {
     } catch (err) {
       console.error('Error deleting user:', err);
       alert('Помилка видалення користувача');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.telegram_id.includes(searchTerm)
-  );
+  const handleViewUser = (user: User) => {
+    setSelectedUser(user);
+    setShowViewModal(true);
+  };
 
-  const totalUsers = users.length;
-  const premiumUsers = users.filter(u => u.is_premium).length;
-  const freeUsers = totalUsers - premiumUsers;
+  const handleDeleteClick = (user: User) => {
+    setSelectedUser(user);
+    setShowDeleteModal(true);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setShowEditModal(true);
+  };
+
+  const handleSaveUser = async (userId: number, data: Partial<User>) => {
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        await fetchUsers(); // Refresh the list
+      } else {
+        throw new Error('Помилка оновлення користувача');
+      }
+    } catch (err) {
+      console.error('Error updating user:', err);
+      alert('Помилка оновлення користувача');
+      throw err;
+    }
+  };
+
+  const exportToExcel = async () => {
+    try {
+      const response = await fetch('/api/users/export', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `users_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        throw new Error('Помилка експорту');
+      }
+    } catch (err) {
+      console.error('Error exporting users:', err);
+      alert('Помилка експорту користувачів');
+    }
+  };
+
+  // Фільтрація тепер на сервері через search параметр, тому просто показуємо users
+  const filteredUsers = users;
+
+  // Статистика з totalItems (загальна кількість з сервера)
+  const totalUsers = totalItems;
+  const premiumUsers = users.filter(u => u.subscription_active === 1).length;
+  const freeUsers = users.filter(u => u.subscription_active === 0).length;
 
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Завантаження користувачів...</p>
-          </div>
+        <div className="admin-loading">
+          <div className="admin-loading__spinner"></div>
+          <p className="admin-loading__text">Завантаження користувачів...</p>
         </div>
       </div>
     );
@@ -99,16 +209,8 @@ export default function UsersPage() {
   if (error) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button 
-              onClick={fetchUsers}
-              className="admin-btn admin-btn--primary"
-            >
-              Спробувати знову
-            </button>
-          </div>
+        <div className="admin-alert admin-alert--danger">
+          {error}
         </div>
       </div>
     );
@@ -117,78 +219,65 @@ export default function UsersPage() {
   return (
     <div className="admin-page">
       {/* Header */}
-      <div className="admin-page__header">
-        <h1 className="admin-page__title">Користувачі</h1>
-        <p className="admin-page__subtitle">
-          Управління користувачами бота та їх підписками
-        </p>
-        <div className="admin-page__actions">
-          <div className="admin-form__group" style={{ marginBottom: 0, minWidth: '200px' }}>
-            <input
-              type="text"
-              placeholder="Пошук користувачів..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="admin-form__input"
-            />
-          </div>
-          <button className="admin-btn admin-btn--primary admin-gap--sm">
-            <PlusIcon className="w-4 h-4" />
-            Додати користувача
-          </button>
+      <div className="admin-page__header admin-page__header--with-actions">
+        <div className="admin-page__title-section">
+          <h1 className="admin-page__title">Користувачі</h1>
+          <p className="admin-page__subtitle">Управління користувачами системи</p>
         </div>
+        <button
+          onClick={exportToExcel}
+          className="admin-btn admin-btn--secondary"
+        >
+          <ArrowDownTrayIcon className="w-5 h-5" />
+          Експорт в Excel
+        </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{totalUsers.toLocaleString()}</div>
-                <div className="text-sm text-gray-500">Всього користувачів</div>
-              </div>
-              <UsersIcon className="w-8 h-8 text-blue-500" />
-            </div>
+      <div className="admin-stats">
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Всього користувачів</span>
+            <UsersIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{totalUsers.toLocaleString()}</div>
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{premiumUsers.toLocaleString()}</div>
-                <div className="text-sm text-gray-500">Преміум користувачі</div>
-              </div>
-              <UsersIcon className="w-8 h-8 text-green-500" />
-            </div>
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Преміум користувачі</span>
+            <UsersIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{premiumUsers.toLocaleString()}</div>
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{freeUsers.toLocaleString()}</div>
-                <div className="text-sm text-gray-500">Безкоштовні</div>
-              </div>
-              <UsersIcon className="w-8 h-8 text-gray-500" />
-            </div>
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Безкоштовні</span>
+            <UsersIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{freeUsers.toLocaleString()}</div>
           </div>
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="admin-card">
+      <div className="admin-table-container">
         <div className="admin-card__header">
           <h3 className="admin-card__title">Список користувачів</h3>
           <p className="admin-card__subtitle">
-            Знайдено: {filteredUsers.length} з {totalUsers} користувачів
+            Показано {filteredUsers.length} з {totalUsers} користувачів
           </p>
         </div>
-        <div className="admin-card__body admin-content--no-padding">
-          {filteredUsers.length > 0 ? (
-            <table className="admin-table">
+        {filteredUsers.length > 0 ? (
+          <>
+            <div className="admin-table-wrapper">
+              <table className="admin-table">
               <thead className="admin-table__header">
                 <tr>
                   <th className="admin-table__header-cell">ID</th>
@@ -201,49 +290,51 @@ export default function UsersPage() {
                   <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="admin-table__body">
                 {filteredUsers.map((user) => (
                   <tr key={user.id} className="admin-table__row">
-                    <td className="admin-table__cell font-medium">{user.id}</td>
-                    <td className="admin-table__cell">{user.telegram_id}</td>
+                    <td className="admin-table__cell admin-table__cell--bold">{user.id}</td>
+                    <td className="admin-table__cell">{user.telegram_id.toString()}</td>
                     <td className="admin-table__cell">{user.username || '-'}</td>
                     <td className="admin-table__cell">
                       {`${user.first_name || ''} ${user.last_name || ''}`.trim() || '-'}
                     </td>
                     <td className="admin-table__cell">
                       <span className={`admin-status ${
-                        user.is_premium ? 'admin-status--active' : 'admin-status--inactive'
+                        user.subscription_active === 1 ? 'admin-status--active' : 'admin-status--inactive'
                       }`}>
-                        {user.is_premium ? 'Преміум' : 'Безкоштовний'}
+                        {user.subscription_active === 1 ? 'Активна підписка' : user.subscription_status || 'Неактивний'}
                       </span>
                     </td>
                     <td className="admin-table__cell">
                       {new Date(user.created_at).toLocaleDateString('uk-UA')}
                     </td>
                     <td className="admin-table__cell">
-                      {user.subscription_end 
-                        ? new Date(user.subscription_end).toLocaleDateString('uk-UA')
+                      {user.subscription_end_date 
+                        ? new Date(user.subscription_end_date).toLocaleDateString('uk-UA')
                         : '-'
                       }
                     </td>
                     <td className="admin-table__cell admin-table__cell--center">
-                      <div className="admin-flex admin-gap--sm admin-flex--center">
+                      <div className="flex items-center justify-center gap-2">
                         <button 
-                          className="admin-btn admin-btn--small admin-btn--secondary"
+                          className="admin-btn admin-btn--sm admin-btn--secondary"
                           title="Переглянути"
+                          onClick={() => handleViewUser(user)}
                         >
                           <EyeIcon className="w-4 h-4" />
                         </button>
                         <button 
-                          className="admin-btn admin-btn--small admin-btn--secondary"
+                          className="admin-btn admin-btn--sm admin-btn--secondary"
                           title="Редагувати"
+                          onClick={() => handleEditUser(user)}
                         >
                           <PencilIcon className="w-4 h-4" />
                         </button>
                         <button 
-                          className="admin-btn admin-btn--small admin-btn--danger"
+                          className="admin-btn admin-btn--sm admin-btn--danger"
                           title="Видалити"
-                          onClick={() => handleDeleteUser(user.id)}
+                          onClick={() => handleDeleteClick(user)}
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>
@@ -253,15 +344,85 @@ export default function UsersPage() {
                 ))}
               </tbody>
             </table>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500">
-                {searchTerm ? 'Користувачів за запитом не знайдено' : 'Користувачі відсутні'}
-              </p>
             </div>
+          
+          {!loading && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(totalItems / itemsPerPage)}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(items) => {
+                setItemsPerPage(items);
+                setCurrentPage(1);
+              }}
+            />
           )}
-        </div>
+          </>
+        ) : (
+          <div className="admin-table__empty">
+            <UsersIcon className="admin-table__empty-icon" />
+            <p className="admin-table__empty-text">
+              {searchTerm ? 'Користувачів за запитом не знайдено' : 'Користувачі відсутні'}
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* View Modal */}
+      {selectedUser && (
+        <ViewModal
+          isOpen={showViewModal}
+          onClose={() => {
+            setShowViewModal(false);
+            setSelectedUser(null);
+          }}
+          title="Деталі користувача"
+          fields={[
+            { label: 'ID', value: selectedUser.id },
+            { label: 'Telegram ID', value: selectedUser.telegram_id },
+            { label: 'Username', value: selectedUser.username || '—' },
+            { label: "Ім'я", value: `${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim() || '—' },
+            { label: 'Статус підписки', value: selectedUser.subscription_active === 1 ? 'Активна' : 'Неактивна', type: 'status' },
+            { label: 'Дата реєстрації', value: selectedUser.created_at, type: 'date' },
+            { label: 'Підписка до', value: selectedUser.subscription_end_date, type: 'date' },
+            { label: 'Наступний платіж', value: selectedUser.next_billing_date, type: 'date' },
+            { label: 'Stripe Customer ID', value: selectedUser.stripe_customer_id || '—' },
+            { label: 'Тренувань виконано', value: selectedUser.workouts_completed || 0 },
+            { label: 'Підписка призупинена', value: selectedUser.subscription_paused === 1, type: 'boolean' },
+            { label: 'Цілі', value: selectedUser.goals || '—' },
+            { label: 'Травми', value: selectedUser.injuries || '—' },
+          ]}
+        />
+      )}
+
+      {/* Edit Modal */}
+      <UserEditModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedUser(null);
+        }}
+        user={selectedUser}
+        onSave={handleSaveUser}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {selectedUser && (
+        <DeleteConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedUser(null);
+          }}
+          onConfirm={() => handleDeleteUser(selectedUser.id)}
+          title="Видалити користувача?"
+          message="Ця дія незворотна. Всі дані користувача будуть видалені назавжди."
+          itemName={`${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim() || `@${selectedUser.username}` || `ID: ${selectedUser.telegram_id}`}
+          isDeleting={isDeleting}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ key: string }> | { key: string } }
@@ -111,7 +113,7 @@ export async function PUT(
         }
 
         // Прямий запит до FastAPI
-        const apiResponse = await fetch(`http://localhost:8000/api/settings/${mapping.key}`, {
+        const apiResponse = await fetch(`${API_BASE_URL}/api/settings/${mapping.key}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify(settingData)

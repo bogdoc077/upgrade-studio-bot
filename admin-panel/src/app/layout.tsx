@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import ConditionalLayout from '@/components/ConditionalLayout';
 import './globals.css';
+import './components.css';
 
 export const metadata: Metadata = {
   title: 'Upgrade Studio Admin',

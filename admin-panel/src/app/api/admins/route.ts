@@ -1,6 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { apiClient } from '@/utils/api-client';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+
 export async function GET(request: NextRequest) {
   try {
     // Отримання токена з cookies або заголовків
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Прямий запит до FastAPI з токеном
-    const apiResponse = await fetch('http://localhost:8000/api/admins', {
+    const apiResponse = await fetch(`${API_BASE_URL}/api/admins`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Прямий запит до FastAPI з токеном
-    const apiResponse = await fetch('http://localhost:8000/api/admins', {
+    const apiResponse = await fetch(`${API_BASE_URL}/api/admins`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

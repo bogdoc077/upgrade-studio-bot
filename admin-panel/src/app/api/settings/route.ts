@@ -1,5 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+
 export async function GET(request: NextRequest) {
   try {
     // Використовуємо Basic Auth з даними з .env
@@ -8,7 +10,7 @@ export async function GET(request: NextRequest) {
     const basicAuth = Buffer.from(`${username}:${password}`).toString('base64');
     
     // Прямий запит до FastAPI з аутентифікацією
-    const apiResponse = await fetch('http://localhost:8000/api/settings', {
+    const apiResponse = await fetch(`${API_BASE_URL}/api/settings`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

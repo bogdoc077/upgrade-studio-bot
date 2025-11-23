@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   HomeIcon,
@@ -98,8 +99,9 @@ export default function Sidebar({ isOpen = true, onToggle, onClose }: SidebarPro
         <button 
           className="admin-layout__toggle"
           onClick={onToggle}
+          aria-label="Відкрити меню"
         >
-          <Bars3Icon className="w-5 h-5" />
+          <Bars3Icon className="w-6 h-6" />
         </button>
       )}
 
@@ -108,6 +110,7 @@ export default function Sidebar({ isOpen = true, onToggle, onClose }: SidebarPro
         <div 
           className="admin-layout__overlay admin-layout__overlay--visible"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
@@ -118,9 +121,14 @@ export default function Sidebar({ isOpen = true, onToggle, onClose }: SidebarPro
           <div className="admin-sidebar__header">
             <Link href="/" className="admin-sidebar__logo">
               <div className="admin-sidebar__logo-icon">
-                US
+                <Image 
+                  src="/logo.svg" 
+                  alt="Upgrade21 Studio Logo" 
+                  width={32} 
+                  height={32}
+                  priority
+                />
               </div>
-              <span>Upgrade Studio</span>
             </Link>
           </div>
 

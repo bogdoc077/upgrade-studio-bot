@@ -9,8 +9,12 @@ import {
   PencilIcon,
   TrashIcon,
   ShieldCheckIcon,
-  ClockIcon
+  ClockIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
+import ViewModal from '@/components/ViewModal';
+import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import AdminEditModal from '@/components/AdminEditModal';
 
 interface Admin {
   id: number;
@@ -18,13 +22,8 @@ interface Admin {
   email: string;
   first_name: string;
   last_name?: string;
-  role: string;
   is_active: boolean;
   is_superadmin: boolean;
-  can_manage_users: boolean;
-  can_manage_payments: boolean;
-  can_manage_settings: boolean;
-  can_manage_admins: boolean;
   created_at: string;
   last_login_at?: string;
 }
@@ -35,17 +34,20 @@ export default function AdminsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  
+  // View and Delete modal states
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState<Admin | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   const [newAdminData, setNewAdminData] = useState({
     username: '',
     email: '',
     first_name: '',
     last_name: '',
-    password: '',
-    role: 'admin',
-    can_manage_users: true,
-    can_manage_payments: true,
-    can_manage_settings: false,
-    can_manage_admins: false
+    password: ''
   });
 
   useEffect(() => {
@@ -106,12 +108,7 @@ export default function AdminsPage() {
           email: '',
           first_name: '',
           last_name: '',
-          password: '',
-          role: 'admin',
-          can_manage_users: true,
-          can_manage_payments: true,
-          can_manage_settings: false,
-          can_manage_admins: false
+          password: ''
         });
         setShowCreateModal(false);
         await fetchAdmins(); // Refresh the list
@@ -147,16 +144,15 @@ export default function AdminsPage() {
   };
 
   const handleDeleteAdmin = async (adminId: number, username: string) => {
-    if (!confirm(`Ви впевнені, що хочете видалити адміністратора "${username}"?`)) {
-      return;
-    }
-
     try {
+      setIsDeleting(true);
       const response = await fetch(`/api/admins/${adminId}`, {
         method: 'DELETE',
       });
       
       if (response.ok) {
+        setShowDeleteModal(false);
+        setSelectedAdmin(null);
         await fetchAdmins(); // Refresh the list
       } else {
         throw new Error('Помилка видалення адміністратора');
@@ -164,6 +160,45 @@ export default function AdminsPage() {
     } catch (err) {
       console.error('Error deleting admin:', err);
       alert('Помилка видалення адміністратора');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleViewAdmin = (admin: Admin) => {
+    setSelectedAdmin(admin);
+    setShowViewModal(true);
+  };
+
+  const handleDeleteClick = (admin: Admin) => {
+    setSelectedAdmin(admin);
+    setShowDeleteModal(true);
+  };
+
+  const handleEditAdmin = (admin: Admin) => {
+    setSelectedAdmin(admin);
+    setShowEditModal(true);
+  };
+
+  const handleSaveAdmin = async (adminId: number, data: Partial<Admin>) => {
+    try {
+      const response = await fetch(`/api/admins/${adminId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        await fetchAdmins(); // Refresh the list
+      } else {
+        throw new Error('Помилка оновлення адміністратора');
+      }
+    } catch (err) {
+      console.error('Error updating admin:', err);
+      alert('Помилка оновлення адміністратора');
+      throw err;
     }
   };
 
@@ -195,11 +230,9 @@ export default function AdminsPage() {
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Завантаження адміністраторів...</p>
-          </div>
+        <div className="admin-loading">
+          <div className="admin-loading__spinner"></div>
+          <p className="admin-loading__text">Завантаження адміністраторів...</p>
         </div>
       </div>
     );
@@ -208,17 +241,15 @@ export default function AdminsPage() {
   if (error) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button 
-              onClick={fetchAdmins}
-              className="admin-btn admin-btn--primary"
-            >
-              Спробувати знову
-            </button>
-          </div>
+        <div className="admin-alert admin-alert--danger" style={{marginBottom: 'var(--spacing-base)'}}>
+          {error}
         </div>
+        <button 
+          onClick={fetchAdmins}
+          className="admin-btn admin-btn--primary"
+        >
+          Спробувати знову
+        </button>
       </div>
     );
   }
@@ -226,23 +257,25 @@ export default function AdminsPage() {
   return (
     <div className="admin-page">
       {/* Header */}
-      <div className="admin-page__header">
-        <h1 className="admin-page__title">Адміністратори</h1>
-        <p className="admin-page__subtitle">
-          Управління адміністраторами системи та їх правами доступу
-        </p>
-        <div className="admin-page__actions">
-          <div className="admin-form__group" style={{ marginBottom: 0, minWidth: '200px' }}>
+      <div className="admin-page__header admin-page__header--with-actions">
+        <div className="admin-page__title-section">
+          <h1 className="admin-page__title">Адміністратори</h1>
+          <p className="admin-page__subtitle">
+            Управління адміністраторами системи та їх правами доступу
+          </p>
+        </div>
+        <div className="flex gap-4 items-center">
+          <div className="admin-search">
             <input
               type="text"
               placeholder="Пошук адміністраторів..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="admin-form__input"
+              className="admin-search__input"
             />
           </div>
           <button 
-            className="admin-btn admin-btn--primary admin-gap--sm"
+            className="admin-btn admin-btn--primary"
             onClick={() => setShowCreateModal(true)}
           >
             <PlusIcon className="w-4 h-4" />
@@ -252,54 +285,48 @@ export default function AdminsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{totalAdmins}</div>
-                <div className="text-sm text-gray-500">Всього адмінів</div>
-              </div>
-              <UserGroupIcon className="w-8 h-8 text-blue-500" />
-            </div>
+      <div className="admin-stats">
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Всього адмінів</span>
+            <UserGroupIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{totalAdmins}</div>
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{activeAdmins}</div>
-                <div className="text-sm text-gray-500">Активні</div>
-              </div>
-              <ShieldCheckIcon className="w-8 h-8 text-green-500" />
-            </div>
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Активні</span>
+            <ShieldCheckIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{activeAdmins}</div>
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{inactiveAdmins}</div>
-                <div className="text-sm text-gray-500">Неактивні</div>
-              </div>
-              <ClockIcon className="w-8 h-8 text-yellow-500" />
-            </div>
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Неактивні</span>
+            <ClockIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{inactiveAdmins}</div>
           </div>
         </div>
       </div>
 
       {/* Admins Table */}
-      <div className="admin-card">
+      <div className="admin-table-container">
         <div className="admin-card__header">
           <h3 className="admin-card__title">Список адміністраторів</h3>
           <p className="admin-card__subtitle">
             Знайдено: {filteredAdmins.length} з {totalAdmins} адміністраторів
           </p>
         </div>
-        <div className="admin-card__body admin-content--no-padding">
-          {filteredAdmins.length > 0 ? (
+        {filteredAdmins.length > 0 ? (
+          <div className="admin-table-wrapper">
             <table className="admin-table">
               <thead className="admin-table__header">
                 <tr>
@@ -307,116 +334,99 @@ export default function AdminsPage() {
                   <th className="admin-table__header-cell">Ім'я</th>
                   <th className="admin-table__header-cell">Username</th>
                   <th className="admin-table__header-cell">Email</th>
-                  <th className="admin-table__header-cell">Роль</th>
-                  <th className="admin-table__header-cell">Права</th>
                   <th className="admin-table__header-cell">Статус</th>
                   <th className="admin-table__header-cell">Останній вхід</th>
                   <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="admin-table__body">
                 {filteredAdmins.map((admin) => (
                   <tr key={admin.id} className="admin-table__row">
-                    <td className="admin-table__cell font-medium">{admin.id}</td>
+                    <td className="admin-table__cell admin-table__cell--bold">{admin.id}</td>
                     <td className="admin-table__cell">
-                      <div className="admin-table__user-info">
-                        <div className="admin-table__user-name">
-                          {admin.first_name} {admin.last_name || ''}
-                        </div>
-                        {admin.is_superadmin && (
-                          <div className="admin-table__user-badge">
-                            <ShieldCheckIcon className="w-3 h-3" />
-                            Super Admin
+                        <div className="admin-table__user-info">
+                          <div className="admin-table__user-name">
+                            {admin.first_name} {admin.last_name || ''}
                           </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="admin-table__cell font-medium">{admin.username}</td>
-                    <td className="admin-table__cell">{admin.email}</td>
-                    <td className="admin-table__cell">
-                      <span className="admin-role-badge admin-role-badge--admin">
-                        {admin.role}
-                      </span>
-                    </td>
-                    <td className="admin-table__cell">
-                      <div className="admin-permissions">
-                        {admin.can_manage_users && <span className="admin-permission-tag">Users</span>}
-                        {admin.can_manage_payments && <span className="admin-permission-tag">Payments</span>}
-                        {admin.can_manage_settings && <span className="admin-permission-tag">Settings</span>}
-                        {admin.can_manage_admins && <span className="admin-permission-tag">Admins</span>}
-                      </div>
-                    </td>
-                    <td className="admin-table__cell">
-                      <span className={`admin-status ${
-                        admin.is_active ? 'admin-status--active' : 'admin-status--inactive'
-                      }`}>
-                        {admin.is_active ? 'Активний' : 'Неактивний'}
-                      </span>
-                    </td>
-                    <td className="admin-table__cell">
-                      {formatDate(admin.last_login_at)}
-                    </td>
+                          {admin.is_superadmin && (
+                            <div className="admin-table__user-badge">
+                              <ShieldCheckIcon className="w-3 h-3" />
+                              Super Admin
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="admin-table__cell font-medium">{admin.username}</td>
+                      <td className="admin-table__cell">{admin.email}</td>
+                      <td className="admin-table__cell">
+                        <span className={`admin-status ${
+                          admin.is_active ? 'admin-status--active' : 'admin-status--inactive'
+                        }`}>
+                          {admin.is_active ? 'Активний' : 'Неактивний'}
+                        </span>
+                      </td>
+                      <td className="admin-table__cell">
+                        {formatDate(admin.last_login_at)}
+                      </td>
                     <td className="admin-table__cell admin-table__cell--center">
-                      <div className="admin-flex admin-gap--sm admin-flex--center">
+                      <div className="flex items-center justify-center gap-2">
                         <button 
-                          className="admin-btn admin-btn--small admin-btn--secondary"
+                          className="admin-btn admin-btn--sm admin-btn--secondary"
                           title="Переглянути"
+                          onClick={() => handleViewAdmin(admin)}
                         >
-                          <EyeIcon className="w-4 h-4" />
-                        </button>
-                        <button 
-                          className="admin-btn admin-btn--small admin-btn--warning"
-                          title="Редагувати"
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
-                        <button 
-                          className={`admin-btn admin-btn--small ${
-                            admin.is_active ? 'admin-btn--warning' : 'admin-btn--success'
-                          }`}
-                          title={admin.is_active ? 'Деактивувати' : 'Активувати'}
-                          onClick={() => handleToggleAdmin(admin.id, admin.is_active)}
-                        >
-                          {admin.is_active ? '⏸️' : '▶️'}
-                        </button>
-                        <button 
-                          className="admin-btn admin-btn--small admin-btn--danger"
-                          title="Видалити"
-                          onClick={() => handleDeleteAdmin(admin.id, admin.username)}
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                        <EyeIcon className="w-4 h-4" />
+                      </button>
+                      <button 
+                        className="admin-btn admin-btn--sm admin-btn--secondary"
+                        title="Редагувати"
+                        onClick={() => handleEditAdmin(admin)}
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button 
+                        className="admin-btn admin-btn--sm admin-btn--danger"
+                        title="Видалити"
+                        onClick={() => handleDeleteClick(admin)}
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
                 ))}
               </tbody>
             </table>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500">
-                {searchTerm ? 'Адміністраторів за запитом не знайдено' : 'Адміністратори відсутні'}
-              </p>
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="admin-table__empty">
+            <UserGroupIcon className="admin-table__empty-icon" />
+            <p className="admin-table__empty-text">
+              {searchTerm ? 'Адміністраторів за запитом не знайдено' : 'Адміністратори відсутні'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Create Admin Modal */}
       {showCreateModal && (
-        <div className="admin-modal">
-          <div className="admin-modal__content">
+        <div className="admin-modal" onClick={() => setShowCreateModal(false)}>
+          <div className="admin-modal__backdrop" />
+          <div className="admin-modal__content admin-modal__content--lg" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal__header">
-              <h3 className="admin-modal__title">Додати адміністратора</h3>
+              <h2 className="admin-modal__title">Додати адміністратора</h2>
               <button 
                 className="admin-modal__close"
                 onClick={() => setShowCreateModal(false)}
+                type="button"
+                title="Закрити"
               >
-                ✕
+                <XMarkIcon />
               </button>
             </div>
-            <div className="admin-modal__body">
-              <div className="admin-form">
+            <form onSubmit={handleCreateAdmin}>
+              <div className="admin-modal__body">
+                <div className="admin-form">
                 <div className="admin-form__row">
                   <div className="admin-form__group">
                     <label className="admin-form__label admin-form__label--required">
@@ -485,62 +495,76 @@ export default function AdminsPage() {
                     className="admin-form__input"
                   />
                 </div>
-
-                <div className="admin-form__group">
-                  <label className="admin-form__label">Права доступу</label>
-                  <div className="admin-form__checkboxes">
-                    <label className="admin-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={newAdminData.can_manage_users}
-                        onChange={(e) => setNewAdminData({...newAdminData, can_manage_users: e.target.checked})}
-                      />
-                      <span className="admin-checkbox__label">Управління користувачами</span>
-                    </label>
-                    <label className="admin-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={newAdminData.can_manage_payments}
-                        onChange={(e) => setNewAdminData({...newAdminData, can_manage_payments: e.target.checked})}
-                      />
-                      <span className="admin-checkbox__label">Управління платежами</span>
-                    </label>
-                    <label className="admin-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={newAdminData.can_manage_settings}
-                        onChange={(e) => setNewAdminData({...newAdminData, can_manage_settings: e.target.checked})}
-                      />
-                      <span className="admin-checkbox__label">Управління налаштуваннями</span>
-                    </label>
-                    <label className="admin-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={newAdminData.can_manage_admins}
-                        onChange={(e) => setNewAdminData({...newAdminData, can_manage_admins: e.target.checked})}
-                      />
-                      <span className="admin-checkbox__label">Управління адмінами</span>
-                    </label>
-                  </div>
                 </div>
               </div>
-            </div>
-            <div className="admin-modal__footer">
+            </form>
+            <div className="admin-modal__actions">
               <button 
                 className="admin-btn admin-btn--secondary"
                 onClick={() => setShowCreateModal(false)}
+                type="button"
               >
                 Скасувати
               </button>
               <button 
                 className="admin-btn admin-btn--primary"
                 onClick={handleCreateAdmin}
+                type="button"
               >
                 Створити
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* View Modal */}
+      {selectedAdmin && (
+        <ViewModal
+          isOpen={showViewModal}
+          onClose={() => {
+            setShowViewModal(false);
+            setSelectedAdmin(null);
+          }}
+          title="Деталі адміністратора"
+          fields={[
+            { label: 'ID', value: selectedAdmin.id },
+            { label: 'Username', value: selectedAdmin.username },
+            { label: 'Email', value: selectedAdmin.email },
+            { label: "Ім'я", value: `${selectedAdmin.first_name} ${selectedAdmin.last_name || ''}`.trim() },
+            { label: 'Статус', value: selectedAdmin.is_active ? 'Активний' : 'Неактивний', type: 'status' },
+            { label: 'Суперадмін', value: selectedAdmin.is_superadmin, type: 'boolean' },
+            { label: 'Дата створення', value: selectedAdmin.created_at, type: 'date' },
+            { label: 'Останній вхід', value: selectedAdmin.last_login_at, type: 'date' },
+          ]}
+        />
+      )}
+
+      {/* Edit Modal */}
+      <AdminEditModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedAdmin(null);
+        }}
+        admin={selectedAdmin}
+        onSave={handleSaveAdmin}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {selectedAdmin && (
+        <DeleteConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedAdmin(null);
+          }}
+          onConfirm={() => handleDeleteAdmin(selectedAdmin.id, selectedAdmin.username)}
+          title="Видалити адміністратора?"
+          message="Ця дія незворотна. Адміністратор втратить доступ до панелі."
+          itemName={`${selectedAdmin.username} (${selectedAdmin.email})`}
+          isDeleting={isDeleting}
+        />
       )}
     </div>
   );

@@ -133,11 +133,9 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Завантаження налаштувань...</p>
-          </div>
+        <div className="admin-loading">
+          <div className="admin-loading__spinner"></div>
+          <p className="admin-loading__text">Завантаження налаштувань...</p>
         </div>
       </div>
     );
@@ -146,16 +144,8 @@ export default function SettingsPage() {
   if (error) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button 
-              onClick={fetchSettings}
-              className="admin-btn admin-btn--primary"
-            >
-              Спробувати знову
-            </button>
-          </div>
+        <div className="admin-alert admin-alert--danger">
+          {error}
         </div>
       </div>
     );
@@ -167,10 +157,10 @@ export default function SettingsPage() {
     <div className="admin-page">
       {/* Header */}
       <div className="admin-page__header">
-        <h1 className="admin-page__title">Налаштування</h1>
-        <p className="admin-page__subtitle">
-          Конфігурація системи, інтеграцій та підключених сервісів
-        </p>
+        <div className="admin-page__title-section">
+          <h1 className="admin-page__title">Налаштування</h1>
+          <p className="admin-page__subtitle">Управління конфігурацією системи</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

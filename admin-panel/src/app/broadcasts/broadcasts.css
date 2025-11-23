@@ -1,0 +1,457 @@
+/* ============================================
+   Broadcasts Page - Minimalist Styles
+   ============================================ */
+
+.broadcasts-page {
+  min-height: 100vh;
+  background: #fafafa;
+  padding: 2rem;
+}
+
+.broadcasts-page__header {
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.broadcasts-page__icon-wrapper {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: #a855f7;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.broadcasts-page__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: white;
+}
+
+.broadcasts-page__title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* ============================================
+   Broadcast Form
+   ============================================ */
+
+.broadcasts-form {
+  background: white;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.broadcasts-form__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1.25rem;
+}
+
+.broadcasts-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.broadcasts-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.broadcasts-form__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.broadcasts-form__textarea {
+  width: 100%;
+  min-height: 10rem;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  font-family: system-ui, -apple-system, sans-serif;
+  resize: vertical;
+  transition: all 0.15s ease;
+}
+
+.broadcasts-form__textarea:focus {
+  outline: none;
+  border-color: #a855f7;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+}
+
+.broadcasts-form__hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: #faf5ff;
+  padding: 0.625rem;
+  border-radius: 0.375rem;
+  border-left: 3px solid #a855f7;
+}
+
+.broadcasts-form__select {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+  background: white;
+}
+
+.broadcasts-form__select:focus {
+  outline: none;
+  border-color: #a855f7;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+}
+
+.broadcasts-form__actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.broadcasts-form__button {
+  padding: 0.625rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.broadcasts-form__button--primary {
+  background: #a855f7;
+  color: white;
+}
+
+.broadcasts-form__button--primary:hover {
+  background: #9333ea;
+}
+
+.broadcasts-form__button--secondary {
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+}
+
+.broadcasts-form__button--secondary:hover {
+  background: #e5e7eb;
+}
+
+/* ============================================
+   Broadcast History
+   ============================================ */
+
+.broadcasts-history {
+  background: white;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.broadcasts-history__header {
+  background: #f9fafb;
+  padding: 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.broadcasts-history__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.broadcasts-history__list {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.broadcasts-history-item {
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  transition: all 0.15s ease;
+}
+
+.broadcasts-history-item:hover {
+  background: white;
+  border-color: #a855f7;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.1);
+}
+
+.broadcasts-history-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.broadcasts-history-item__date {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.broadcasts-history-item__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.broadcasts-history-item__status--success {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.broadcasts-history-item__status--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.broadcasts-history-item__status--error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.broadcasts-history-item__message {
+  font-size: 0.875rem;
+  color: #374151;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 4.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.broadcasts-history-item__stats {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.broadcasts-history-item__stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ============================================
+   Empty State
+   ============================================ */
+
+.broadcasts-empty {
+  text-align: center;
+  padding: 3rem 2rem;
+}
+
+.broadcasts-empty__icon-wrapper {
+  width: 4rem;
+  height: 4rem;
+  background: #f3f4f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.broadcasts-empty__icon {
+  width: 2rem;
+  height: 2rem;
+  color: #9ca3af;
+}
+
+.broadcasts-empty__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 0.25rem;
+}
+
+.broadcasts-empty__text {
+  font-size: 0.875rem;
+  color: #9ca3af;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .broadcasts-page {
+    padding: 1.5rem;
+  }
+  
+  .broadcasts-history-item__message {
+    max-height: 3.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .broadcasts-page {
+    padding: 1rem 0.75rem;
+    padding-top: 4rem;
+  }
+  
+  .broadcasts-page__header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .broadcasts-page__title {
+    font-size: 1.5rem;
+  }
+
+  .broadcasts-form {
+    padding: 1rem;
+    border-radius: 0.375rem;
+  }
+  
+  .broadcasts-form__title {
+    font-size: 1rem;
+  }
+  
+  .broadcasts-form__textarea {
+    min-height: 8rem;
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+
+  .broadcasts-form__actions {
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .broadcasts-form__button {
+    width: 100%;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+  }
+  
+  .broadcasts-history {
+    border-radius: 0.375rem;
+  }
+  
+  .broadcasts-history__header {
+    padding: 1rem;
+  }
+  
+  .broadcasts-history__title {
+    font-size: 1rem;
+  }
+  
+  .broadcasts-history__list {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+  
+  .broadcasts-history-item {
+    padding: 0.875rem;
+  }
+  
+  .broadcasts-history-item__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .broadcasts-history-item__message {
+    font-size: 0.8125rem;
+    max-height: 3rem;
+  }
+  
+  .broadcasts-history-item__stats {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .broadcasts-page {
+    padding: 0.75rem 0.5rem;
+    padding-top: 3.75rem;
+  }
+  
+  .broadcasts-page__header {
+    gap: 0.5rem;
+  }
+  
+  .broadcasts-page__icon-wrapper {
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  .broadcasts-page__icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  
+  .broadcasts-page__title {
+    font-size: 1.25rem;
+  }
+  
+  .broadcasts-form {
+    padding: 0.875rem;
+  }
+  
+  .broadcasts-form__title {
+    font-size: 0.9375rem;
+    margin-bottom: 1rem;
+  }
+  
+  .broadcasts-form__label {
+    font-size: 0.8125rem;
+  }
+  
+  .broadcasts-form__textarea {
+    min-height: 7rem;
+    padding: 0.625rem;
+  }
+  
+  .broadcasts-form__button {
+    padding: 0.6875rem 0.875rem;
+    font-size: 0.8125rem;
+  }
+  
+  .broadcasts-history-item {
+    padding: 0.75rem;
+  }
+  
+  .broadcasts-history-item__date {
+    font-size: 0.6875rem;
+  }
+  
+  .broadcasts-history-item__status {
+    font-size: 0.6875rem;
+    padding: 0.1875rem 0.375rem;
+  }
+}

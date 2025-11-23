@@ -49,11 +49,19 @@ export interface User {
 export interface Payment {
   id: number;
   user_id: number;
+  telegram_id?: string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
   amount: number;
   currency: string;
   status: string;
-  stripe_payment_id?: string;
+  stripe_payment_intent_id?: string;
+  stripe_subscription_id?: string;
+  stripe_invoice_id?: string;
+  stripe_response_log?: string;  // Повний JSON лог відповіді від Stripe
   created_at: string;
+  paid_at?: string;
 }
 
 // Типи для адмінів
@@ -73,6 +81,8 @@ export interface Broadcast {
   status: 'draft' | 'sending' | 'sent';
   created_at: string;
   sent_count?: number;
+  error_log?: string;
+  full_log?: string;
 }
 
 // Утиліти

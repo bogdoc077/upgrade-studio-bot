@@ -7,9 +7,13 @@ import {
   CheckCircleIcon,
   ClockIcon,
   XCircleIcon,
+  XMarkIcon,
   MagnifyingGlassIcon,
-  EyeIcon
+  EyeIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
+import ViewModal from '@/components/ViewModal';
+import Pagination from '@/components/Pagination';
 
 interface Payment {
   id: number;
@@ -17,7 +21,9 @@ interface Payment {
   amount: number;
   currency: string;
   status: string;
-  stripe_payment_id?: string;
+  stripe_payment_intent_id?: string;
+  stripe_invoice_id?: string;
+  stripe_response_log?: string;
   created_at: string;
   updated_at: string;
 }
@@ -43,21 +49,46 @@ export default function PaymentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // Modal states
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   useEffect(() => {
     fetchPayments();
-  }, []);
+  }, [currentPage, itemsPerPage]);
 
   const fetchPayments = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/payments');
+      // Отримуємо токен з localStorage або cookie
+      const token = localStorage.getItem('auth_token');
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`/api/payments?page=${currentPage}&limit=${itemsPerPage}`, {
+        headers,
+      });
+      
       if (response.ok) {
         const data = await response.json();
         const paymentsData = data.data || [];
         setPayments(paymentsData);
+        setTotalItems(data.total || 0);
         calculateStats(paymentsData);
       } else {
         throw new Error('Помилка завантаження платежів');
@@ -71,12 +102,14 @@ export default function PaymentsPage() {
   };
 
   const calculateStats = (paymentsData: Payment[]) => {
+    // Статистика з поточних даних на сторінці (пагінація)
+    // amount в центах, конвертуємо в євро
     const totalAmount = paymentsData
-      .filter(p => p.status === 'completed')
-      .reduce((sum, p) => sum + p.amount, 0);
+      .filter(p => p.status === 'completed' || p.status === 'succeeded')
+      .reduce((sum, p) => sum + (p.amount / 100), 0);  // Конвертуємо центи в євро
     
-    const totalCount = paymentsData.length;
-    const completedCount = paymentsData.filter(p => p.status === 'completed').length;
+    const totalCount = paymentsData.length; // Кількість на поточній сторінці
+    const completedCount = paymentsData.filter(p => p.status === 'completed' || p.status === 'succeeded').length;
     const pendingCount = paymentsData.filter(p => p.status === 'pending').length;
     const failedCount = paymentsData.filter(p => p.status === 'failed').length;
 
@@ -93,13 +126,45 @@ export default function PaymentsPage() {
     const matchesSearch = 
       payment.id.toString().includes(searchTerm) ||
       payment.user_id.toString().includes(searchTerm) ||
-      payment.stripe_payment_id?.includes(searchTerm) ||
+      payment.stripe_payment_intent_id?.includes(searchTerm) ||
       payment.amount.toString().includes(searchTerm);
     
     const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
+
+  const filteredSum = filteredPayments
+    .filter(p => p.status === 'completed' || p.status === 'succeeded')
+    .reduce((sum, p) => sum + (p.amount / 100), 0);  // Конвертуємо центи в євро
+
+  const exportToExcel = async () => {
+    try {
+      const response = await fetch('/api/payments/export', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `payments_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        throw new Error('Помилка експорту');
+      }
+    } catch (err) {
+      console.error('Error exporting payments:', err);
+      alert('Помилка експорту платежів');
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -112,7 +177,9 @@ export default function PaymentsPage() {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'completed': return 'Успішно';
+      case 'completed':
+      case 'succeeded':
+        return 'Успішно';
       case 'pending': return 'В обробці';
       case 'failed': return 'Помилка';
       default: return status;
@@ -121,21 +188,35 @@ export default function PaymentsPage() {
 
   const getStatusClass = (status: string) => {
     switch (status) {
-      case 'completed': return 'admin-status--active';
-      case 'pending': return 'admin-status--pending';
-      case 'failed': return 'admin-status--error';
-      default: return 'admin-status--inactive';
+      case 'completed':
+      case 'succeeded':
+        return 'admin-status--success';
+      case 'pending':
+      case 'processing':
+        return 'admin-status--pending';
+      case 'failed':
+        return 'admin-status--neutral';
+      default:
+        return 'admin-status--neutral';
     }
+  };
+
+  const handleViewPayment = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setShowViewModal(true);
+  };
+  
+  const handleViewLog = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setShowLogModal(true);
   };
 
   if (loading) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Завантаження платежів...</p>
-          </div>
+        <div className="admin-loading">
+          <div className="admin-loading__spinner"></div>
+          <p className="admin-loading__text">Завантаження платежів...</p>
         </div>
       </div>
     );
@@ -144,16 +225,8 @@ export default function PaymentsPage() {
   if (error) {
     return (
       <div className="admin-page">
-        <div className="admin-flex admin-flex--center" style={{ minHeight: '400px' }}>
-          <div className="text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button 
-              onClick={fetchPayments}
-              className="admin-btn admin-btn--primary"
-            >
-              Спробувати знову
-            </button>
-          </div>
+        <div className="admin-alert admin-alert--danger">
+          {error}
         </div>
       </div>
     );
@@ -162,97 +235,77 @@ export default function PaymentsPage() {
   return (
     <div className="admin-page">
       {/* Header */}
-      <div className="admin-page__header">
-        <h1 className="admin-page__title">Платежі</h1>
-        <p className="admin-page__subtitle">
-          Управління транзакціями та платежами користувачів
-        </p>
-        <div className="admin-page__actions">
-          <div className="admin-form__group" style={{ marginBottom: 0, minWidth: '200px' }}>
-            <input
-              type="text"
-              placeholder="Пошук платежів..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="admin-form__input"
-            />
-          </div>
-          <div className="admin-form__group" style={{ marginBottom: 0, minWidth: '150px' }}>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="admin-form__select"
-            >
-              <option value="all">Всі статуси</option>
-              <option value="completed">Успішні</option>
-              <option value="pending">В обробці</option>
-              <option value="failed">Помилка</option>
-            </select>
-          </div>
+      <div className="admin-page__header admin-page__header--with-actions">
+        <div className="admin-page__title-section">
+          <h1 className="admin-page__title">Платежі</h1>
+          <p className="admin-page__subtitle">Управління платежами та транзакціями</p>
         </div>
+        <button
+          onClick={exportToExcel}
+          className="admin-btn admin-btn--secondary"
+        >
+          <ArrowDownTrayIcon className="w-5 h-5" />
+          Експорт в Excel
+        </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">€{stats.totalAmount.toFixed(2)}</div>
-                <div className="text-sm text-gray-500">Загальна сума</div>
-              </div>
-              <BanknotesIcon className="w-8 h-8 text-green-500" />
-            </div>
+      <div className="admin-stats">
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Загальна сума</span>
+            <BanknotesIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">€{stats.totalAmount.toFixed(2)}</div>
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{stats.totalCount}</div>
-                <div className="text-sm text-gray-500">Всього платежів</div>
-              </div>
-              <CreditCardIcon className="w-8 h-8 text-blue-500" />
-            </div>
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Всього платежів</span>
+            <CreditCardIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{stats.totalCount}</div>
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{stats.completedCount}</div>
-                <div className="text-sm text-gray-500">Успішні</div>
-              </div>
-              <CheckCircleIcon className="w-8 h-8 text-green-500" />
-            </div>
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Успішні</span>
+            <CheckCircleIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{stats.completedCount}</div>
           </div>
         </div>
 
-        <div className="admin-card">
-          <div className="admin-card__body">
-            <div className="admin-flex admin-flex--between">
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{stats.pendingCount + stats.failedCount}</div>
-                <div className="text-sm text-gray-500">Проблемні</div>
-              </div>
-              <ClockIcon className="w-8 h-8 text-yellow-500" />
-            </div>
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Проблемні</span>
+            <ClockIcon className="admin-stats__icon" />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value">{stats.pendingCount + stats.failedCount}</div>
           </div>
         </div>
       </div>
 
       {/* Payments Table */}
-      <div className="admin-card">
+      <div className="admin-table-container">
         <div className="admin-card__header">
           <h3 className="admin-card__title">Список платежів</h3>
           <p className="admin-card__subtitle">
             Знайдено: {filteredPayments.length} з {payments.length} платежів
+            {filteredPayments.length > 0 && (
+              <span className="ml-2">• Сума: €{filteredSum.toFixed(2)}</span>
+            )}
           </p>
         </div>
-        <div className="admin-card__body admin-content--no-padding">
-          {filteredPayments.length > 0 ? (
+        {filteredPayments.length > 0 ? (
+          <>
+          <div className="admin-table-wrapper">
             <table className="admin-table">
               <thead className="admin-table__header">
                 <tr>
@@ -266,25 +319,22 @@ export default function PaymentsPage() {
                   <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="admin-table__body">
                 {filteredPayments.map((payment) => (
-                  <tr key={payment.id} className="admin-table__row">
-                    <td className="admin-table__cell font-medium">{payment.id}</td>
-                    <td className="admin-table__cell">{payment.user_id}</td>
-                    <td className="admin-table__cell font-medium">{payment.amount}</td>
-                    <td className="admin-table__cell">{payment.currency.toUpperCase()}</td>
+                <tr key={payment.id} className="admin-table__row">
+                  <td className="admin-table__cell admin-table__cell--bold">{payment.id}</td>
+                  <td className="admin-table__cell">{payment.user_id}</td>
+                  <td className="admin-table__cell admin-table__cell--bold">€{(payment.amount / 100).toFixed(2)}</td>
+                  <td className="admin-table__cell">{payment.currency.toUpperCase()}</td>
                     <td className="admin-table__cell">
-                      <div className="admin-flex admin-gap--sm">
-                        {getStatusIcon(payment.status)}
-                        <span className={`admin-status ${getStatusClass(payment.status)}`}>
-                          {getStatusText(payment.status)}
-                        </span>
-                      </div>
+                      <span className={`admin-status ${getStatusClass(payment.status)}`}>
+                        {getStatusText(payment.status)}
+                      </span>
                     </td>
                     <td className="admin-table__cell">
-                      {payment.stripe_payment_id ? (
+                      {payment.stripe_invoice_id ? (
                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                          {payment.stripe_payment_id.substring(0, 20)}...
+                          {payment.stripe_invoice_id.substring(0, 20)}...
                         </code>
                       ) : (
                         '-'
@@ -294,29 +344,124 @@ export default function PaymentsPage() {
                       {new Date(payment.created_at).toLocaleString('uk-UA')}
                     </td>
                     <td className="admin-table__cell admin-table__cell--center">
-                      <button 
-                        className="admin-btn admin-btn--small admin-btn--secondary"
-                        title="Переглянути деталі"
-                      >
-                        <EyeIcon className="w-4 h-4" />
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <button 
+                          className="admin-btn admin-btn--sm admin-btn--secondary"
+                          title="Переглянути деталі"
+                          onClick={() => handleViewPayment(payment)}
+                        >
+                          <EyeIcon className="w-4 h-4" />
+                        </button>
+                        {payment.stripe_response_log && (
+                          <button 
+                            className="admin-btn admin-btn--sm admin-btn--primary"
+                            title="Переглянути лог Stripe"
+                            onClick={() => handleViewLog(payment)}
+                          >
+                            Лог
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500">
-                {searchTerm || statusFilter !== 'all' 
-                  ? 'Платежів за запитом не знайдено' 
-                  : 'Платежі відсутні'
-                }
-              </p>
-            </div>
+            </tbody>
+          </table>
+          </div>          {!loading && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(totalItems / itemsPerPage)}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(items) => {
+                setItemsPerPage(items);
+                setCurrentPage(1);
+              }}
+            />
           )}
-        </div>
+          </>
+        ) : (
+          <div className="admin-table__empty">
+            <CreditCardIcon className="admin-table__empty-icon" />
+            <p className="admin-table__empty-text">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'Платежів за запитом не знайдено' 
+                : 'Платежі відсутні'
+              }
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* View Modal */}
+      {selectedPayment && (
+        <ViewModal
+          isOpen={showViewModal}
+          onClose={() => {
+            setShowViewModal(false);
+            setSelectedPayment(null);
+          }}
+          title="Деталі платежу"
+          fields={[
+            { label: 'ID платежу', value: selectedPayment.id },
+            { label: 'User ID', value: selectedPayment.user_id },
+            { label: 'Сума', value: `€${(selectedPayment.amount / 100).toFixed(2)}` },
+            { label: 'Валюта', value: selectedPayment.currency.toUpperCase() },
+            { label: 'Статус', value: getStatusText(selectedPayment.status), type: 'status' },
+            { label: 'Stripe Invoice ID', value: selectedPayment.stripe_invoice_id || '—' },
+            { label: 'Stripe Payment ID', value: selectedPayment.stripe_payment_intent_id || '—' },
+            { label: 'Дата створення', value: selectedPayment.created_at, type: 'date' },
+            { label: 'Дата оновлення', value: selectedPayment.updated_at, type: 'date' },
+          ]}
+        />
+      )}
+      
+      {/* Stripe Log Modal */}
+      {selectedPayment && showLogModal && (
+        <div className="admin-modal" style={{ zIndex: 999 }} onClick={() => setShowLogModal(false)}>
+          <div className="admin-modal__backdrop" />
+          <div className="admin-modal__content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+            <div className="admin-modal__header">
+              <h2 className="admin-modal__title">Stripe Response Log</h2>
+              <button 
+                className="admin-modal__close"
+                onClick={() => setShowLogModal(false)}
+                aria-label="Закрити"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="admin-modal__body">
+              <div style={{ 
+                background: '#1e1e1e', 
+                color: '#d4d4d4', 
+                padding: '16px', 
+                borderRadius: '8px',
+                overflowX: 'auto',
+                maxHeight: '500px',
+                fontFamily: 'Monaco, Consolas, monospace',
+                fontSize: '12px',
+                lineHeight: '1.5'
+              }}>
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                  {selectedPayment.stripe_response_log ? 
+                    JSON.stringify(JSON.parse(selectedPayment.stripe_response_log), null, 2) 
+                    : 'Лог відсутній'}
+                </pre>
+              </div>
+            </div>
+            <div className="admin-modal__actions">
+              <button 
+                className="admin-btn admin-btn--secondary"
+                onClick={() => setShowLogModal(false)}
+              >
+                Закрити
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

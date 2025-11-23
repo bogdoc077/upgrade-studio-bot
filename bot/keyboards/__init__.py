@@ -42,15 +42,15 @@ def get_survey_injuries_keyboard() -> InlineKeyboardMarkup:
 def get_subscription_offer_keyboard() -> InlineKeyboardMarkup:
     """Клавіатура пропозиції підписки"""
     keyboard = [
-        [InlineKeyboardButton("💳 Оформити підписку", callback_data="create_subscription")],
-        [InlineKeyboardButton("❓ Дізнатися більше", callback_data="more_info")],
-        [InlineKeyboardButton("⏰ Нагадати пізніше", callback_data="remind_later")]
+        [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
+        [InlineKeyboardButton("Дізнатися більше", callback_data="more_info")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
 def get_subscription_management_keyboard(subscription_active: bool = True, 
                                        subscription_paused: bool = False,
+                                       subscription_cancelled: bool = False,
                                        joined_channel: bool = False,
                                        joined_chat: bool = False) -> InlineKeyboardMarkup:
     """Клавіатура керування підпискою"""
@@ -58,23 +58,29 @@ def get_subscription_management_keyboard(subscription_active: bool = True,
     
     if subscription_active:
         # Додаємо кнопки доступу до каналів для активних підписників (по одній вниз)
-        if not joined_channel:
-            keyboard.append([InlineKeyboardButton("📺 Приєднатися до каналу", callback_data="join_channel_access")])
-        else:
-            keyboard.append([InlineKeyboardButton("📺 Перейти в канал", callback_data="go_to_channel")])
-            
-        if not joined_chat:
-            keyboard.append([InlineKeyboardButton("💬 Приєднатися до чату", callback_data="join_chat_access")])
-        else:
+        # Якщо підписка скасована але ще активна - показуємо кнопки "Перейти"
+        if subscription_cancelled or subscription_paused:
+            # Користувач має доступ але підписка призупинена/скасована
+            keyboard.append([InlineKeyboardButton("📣 Перейти в канал", callback_data="go_to_channel")])
             keyboard.append([InlineKeyboardButton("💬 Перейти в чат", callback_data="go_to_chat")])
-        
-        # Управління підпискою
-        if not subscription_paused:
-            keyboard.append([InlineKeyboardButton(Buttons.PAUSE_SUBSCRIPTION, callback_data="pause_subscription")])
         else:
-            keyboard.append([InlineKeyboardButton(Buttons.RESUME_SUBSCRIPTION, callback_data="resume_subscription")])
+            # Звичайний режим - показуємо статус приєднання
+            if not joined_channel:
+                keyboard.append([InlineKeyboardButton("📣 Приєднатися до каналу", callback_data="join_channel_access")])
+            else:
+                keyboard.append([InlineKeyboardButton("📣 Перейти в канал", callback_data="go_to_channel")])
+                
+            if not joined_chat:
+                keyboard.append([InlineKeyboardButton("💬 Приєднатися до чату", callback_data="join_chat_access")])
+            else:
+                keyboard.append([InlineKeyboardButton("💬 Перейти в чат", callback_data="go_to_chat")])
         
-        keyboard.append([InlineKeyboardButton(Buttons.CANCEL_SUBSCRIPTION, callback_data="cancel_subscription")])
+        # Управління підпискою - не показуємо якщо підписка вже призупинена/скасована
+        if not subscription_paused and not subscription_cancelled:
+            keyboard.append([InlineKeyboardButton(Buttons.PAUSE_SUBSCRIPTION, callback_data="pause_subscription")])
+            keyboard.append([InlineKeyboardButton(Buttons.CANCEL_SUBSCRIPTION, callback_data="cancel_subscription")])
+        elif subscription_paused and not subscription_cancelled:
+            keyboard.append([InlineKeyboardButton(Buttons.RESUME_SUBSCRIPTION, callback_data="resume_subscription")])
     else:
         keyboard.append([InlineKeyboardButton(Buttons.SUBSCRIBE, callback_data="create_subscription")])
     
@@ -94,7 +100,7 @@ def get_back_keyboard() -> InlineKeyboardMarkup:
 def get_support_keyboard() -> InlineKeyboardMarkup:
     """Клавіатура підтримки"""
     keyboard = [
-        [InlineKeyboardButton("💬 Написати в підтримку", url="https://t.me/alionakovaliova")],
+        [InlineKeyboardButton("⁉️ Написати в підтримку", url="https://t.me/alionakovaliova")],
         [InlineKeyboardButton(Buttons.BACK, callback_data="main_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -103,7 +109,7 @@ def get_support_keyboard() -> InlineKeyboardMarkup:
 def get_dashboard_keyboard() -> InlineKeyboardMarkup:
     """Клавіатура дашборду"""
     keyboard = [
-        [InlineKeyboardButton("📊 Оновити статистику", callback_data="refresh_dashboard")],
+        [InlineKeyboardButton("🔄 Оновити статистику", callback_data="refresh_dashboard")],
         [InlineKeyboardButton(Buttons.BACK, callback_data="main_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -112,7 +118,7 @@ def get_dashboard_keyboard() -> InlineKeyboardMarkup:
 def get_text_or_button_keyboard() -> InlineKeyboardMarkup:
     """Клавіатура для вибору: написати текст або вибрати варіант"""
     keyboard = [
-        [InlineKeyboardButton("✍️ Написати свій варіант", callback_data="custom_text")],
+        [InlineKeyboardButton("Написати свій варіант", callback_data="custom_text")],
         [InlineKeyboardButton(Buttons.BACK, callback_data="main_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -122,8 +128,8 @@ def get_confirmation_keyboard(action: str) -> InlineKeyboardMarkup:
     """Клавіатура підтвердження дії"""
     keyboard = [
         [
-            InlineKeyboardButton("✅ Так", callback_data=f"confirm_{action}"),
-            InlineKeyboardButton("❌ Ні", callback_data="cancel_action")
+            InlineKeyboardButton("Так", callback_data=f"confirm_{action}"),
+            InlineKeyboardButton("Ні", callback_data="cancel_action")
         ]
     ]
     return InlineKeyboardMarkup(keyboard)

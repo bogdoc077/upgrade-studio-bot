@@ -24,12 +24,7 @@ interface CreateAdminForm {
   last_name: string
   password: string
   confirm_password: string
-  role: string
   is_active: boolean
-  can_manage_users: boolean
-  can_manage_payments: boolean
-  can_manage_settings: boolean
-  can_manage_admins: boolean
 }
 
 export default function AdminCreateModal({ isOpen, onClose, onSuccess }: AdminCreateModalProps) {
@@ -45,12 +40,7 @@ export default function AdminCreateModal({ isOpen, onClose, onSuccess }: AdminCr
     last_name: '',
     password: '',
     confirm_password: '',
-    role: 'admin',
     is_active: true,
-    can_manage_users: false,
-    can_manage_payments: false,
-    can_manage_settings: false,
-    can_manage_admins: false
   })
 
   const handleInputChange = (field: keyof CreateAdminForm, value: string | boolean) => {
@@ -116,12 +106,7 @@ export default function AdminCreateModal({ isOpen, onClose, onSuccess }: AdminCr
         last_name: '',
         password: '',
         confirm_password: '',
-        role: 'admin',
         is_active: true,
-        can_manage_users: false,
-        can_manage_payments: false,
-        can_manage_settings: false,
-        can_manage_admins: false
       })
     } catch (err) {
       const errorMessage = handleApiError(err)
@@ -310,94 +295,16 @@ export default function AdminCreateModal({ isOpen, onClose, onSuccess }: AdminCr
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" htmlFor="role">
-                      Роль
+                    <label className="form-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={form.is_active}
+                        onChange={(e) => handleInputChange('is_active', e.target.checked)}
+                        disabled={loading}
+                      />
+                      <span className="form-checkbox__checkmark"></span>
+                      <span className="form-checkbox__label">Активний аккаунт</span>
                     </label>
-                    <select
-                      id="role"
-                      className="form-select"
-                      value={form.role}
-                      onChange={(e) => handleInputChange('role', e.target.value)}
-                      disabled={loading}
-                    >
-                      <option value="admin">Адміністратор</option>
-                      <option value="moderator">Модератор</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Права доступу */}
-                <div className="form-section form-section--full-width">
-                  <h4 className="form-section__title">
-                    <ShieldCheckIcon className="form-section__icon" />
-                    Права доступу
-                  </h4>
-                  
-                  <div className="form-checkboxes">
-                    <div className="form-checkbox-group">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={form.is_active}
-                          onChange={(e) => handleInputChange('is_active', e.target.checked)}
-                          disabled={loading}
-                        />
-                        <span className="form-checkbox__checkmark"></span>
-                        <span className="form-checkbox__label">Активний аккаунт</span>
-                      </label>
-                    </div>
-
-                    <div className="form-checkbox-group">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={form.can_manage_users}
-                          onChange={(e) => handleInputChange('can_manage_users', e.target.checked)}
-                          disabled={loading}
-                        />
-                        <span className="form-checkbox__checkmark"></span>
-                        <span className="form-checkbox__label">Управління користувачами</span>
-                      </label>
-                    </div>
-
-                    <div className="form-checkbox-group">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={form.can_manage_payments}
-                          onChange={(e) => handleInputChange('can_manage_payments', e.target.checked)}
-                          disabled={loading}
-                        />
-                        <span className="form-checkbox__checkmark"></span>
-                        <span className="form-checkbox__label">Управління платежами</span>
-                      </label>
-                    </div>
-
-                    <div className="form-checkbox-group">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={form.can_manage_settings}
-                          onChange={(e) => handleInputChange('can_manage_settings', e.target.checked)}
-                          disabled={loading}
-                        />
-                        <span className="form-checkbox__checkmark"></span>
-                        <span className="form-checkbox__label">Управління налаштуваннями</span>
-                      </label>
-                    </div>
-
-                    <div className="form-checkbox-group">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={form.can_manage_admins}
-                          onChange={(e) => handleInputChange('can_manage_admins', e.target.checked)}
-                          disabled={loading}
-                        />
-                        <span className="form-checkbox__checkmark"></span>
-                        <span className="form-checkbox__label">Управління адміністраторами</span>
-                      </label>
-                    </div>
                   </div>
                 </div>
               </div>

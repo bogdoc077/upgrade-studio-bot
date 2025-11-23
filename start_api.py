@@ -30,15 +30,16 @@ def main():
     """Start the API server"""
     try:
         logger.info("Starting Upgrade Studio Bot API Server...")
-        logger.info(f"API server will be available at: http://localhost:8000")
+        logger.info(f"API server will be available at: http://localhost:8001")
         
         import uvicorn
+        # Production mode - no reload
         uvicorn.run(
             "api.server:app",
             host="0.0.0.0",
-            port=8000,
+            port=8001,
             log_level=settings.log_level.lower(),
-            reload=True  # Для розробки
+            reload=False  # Production mode
         )
     except KeyboardInterrupt:
         logger.info("API server stopped by user")

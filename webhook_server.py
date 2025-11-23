@@ -48,9 +48,9 @@ async def send_payment_success_notification(telegram_id: int):
         # Надсилаємо повідомлення про успішну оплату
         await telegram_bot.send_message(
             chat_id=telegram_id,
-            text="🎉 **Оплата успішна!**\n\n"
+            text="Оплата успішна!\n\n"
                  "Дякуємо! Ваша підписка активована.\n"
-                 "Тепер ви маєте доступ до всіх можливостей UPGRADE STUDIO! 💪",
+                 "Тепер ви маєте доступ до всіх можливостей UPGRADE STUDIO!",
             parse_mode='Markdown'
         )
         
@@ -68,20 +68,20 @@ async def send_payment_success_notification(telegram_id: int):
         
         if channel_link:
             keyboard = [[InlineKeyboardButton(
-                text="� Приєднатися до каналу",
+                text="Приєднатися до каналу",
                 url=channel_link.invite_link
             )]]
         else:
             # Fallback
             from config import settings
             keyboard = [[InlineKeyboardButton(
-                text="🔒 Приєднатися до каналу",
+                text="Приєднатися до каналу",
                 url=f"https://t.me/{settings.private_channel_id.lstrip('-')}"
             )]]
         
         # Додаємо кнопку "Я приєднався"
         keyboard.append([InlineKeyboardButton(
-            text="✅ Я приєднався до каналу",
+            text="Я приєднався до каналу",
             callback_data="channel_joined"
         )])
         
@@ -89,9 +89,9 @@ async def send_payment_success_notification(telegram_id: int):
         
         await telegram_bot.send_message(
             chat_id=telegram_id,
-            text="� **Крок 1: Приєднання до каналу**\n\n"
+            text="Крок 1: Приєднання до каналу\n\n"
                  "Спочатку приєднайтеся до нашого приватного каналу з тренуваннями та корисною інформацією.\n\n"
-                 "Після приєднання натисніть кнопку '✅ Я приєднався до каналу'",
+                 "Після приєднання натисніть кнопку 'Я приєднався до каналу'",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -123,6 +123,10 @@ async def handle_checkout_session_completed(session):
     """Обробити завершення checkout сесії"""
     try:
         logger.info(f"Обробка checkout.session.completed: {session['id']}")
+        logger.info(f"Session data: payment_intent={session.get('payment_intent')}, "
+                   f"subscription={session.get('subscription')}, "
+                   f"amount_total={session.get('amount_total')}, "
+                   f"customer={session.get('customer')}")
         
         # Отримуємо telegram_id з метаданих
         telegram_id = session.get('metadata', {}).get('telegram_id')
@@ -137,51 +141,88 @@ async def handle_checkout_session_completed(session):
             from database.models import Payment
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
             if user:
+                # Отримуємо payment_intent_id (може бути об'єктом або рядком)
+                payment_intent = session.get('payment_intent')
+                if isinstance(payment_intent, dict):
+                    payment_intent_id = payment_intent.get('id')
+                else:
+                    payment_intent_id = payment_intent
+                
+                # Отримуємо subscription_id (може бути об'єктом або рядком)
+                subscription = session.get('subscription')
+                if isinstance(subscription, dict):
+                    subscription_id = subscription.get('id')
+                else:
+                    subscription_id = subscription
+                
+                # Логуємо що отримали
+                logger.info(f"Extracted IDs: payment_intent_id={payment_intent_id}, subscription_id={subscription_id}")
+                
+                # Зберігаємо повний лог відповіді Stripe як JSON
+                import json
+                stripe_log = json.dumps(session, indent=2, default=str)
+                
                 # Зберігаємо дані про платіж
                 payment = Payment(
                     user_id=user.id,
-                    amount=session.get('amount_total', 0),  # Сума в центах
+                    amount=session.get('amount_total', 0),  # Зберігаємо в центах (Integer)
                     currency=session.get('currency', 'eur'),
-                    status="completed",
-                    stripe_payment_intent_id=session.get('payment_intent'),
-                    stripe_subscription_id=session.get('subscription'),
-                    stripe_invoice_id=session.get('invoice')
+                    status="succeeded",  # Stripe використовує 'succeeded' для успішних платежів
+                    stripe_payment_intent_id=payment_intent_id,
+                    stripe_subscription_id=subscription_id,
+                    stripe_invoice_id=session.get('invoice'),
+                    stripe_response_log=stripe_log,  # Зберігаємо повний лог
+                    paid_at=datetime.utcnow()
                 )
                 db.add(payment)
+                
+                logger.info(f"Збережено платіж: amount={session.get('amount_total')} центів, "
+                          f"payment_intent={payment_intent_id}, "
+                          f"subscription={subscription_id}")
                 
                 # Оновлюємо користувача
                 user.subscription_active = True
                 user.subscription_paused = False
                 user.subscription_cancelled = False
                 user.stripe_customer_id = session.get('customer')
-                user.stripe_subscription_id = session.get('subscription')
+                user.stripe_subscription_id = subscription_id
                 
-                # Отримуємо деталі підписки для встановлення дат
-                subscription_id = session.get('subscription')
+                # Встановлюємо дати підписки
+                date_set = False
+                
                 if subscription_id:
                     try:
-                        # Імпортуємо StripeManager для отримання деталей підписки
-                        from payments import StripeManager
-                        subscription_info = await StripeManager.get_subscription(subscription_id)
+                        # Отримуємо деталі підписки безпосередньо через Stripe API
+                        subscription_obj = stripe.Subscription.retrieve(subscription_id)
                         
-                        if subscription_info:
+                        if subscription_obj and subscription_obj.current_period_end:
                             # Встановлюємо дати на основі інформації з Stripe
-                            if 'current_period_end' in subscription_info:
-                                user.next_billing_date = datetime.fromtimestamp(subscription_info['current_period_end'])
-                                user.subscription_end_date = user.next_billing_date  # Для активних підписок це одне і те ж
+                            end_date = datetime.fromtimestamp(subscription_obj.current_period_end)
+                            user.next_billing_date = end_date
+                            user.subscription_end_date = end_date
+                            date_set = True
+                            logger.info(f"Дати підписки встановлено з Stripe для користувача {telegram_id}: "
+                                      f"subscription_end_date={user.subscription_end_date}, "
+                                      f"next_billing_date={user.next_billing_date}")
                                 
                     except Exception as e:
-                        logger.warning(f"Не вдалося отримати деталі підписки {subscription_id}: {e}")
-                        # Встановлюємо дефолтні дати (30 днів від зараз)
-                        user.next_billing_date = datetime.utcnow() + timedelta(days=30)
-                        user.subscription_end_date = user.next_billing_date
-                else:
-                    # Fallback для підписок без ID (тестові)
-                    user.next_billing_date = datetime.utcnow() + timedelta(days=30)
-                    user.subscription_end_date = user.next_billing_date
+                        logger.error(f"Не вдалося отримати деталі підписки {subscription_id}: {e}")
+                
+                # Якщо не вдалося отримати дати з Stripe - встановлюємо дефолтні (30 днів)
+                if not date_set:
+                    end_date = datetime.utcnow() + timedelta(days=30)
+                    user.next_billing_date = end_date
+                    user.subscription_end_date = end_date
+                    logger.info(f"Встановлено дефолтні дати підписки (30 днів) для користувача {telegram_id}: "
+                              f"subscription_end_date={user.subscription_end_date}, "
+                              f"next_billing_date={user.next_billing_date}")
                 
                 user.updated_at = datetime.utcnow()
                 db.commit()
+                
+                logger.info(f"Користувача {telegram_id} оновлено: subscription_active=True, "
+                          f"subscription_end_date={user.subscription_end_date}, "
+                          f"stripe_payment_intent_id={payment_intent_id}")
                 
                 # Скасовуємо нагадування про підписку
                 DatabaseManager.cancel_subscription_reminders_if_active(telegram_id)
@@ -189,8 +230,14 @@ async def handle_checkout_session_completed(session):
                 # Видаляємо повідомлення про оплату, якщо можливо
                 await delete_payment_message(telegram_id)
                 
-                # Надсилаємо повідомлення користувачу з кнопками приєднання
-                await send_payment_success_notification(telegram_id)
+                # Створюємо подію для обробки ботом
+                from payment_events import create_payment_success_event
+                if create_payment_success_event(telegram_id):
+                    logger.info(f"Створено подію payment_success для користувача {telegram_id}")
+                else:
+                    logger.error(f"Не вдалося створити подію payment_success для користувача {telegram_id}")
+                    # Fallback - надсилаємо просте повідомлення
+                    await send_payment_success_notification(telegram_id)
                 
                 logger.info(f"Підписка активована для користувача {telegram_id}, платіж збережено")
                 return True
@@ -228,6 +275,7 @@ async def handle_customer_subscription_updated(subscription):
                 if status == 'active':
                     db_user.subscription_active = True
                     db_user.subscription_paused = False
+                    db_user.subscription_status = 'active'
                     if not cancel_at_period_end:
                         db_user.subscription_cancelled = False
                     logger.info(f"Webhook: Статус підписки 'active' для користувача {user.telegram_id}")
@@ -251,9 +299,9 @@ async def handle_customer_subscription_updated(subscription):
                 if 'current_period_end' in subscription:
                     period_end = datetime.fromtimestamp(subscription['current_period_end'])
                     if status == 'active' and not cancel_at_period_end:
-                        # Для активних підписок - це дата наступного списання
+                        # Для активних підписок встановлюємо обидві дати
                         db_user.next_billing_date = period_end
-                        db_user.subscription_end_date = None  # Немає кінцевої дати для активних підписок
+                        db_user.subscription_end_date = period_end  # Дата до якої активна підписка
                     elif cancel_at_period_end or status in ['canceled', 'cancelled']:
                         # Для скасованих підписок - це дата закінчення
                         db_user.subscription_end_date = period_end
@@ -270,7 +318,7 @@ async def handle_customer_subscription_updated(subscription):
                 if cancel_at_period_end:
                     await send_telegram_notification(
                         user.telegram_id,
-                        f"❌ **Підписка скасована**\n\n"
+                        f" **Підписка скасована**\n\n"
                         f"Ваша підписка буде активна до {period_end.strftime('%d.%m.%Y')}.\n"
                         "Після цієї дати доступ до каналів буде припинено.\n\n"
                         "Ви можете поновити підписку у будь-який момент!"
@@ -288,9 +336,9 @@ async def handle_customer_subscription_updated(subscription):
                     if payment_count > 1:
                         await send_telegram_notification(
                             user.telegram_id,
-                            "✅ **Підписка поновлена**\n\n"
+                            " **Підписка поновлена**\n\n"
                             "Ваша підписка знову активна!\n"
-                            "Тепер ви маєте повний доступ до всіх можливостей UPGRADE STUDIO! 💪"
+                            "Тепер ви маєте повний доступ до всіх можливостей UPGRADE STUDIO! "
                         )
                 
                 logger.info(f"Статус підписки оновлено для користувача {user.telegram_id}")
@@ -319,7 +367,7 @@ async def handle_invoice_payment_failed(invoice):
         # Надсилаємо повідомлення про невдалу оплату
         await send_telegram_notification(
             user.telegram_id,
-            "❌ **Помилка оплати**\n\n"
+            "⚠️ **Помилка оплати**\n\n"
             "Не вдалося списати кошти за підписку.\n"
             "Перевірте дані вашої картки або оновіть спосіб оплати.\n\n"
             "Щоб оновити дані оплати, зверніться до підтримки: @upgrade_studio_support"
@@ -332,12 +380,110 @@ async def handle_invoice_payment_failed(invoice):
         logger.error(f"Помилка обробки invoice.payment_failed: {e}")
         return False
 
+async def handle_invoice_payment_succeeded(invoice):
+    """Обробити успішну оплату (продовження підписки)"""
+    try:
+        logger.info(f"Обробка invoice.payment_succeeded: {invoice['id']}")
+        
+        subscription_id = invoice.get('subscription')
+        if not subscription_id:
+            logger.info("Не subscription invoice - пропускаємо")
+            return True
+        
+        user = DatabaseManager.get_user_by_stripe_subscription_id(subscription_id)
+        if not user:
+            logger.warning(f"Користувач з subscription_id {subscription_id} не знайдений")
+            return False
+        
+        with DatabaseManager() as db:
+            from database.models import Payment
+            db_user = db.query(User).filter(User.telegram_id == user.telegram_id).first()
+            
+            if db_user:
+                # Зберігаємо повний лог
+                import json
+                stripe_log = json.dumps(invoice, indent=2, default=str)
+                
+                # Зберігаємо платіж
+                payment = Payment(
+                    user_id=db_user.id,
+                    amount=invoice.get('amount_paid', 0),
+                    currency=invoice.get('currency', 'eur'),
+                    status="succeeded",
+                    stripe_payment_intent_id=invoice.get('payment_intent'),
+                    stripe_subscription_id=subscription_id,
+                    stripe_invoice_id=invoice.get('id'),
+                    stripe_response_log=stripe_log,
+                    paid_at=datetime.utcnow()
+                )
+                db.add(payment)
+                
+                # Оновлюємо дати підписки
+                try:
+                    subscription_obj = stripe.Subscription.retrieve(subscription_id)
+                    if subscription_obj and subscription_obj.current_period_end:
+                        end_date = datetime.fromtimestamp(subscription_obj.current_period_end)
+                        db_user.next_billing_date = end_date
+                        db_user.subscription_end_date = end_date
+                        db_user.subscription_active = True
+                        logger.info(f"Оновлено дати підписки до {end_date} для користувача {user.telegram_id}")
+                        
+                        # Створюємо нагадування за 7 днів до списання
+                        reminder_date = end_date - timedelta(days=7)
+                        if reminder_date > datetime.utcnow():
+                            from database.models import Reminder
+                            # Перевіряємо чи немає вже такого нагадування
+                            existing = db.query(Reminder).filter(
+                                Reminder.user_id == db_user.id,
+                                Reminder.reminder_type == "subscription_renewal",
+                                Reminder.is_active == True,
+                                Reminder.scheduled_at >= datetime.utcnow()
+                            ).first()
+                            
+                            if not existing:
+                                reminder = Reminder(
+                                    user_id=db_user.id,
+                                    reminder_type="subscription_renewal",
+                                    scheduled_at=reminder_date,
+                                    max_attempts=1,
+                                    is_active=True
+                                )
+                                db.add(reminder)
+                                logger.info(f"Створено нагадування на {reminder_date} для користувача {user.telegram_id}")
+                
+                except Exception as e:
+                    logger.error(f"Помилка при оновленні дат підписки: {e}")
+                
+                db.commit()
+                
+                # Надсилаємо повідомлення про успішне продовження
+                await send_telegram_notification(
+                    user.telegram_id,
+                    "✅ **Підписка продовжена**\n\n"
+                    f"Ваша підписка успішно продовжена.\n"
+                    f"Дякуємо за довіру! 🎉"
+                )
+                
+                logger.info(f"Оброблено успішну оплату для користувача {user.telegram_id}")
+                return True
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Помилка обробки invoice.payment_succeeded: {e}")
+        return False
+
 
 @app.post("/webhook")
 async def stripe_webhook(request: Request):
     """Обробник Stripe webhooks"""
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')
+    
+    # Перевіряємо чи це запит від Stripe (має stripe-signature header)
+    if not sig_header:
+        logger.warning(f"Отримано запит без Stripe підпису від {request.client.host} - ігнорується")
+        return JSONResponse(content={"status": "ignored", "reason": "Not a Stripe webhook"}, status_code=200)
     
     # Перевіряємо підпис тільки якщо налаштований справжній webhook secret
     if (settings.stripe_webhook_secret and 
@@ -377,6 +523,8 @@ async def stripe_webhook(request: Request):
             success = await handle_checkout_session_completed(event_data)
         elif event_type == 'customer.subscription.updated':
             success = await handle_customer_subscription_updated(event_data)
+        elif event_type == 'invoice.payment_succeeded':
+            success = await handle_invoice_payment_succeeded(event_data)
         elif event_type == 'invoice.payment_failed':
             success = await handle_invoice_payment_failed(event_data)
         else:

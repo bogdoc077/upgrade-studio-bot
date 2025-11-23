@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
+import MobileHeader from './MobileHeader';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -13,7 +14,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   useEffect(() => {
     const checkMobile = () => {
-      const mobile = window.innerWidth < 1024;
+      const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       if (mobile) {
         setIsSidebarOpen(false);
@@ -39,9 +40,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="admin-layout">
+      {isMobile && <MobileHeader onMenuToggle={toggleSidebar} />}
+      
       <Sidebar 
         isOpen={isSidebarOpen} 
-        onToggle={toggleSidebar}
+        onToggle={!isMobile ? toggleSidebar : undefined}
         onClose={isMobile ? closeSidebar : undefined}
       />
       

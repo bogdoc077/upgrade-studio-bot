@@ -102,6 +102,7 @@ class Payment(Base):
     stripe_payment_intent_id = Column(String(255), unique=True, nullable=True)
     stripe_subscription_id = Column(String(255), nullable=True)
     stripe_invoice_id = Column(String(255), nullable=True)
+    stripe_response_log = Column(Text, nullable=True)  # Повний JSON лог відповіді від Stripe
     
     # Деталі платежу
     amount = Column(Integer, nullable=False)  # в центах
@@ -131,11 +132,17 @@ class InviteLink(Base):
     # Тип чату/посилання
     link_type = Column(String(20), nullable=False)  # 'channel' або 'chat'
     
+    # Назва чату/каналу
+    chat_title = Column(String(255), nullable=True)
+    
     # Посилання запрошення
-    link = Column(String(255), nullable=False)
+    invite_link = Column(String(255), nullable=False)
+    
+    # Статус активності
+    is_active = Column(Boolean, default=True)
     
     # Хто створив посилання
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     # Час закінчення дії (опціонально)
     expires_at = Column(DateTime, nullable=True)
@@ -152,7 +159,7 @@ class InviteLink(Base):
         return datetime.utcnow() > self.expires_at
         
     def __repr__(self):
-        return f"<InviteLink(id={self.id}, link_type={self.link_type}, link={self.link})>"
+        return f"<InviteLink(id={self.id}, link_type={self.link_type}, invite_link={self.invite_link})>"
 
 
 class Admin(Base):
@@ -423,7 +430,7 @@ class DatabaseManager:
             # Спочатку перевіряємо, чи існує посилання для цього чату
             existing_link = db.query(InviteLink).filter(
                 InviteLink.chat_id == chat_id,
-                InviteLink.chat_type == chat_type
+                InviteLink.link_type == chat_type
             ).first()
             
             if existing_link:
@@ -439,7 +446,7 @@ class DatabaseManager:
                 # Створюємо нове посилання
                 new_link = InviteLink(
                     chat_id=chat_id,
-                    chat_type=chat_type,
+                    link_type=chat_type,
                     chat_title=chat_title,
                     invite_link=invite_link
                 )
@@ -466,7 +473,7 @@ class DatabaseManager:
         with DatabaseManager() as db:
             link = db.query(InviteLink).filter(
                 InviteLink.chat_id == chat_id,
-                InviteLink.chat_type == chat_type,
+                InviteLink.link_type == chat_type,
                 InviteLink.is_active == True
             ).first()
             
@@ -481,7 +488,7 @@ class DatabaseManager:
         with DatabaseManager() as db:
             link = db.query(InviteLink).filter(
                 InviteLink.chat_id == chat_id,
-                InviteLink.chat_type == chat_type
+                InviteLink.link_type == chat_type
             ).first()
             
             if link:
@@ -650,9 +657,9 @@ class DatabaseManager:
     
     @staticmethod
     def get_active_invite_links():
-        """Отримати всі активні посилання запрошення"""
+        """Отримати всі посилання запрошення (фільтрація по is_expired робиться в коді)"""
         with DatabaseManager() as db:
-            invite_links = db.query(InviteLink).filter(InviteLink.is_active == True).all()
+            invite_links = db.query(InviteLink).all()
             # Відключаємо об'єкти від сесії для безпечного використання
             for link in invite_links:
                 db.expunge(link)
@@ -663,7 +670,7 @@ class DatabaseManager:
         """Додати нове посилання запрошення"""
         with DatabaseManager() as db:
             link = InviteLink(
-                chat_type=chat_type,
+                link_type=chat_type,
                 invite_link=invite_link,
                 chat_id=chat_id or "",
                 chat_title=chat_title
@@ -733,6 +740,59 @@ class DatabaseManager:
                 db.commit()
             
             return count
+
+
+class Broadcast(Base):
+    """Модель для розсилок"""
+    __tablename__ = "broadcasts"
+    
+    id = Column(Integer, primary_key=True)
+    created_by = Column(Integer, ForeignKey('admins.id'), nullable=False)
+    target_group = Column(String(50), nullable=False)  # 'active', 'inactive', 'no_payment'
+    
+    # Заголовок
+    title = Column(String(255), nullable=True)  # Заголовок розсилки для відображення в адмінці
+    
+    # Контент повідомлення
+    message_text = Column(Text, nullable=True)
+    attachment_type = Column(String(20), nullable=True)  # 'image', 'file', 'link', None
+    attachment_url = Column(String(500), nullable=True)
+    button_text = Column(String(100), nullable=True)  # Для посилань
+    button_url = Column(String(500), nullable=True)
+    message_blocks = Column(Text, nullable=True)  # JSON з усіма блоками повідомлення
+    
+    # Статус та статистика
+    status = Column(String(20), default='pending')  # 'pending', 'processing', 'completed', 'failed'
+    total_recipients = Column(Integer, default=0)
+    sent_count = Column(Integer, default=0)
+    failed_count = Column(Integer, default=0)
+    
+    # Час
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    error_log = Column(Text, nullable=True)  # Лог помилок
+    full_log = Column(Text, nullable=True)  # Повний лог розсилки (успішні + помилки)
+
+
+class BroadcastQueue(Base):
+    """Черга для розсилок"""
+    __tablename__ = "broadcast_queue"
+    
+    id = Column(Integer, primary_key=True)
+    broadcast_id = Column(Integer, ForeignKey('broadcasts.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    telegram_id = Column(Integer, nullable=False)
+    
+    status = Column(String(20), default='pending')  # 'pending', 'sent', 'failed'
+    error_message = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    broadcast = relationship("Broadcast")
+    user = relationship("User")
 
 
 def get_database():

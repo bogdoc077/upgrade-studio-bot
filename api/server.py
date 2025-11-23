@@ -1,6 +1,8 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any, Optional
 import secrets
 from datetime import datetime, timedelta
@@ -10,6 +12,13 @@ from jwt import InvalidTokenError
 import sys
 from pathlib import Path
 from pydantic import BaseModel
+import os
+import uuid
+import shutil
+from PIL import Image
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 
 # Додаємо шлях до проєкту
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -30,26 +39,16 @@ class AdminCreate(BaseModel):
     password: str
     first_name: str
     last_name: Optional[str] = None
-    role: str = "admin"
-    can_manage_users: bool = True
-    can_manage_payments: bool = True
-    can_manage_settings: bool = False
-    can_manage_admins: bool = False
+    is_active: bool = True
 
 class AdminUpdate(BaseModel):
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    role: Optional[str] = None
     is_active: Optional[bool] = None
-    can_manage_users: Optional[bool] = None
-    can_manage_payments: Optional[bool] = None
-    can_manage_settings: Optional[bool] = None
-    can_manage_admins: Optional[bool] = None
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str
 
 class SettingUpdate(BaseModel):
     key: str
@@ -62,6 +61,14 @@ class SettingUpdate(BaseModel):
 
 app = FastAPI(title="Upgrade Studio Bot API", version="1.0.0")
 
+# Створюємо папки для завантажень якщо не існують
+UPLOAD_DIR = PROJECT_ROOT / "uploads"
+BROADCASTS_DIR = UPLOAD_DIR / "broadcasts"
+BROADCASTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Монтуємо статичні файли
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
 # CORS для Next.js
 app.add_middleware(
     CORSMiddleware,
@@ -70,6 +77,39 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint для моніторингу"""
+    try:
+        # Перевіримо з'єднання з базою даних
+        db = get_database()
+        cursor = db.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        db.close()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0",
+            "services": {
+                "database": "connected",
+                "api": "running"
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0",
+            "error": str(e),
+            "services": {
+                "database": "error",
+                "api": "running"
+            }
+        }
 
 # Basic Authentication
 # JWT налаштування
@@ -220,11 +260,8 @@ def get_current_admin_flexible(
     )
 
 def check_admin_permission(admin: Dict, permission: str) -> bool:
-    """Перевірити дозвіл адміна"""
-    if admin.get("is_superadmin"):
-        return True
-    
-    return admin.get(f"can_{permission}", False)
+    """Перевірити дозвіл адміна - всі адміни мають повний доступ"""
+    return True
 
 @app.get("/api/dashboard")
 async def get_dashboard(admin: Dict = Depends(get_current_admin_flexible)) -> Dict[str, Any]:
@@ -248,24 +285,24 @@ async def get_dashboard(admin: Dict = Depends(get_current_admin_flexible)) -> Di
         result = cursor.fetchone()
         inactive_users = result["inactive"] if result else 0
         
-        # Total revenue from successful payments (в центах)
-        cursor.execute("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status = 'succeeded'")
+        # Total revenue from successful payments (сума вже в євро)
+        cursor.execute("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status IN ('succeeded', 'completed')")
         result = cursor.fetchone()
         if result and result["total"]:
             from decimal import Decimal
             total_amount = result["total"]
             if isinstance(total_amount, Decimal):
-                total_revenue = int(total_amount)
+                total_revenue = float(total_amount)  # Сума вже в євро
             else:
-                total_revenue = int(total_amount)
+                total_revenue = float(total_amount)
         else:
-            total_revenue = 0
+            total_revenue = 0.0
         
         # Today's payments count
         cursor.execute("""
             SELECT COUNT(*) as count 
             FROM payments 
-            WHERE status = 'succeeded' 
+            WHERE status IN ('succeeded', 'completed') 
             AND DATE(created_at) = CURDATE()
         """)
         result = cursor.fetchone()
@@ -278,7 +315,7 @@ async def get_dashboard(admin: Dict = Depends(get_current_admin_flexible)) -> Di
             "total_users": total_users,
             "active_users": active_users,
             "inactive_users": inactive_users,
-            "total_revenue": total_revenue,
+            "total_revenue": total_revenue,  # Вже в євро
             "payments_today": payments_today
         }
     except Exception as e:
@@ -349,7 +386,8 @@ async def get_users(
         db.close()
         
         return {
-            "users": users,
+            "data": users,
+            "total": total_users,
             "pagination": {
                 "current_page": page,
                 "total_pages": total_pages,
@@ -364,6 +402,90 @@ async def get_users(
             except:
                 pass
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/api/users/export")
+async def export_users(
+    admin: Dict = Depends(get_current_admin_flexible)
+):
+    """Експорт користувачів в Excel"""
+    try:
+        db = get_database()
+        cursor = db.cursor(dictionary=True)
+        
+        cursor.execute("SELECT * FROM users ORDER BY created_at DESC")
+        users = cursor.fetchall() or []
+        
+        # Створюємо Excel файл
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Користувачі"
+        
+        # Заголовки
+        headers = [
+            'ID', 'Telegram ID', 'Username', "Ім'я", 'Прізвище',
+            'Статус', 'Підписка активна', 'Підписка до', 
+            'Дата реєстрації', 'Останнє оновлення'
+        ]
+        
+        # Стилізація заголовків
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF")
+        
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Дані
+        for row_num, user in enumerate(users, 2):
+            ws.cell(row=row_num, column=1, value=user.get('id'))
+            ws.cell(row=row_num, column=2, value=user.get('telegram_id'))
+            ws.cell(row=row_num, column=3, value=user.get('username', ''))
+            ws.cell(row=row_num, column=4, value=user.get('first_name', ''))
+            ws.cell(row=row_num, column=5, value=user.get('last_name', ''))
+            ws.cell(row=row_num, column=6, value=user.get('subscription_status', 'inactive'))
+            ws.cell(row=row_num, column=7, value='Так' if user.get('subscription_active') == 1 else 'Ні')
+            ws.cell(row=row_num, column=8, value=user.get('subscription_end_date', ''))
+            ws.cell(row=row_num, column=9, value=user.get('created_at', ''))
+            ws.cell(row=row_num, column=10, value=user.get('updated_at', ''))
+        
+        # Автоширина колонок
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Зберігаємо в пам'ять
+        excel_file = io.BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        cursor.close()
+        db.close()
+        
+        # Повертаємо файл
+        return StreamingResponse(
+            excel_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=users_{datetime.now().strftime('%Y%m%d')}.xlsx"}
+        )
+        
+    except Exception as e:
+        if 'db' in locals():
+            try:
+                db.close()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Export error: {str(e)}")
 
 @app.get("/api/payments")
 async def get_payments(
@@ -394,7 +516,7 @@ async def get_payments(
         
         payments = cursor.fetchall() or []
         
-        # Convert datetime objects to ISO strings
+        # Convert datetime objects to ISO strings (суми вже в євро)
         for payment in payments:
             if payment.get('created_at'):
                 payment['created_at'] = payment['created_at'].isoformat()
@@ -402,6 +524,9 @@ async def get_payments(
                 payment['updated_at'] = payment['updated_at'].isoformat()
             if payment.get('paid_at'):
                 payment['paid_at'] = payment['paid_at'].isoformat()
+            # Сума вже в євро, тільки конвертуємо в float
+            if payment.get('amount'):
+                payment['amount'] = float(payment['amount'])
         
         total_pages = (total_payments + limit - 1) // limit if total_payments > 0 else 1
         
@@ -409,7 +534,8 @@ async def get_payments(
         db.close()
         
         return {
-            "payments": payments,
+            "data": payments,
+            "total": total_payments,
             "pagination": {
                 "current_page": page,
                 "total_pages": total_pages,
@@ -424,6 +550,97 @@ async def get_payments(
             except:
                 pass
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/api/payments/export")
+async def export_payments(
+    admin: Dict = Depends(get_current_admin_flexible)
+):
+    """Експорт платежів в Excel"""
+    try:
+        db = get_database()
+        cursor = db.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT p.*, u.telegram_id, u.first_name, u.last_name, u.username
+            FROM payments p
+            JOIN users u ON p.user_id = u.id
+            ORDER BY p.created_at DESC
+        """)
+        payments = cursor.fetchall() or []
+        
+        # Створюємо Excel файл
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Платежі"
+        
+        # Заголовки
+        headers = [
+            'ID', 'User ID', 'Telegram ID', 'Username', "Ім'я користувача",
+            'Сума (EUR)', 'Валюта', 'Статус', 'Stripe Invoice ID', 'Stripe Payment ID',
+            'Дата створення', 'Дата оплати'
+        ]
+        
+        # Стилізація заголовків
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF")
+        
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Дані
+        for row_num, payment in enumerate(payments, 2):
+            ws.cell(row=row_num, column=1, value=payment.get('id'))
+            ws.cell(row=row_num, column=2, value=payment.get('user_id'))
+            ws.cell(row=row_num, column=3, value=payment.get('telegram_id'))
+            ws.cell(row=row_num, column=4, value=payment.get('username', ''))
+            ws.cell(row=row_num, column=5, value=f"{payment.get('first_name', '')} {payment.get('last_name', '')}".strip())
+            ws.cell(row=row_num, column=6, value=float(payment.get('amount', 0)))  # Сума вже в євро
+            ws.cell(row=row_num, column=7, value=payment.get('currency', '').upper())
+            ws.cell(row=row_num, column=8, value=payment.get('status', ''))
+            ws.cell(row=row_num, column=9, value=payment.get('stripe_invoice_id', ''))
+            ws.cell(row=row_num, column=10, value=payment.get('stripe_payment_intent_id', ''))
+            ws.cell(row=row_num, column=11, value=str(payment.get('created_at', '')))
+            ws.cell(row=row_num, column=12, value=str(payment.get('paid_at', '')))
+        
+        # Автоширина колонок
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Зберігаємо в пам'ять
+        excel_file = io.BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        cursor.close()
+        db.close()
+        
+        # Повертаємо файл
+        return StreamingResponse(
+            excel_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=payments_{datetime.now().strftime('%Y%m%d')}.xlsx"}
+        )
+        
+    except Exception as e:
+        if 'db' in locals():
+            try:
+                db.close()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Export error: {str(e)}")
 
 @app.post("/api/users/{user_id}/subscription")
 async def update_user_subscription(
@@ -481,6 +698,7 @@ async def delete_user(
     admin: Dict = Depends(get_current_admin_flexible)
 ):
     """Видалити користувача та всі пов'язані дані"""
+    db = None
     try:
         db = get_database()
         cursor = db.cursor()
@@ -492,18 +710,30 @@ async def delete_user(
             db.close()
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Delete related payments first
-        cursor.execute("DELETE FROM payments WHERE user_id = %s", (user_id,))
-        
-        # Delete user reminders if they exist
+        # Delete from broadcast_queue first (has foreign key to users)
         try:
-            cursor.execute("DELETE FROM user_reminders WHERE user_id = %s", (user_id,))
-        except:
-            # Table might not exist
-            pass
+            cursor.execute("DELETE FROM broadcast_queue WHERE user_id = %s", (user_id,))
+            print(f"Deleted broadcast_queue entries for user {user_id}")
+        except Exception as e:
+            print(f"Broadcast queue error: {str(e)}")
+        
+        # Delete related payments
+        try:
+            cursor.execute("DELETE FROM payments WHERE user_id = %s", (user_id,))
+            print(f"Deleted payments for user {user_id}")
+        except Exception as e:
+            print(f"Error deleting payments: {str(e)}")
+        
+        # Delete reminders (correct table name)
+        try:
+            cursor.execute("DELETE FROM reminders WHERE user_id = %s", (user_id,))
+            print(f"Deleted reminders for user {user_id}")
+        except Exception as e:
+            print(f"Error deleting reminders: {str(e)}")
         
         # Delete the user
         cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        print(f"Deleted user {user_id}")
         
         db.commit()
         cursor.close()
@@ -511,10 +741,18 @@ async def delete_user(
         
         return {"success": True, "message": "User deleted successfully"}
     except HTTPException:
+        if db:
+            try:
+                db.rollback()
+                db.close()
+            except:
+                pass
         raise
     except Exception as e:
-        if 'db' in locals():
+        print(f"Error deleting user {user_id}: {str(e)}")
+        if db:
             try:
+                db.rollback()
                 db.close()
             except:
                 pass
@@ -556,14 +794,7 @@ async def login(login_data: LoginRequest):
             "email": admin["email"],
             "first_name": admin["first_name"],
             "last_name": admin["last_name"],
-            "role": admin["role"],
             "is_superadmin": admin["is_superadmin"],
-            "permissions": {
-                "manage_users": admin["can_manage_users"],
-                "manage_payments": admin["can_manage_payments"],
-                "manage_settings": admin["can_manage_settings"],
-                "manage_admins": admin["can_manage_admins"],
-            }
         }
     }
 
@@ -576,14 +807,7 @@ async def get_current_user(admin: Dict = Depends(get_current_admin_from_token)):
         "email": admin["email"],
         "first_name": admin["first_name"],
         "last_name": admin["last_name"],
-        "role": admin["role"],
         "is_superadmin": admin["is_superadmin"],
-        "permissions": {
-            "manage_users": admin["can_manage_users"],
-            "manage_payments": admin["can_manage_payments"],
-            "manage_settings": admin["can_manage_settings"],
-            "manage_admins": admin["can_manage_admins"],
-        },
         "last_login_at": admin["last_login_at"]
     }
 
@@ -644,20 +868,15 @@ async def create_admin(admin_data: AdminCreate, admin: Dict = Depends(get_curren
         # Створюємо адміна
         cursor.execute("""
             INSERT INTO admins (
-                username, email, password_hash, first_name, last_name, role,
-                can_manage_users, can_manage_payments, can_manage_settings, can_manage_admins
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                username, email, password_hash, first_name, last_name, is_active
+            ) VALUES (%s, %s, %s, %s, %s, %s)
         """, (
             admin_data.username,
             admin_data.email,
             password_hash,
             admin_data.first_name,
             admin_data.last_name,
-            admin_data.role,
-            admin_data.can_manage_users,
-            admin_data.can_manage_payments,
-            admin_data.can_manage_settings,
-            admin_data.can_manage_admins
+            admin_data.is_active
         ))
         
         db.commit()
@@ -878,6 +1097,384 @@ async def update_setting(setting_key: str, setting_data: SettingUpdate, admin: D
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating setting: {str(e)}")
+
+class PaymentSuccessRequest(BaseModel):
+    telegram_id: int
+
+@app.post("/trigger_payment_success")
+async def trigger_payment_success(request: PaymentSuccessRequest):
+    """Викликає обробник успішної оплати в боті"""
+    try:
+        # Імпортуємо bot_instance динамічно
+        from main import bot_instance
+        
+        # Викликаємо обробник успішної оплати
+        import asyncio
+        asyncio.create_task(bot_instance.handle_successful_payment(request.telegram_id))
+        
+        return {"success": True, "message": f"Payment success handler triggered for user {request.telegram_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error triggering payment success: {str(e)}")
+
+# ============================================
+# BROADCASTS ENDPOINTS
+# ============================================
+
+class BroadcastCreate(BaseModel):
+    target_group: str  # 'active', 'inactive', 'no_payment'
+    title: Optional[str] = None  # Заголовок розсилки
+    message_text: Optional[str] = None
+    attachment_type: Optional[str] = None  # 'image', 'file', 'link'
+    attachment_url: Optional[str] = None
+    button_text: Optional[str] = None
+    button_url: Optional[str] = None
+    message_blocks: Optional[list] = None  # Всі блоки повідомлення
+
+@app.get("/api/broadcasts")
+async def get_broadcasts(
+    page: int = 1,
+    limit: int = 50,
+    admin: Dict = Depends(get_current_admin_flexible)
+) -> Dict[str, Any]:
+    """Отримати список розсилок"""
+    try:
+        db = get_database()
+        cursor = db.cursor(dictionary=True)
+        
+        offset = (page - 1) * limit
+        
+        # Отримуємо розсилки з інформацією про адміна
+        cursor.execute("""
+            SELECT 
+                b.id,
+                b.target_group,
+                b.title,
+                b.message_text,
+                b.attachment_type,
+                b.attachment_url,
+                b.button_text,
+                b.button_url,
+                b.status,
+                b.total_recipients,
+                b.sent_count,
+                b.failed_count,
+                b.created_at,
+                b.started_at,
+                b.completed_at,
+                b.error_log,
+                b.full_log,
+                a.username as created_by_username
+            FROM broadcasts b
+            LEFT JOIN admins a ON b.created_by = a.id
+            ORDER BY b.created_at DESC
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
+        
+        broadcasts = cursor.fetchall()
+        
+        # Total count
+        cursor.execute("SELECT COUNT(*) as total FROM broadcasts")
+        result = cursor.fetchone()
+        total = result["total"] if result else 0
+        
+        cursor.close()
+        db.close()
+        
+        return {
+            "broadcasts": broadcasts,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": (total + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching broadcasts: {str(e)}")
+
+@app.get("/api/broadcasts/stats")
+async def get_broadcast_stats(admin: Dict = Depends(get_current_admin_flexible)) -> Dict[str, Any]:
+    """Отримати статистику по групам користувачів для розсилок"""
+    try:
+        db = get_database()
+        cursor = db.cursor(dictionary=True)
+        
+        # Активні підписники
+        cursor.execute("SELECT COUNT(*) as count FROM users WHERE subscription_active = 1")
+        result = cursor.fetchone()
+        active_count = result["count"] if result else 0
+        
+        # Неактивні (були активні, але більше ні)
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM users 
+            WHERE subscription_active = 0 
+            AND stripe_subscription_id IS NOT NULL
+        """)
+        result = cursor.fetchone()
+        inactive_count = result["count"] if result else 0
+        
+        # Не оплатили (запустили бота, але немає subscription_id)
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM users 
+            WHERE stripe_subscription_id IS NULL
+        """)
+        result = cursor.fetchone()
+        no_payment_count = result["count"] if result else 0
+        
+        cursor.close()
+        db.close()
+        
+        return {
+            "active": active_count,
+            "inactive": inactive_count,
+            "no_payment": no_payment_count
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching broadcast stats: {str(e)}")
+
+@app.post("/api/broadcasts/upload")
+async def upload_broadcast_file(
+    file: UploadFile = File(...),
+    admin: Dict = Depends(get_current_admin_flexible)
+) -> Dict[str, Any]:
+    """Завантажити файл для розсилки"""
+    if not check_admin_permission(admin, "manage_broadcasts"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    try:
+        # Перевіряємо тип файлу
+        allowed_types = {
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'video/mp4', 'video/mpeg', 'video/quicktime',
+            'application/pdf', 'application/zip',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }
+        
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type {file.content_type} not allowed. Allowed types: images, videos, PDF, ZIP, DOCX, XLSX"
+            )
+        
+        # Перевіряємо розмір (максимум 20MB)
+        max_size = 20 * 1024 * 1024  # 20MB
+        file_content = await file.read()
+        if len(file_content) > max_size:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 20MB")
+        
+        # Генеруємо унікальне ім'я файлу
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else ''
+        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+        file_path = BROADCASTS_DIR / unique_filename
+        
+        # Обробка зображень - ресайз якщо занадто великі
+        if file.content_type.startswith('image/'):
+            try:
+                img = Image.open(io.BytesIO(file_content))
+                
+                # Telegram обмеження: рекомендовано до 5000x5000, макс 10000x10000
+                max_dimension = 4096
+                if img.width > max_dimension or img.height > max_dimension:
+                    # Зберігаємо пропорції
+                    ratio = min(max_dimension / img.width, max_dimension / img.height)
+                    new_size = (int(img.width * ratio), int(img.height * ratio))
+                    
+                    # Ресайз з високою якістю
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                    
+                    # Конвертуємо в RGB якщо потрібно (для JPEG)
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                        if img.mode == 'P':
+                            img = img.convert('RGBA')
+                        rgb_img.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                        img = rgb_img
+                    
+                    # Зберігаємо оптимізоване зображення
+                    img.save(file_path, format='JPEG', quality=85, optimize=True)
+                else:
+                    # Зберігаємо оригінал якщо розмір прийнятний
+                    with open(file_path, 'wb') as f:
+                        f.write(file_content)
+            except Exception as e:
+                # Якщо помилка обробки - зберігаємо оригінал
+                with open(file_path, 'wb') as f:
+                    f.write(file_content)
+        else:
+            # Зберігаємо файл як є (відео, документи)
+            with open(file_path, 'wb') as f:
+                f.write(file_content)
+        
+        # Визначаємо тип вкладення
+        attachment_type = None
+        if file.content_type.startswith('image/'):
+            attachment_type = 'image'
+        elif file.content_type.startswith('video/'):
+            attachment_type = 'video'
+        else:
+            attachment_type = 'document'  # Змінено з 'file' на 'document' для сумісності з фронтендом
+        
+        # Формуємо URL для доступу до файлу
+        file_url = f"/uploads/broadcasts/{unique_filename}"
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "url": file_url,
+            "attachment_type": attachment_type,
+            "size": len(file_content),
+            "content_type": file.content_type
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+
+@app.delete("/api/broadcasts/file")
+async def delete_broadcast_file(
+    file_url: str,
+    admin: Dict = Depends(get_current_admin_flexible)
+) -> Dict[str, Any]:
+    """Видалити файл розсилки"""
+    if not check_admin_permission(admin, "manage_broadcasts"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    try:
+        # Отримуємо шлях до файлу з URL
+        if not file_url.startswith('/uploads/broadcasts/'):
+            raise HTTPException(status_code=400, detail="Invalid file URL")
+        
+        filename = file_url.split('/')[-1]
+        file_path = BROADCASTS_DIR / filename
+        
+        # Видаляємо файл якщо він існує
+        if file_path.exists():
+            os.remove(file_path)
+            return {"success": True, "message": "File deleted"}
+        else:
+            return {"success": True, "message": "File not found"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
+
+@app.post("/api/broadcasts")
+async def create_broadcast(
+    broadcast_data: BroadcastCreate,
+    admin: Dict = Depends(get_current_admin_flexible)
+) -> Dict[str, Any]:
+    """Створити нову розсилку"""
+    if not check_admin_permission(admin, "manage_broadcasts"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    try:
+        from database.models import DatabaseManager, Broadcast, BroadcastQueue, User
+        
+        # Логування отриманих даних
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Creating broadcast with data:")
+        logger.info(f"  target_group: {broadcast_data.target_group}")
+        logger.info(f"  title: '{broadcast_data.title}'")
+        logger.info(f"  message_text: {broadcast_data.message_text[:50] if broadcast_data.message_text else None}")
+        logger.info(f"  attachment_type: {broadcast_data.attachment_type}")
+        
+        with DatabaseManager() as db:
+            # Створюємо розсилку
+            broadcast = Broadcast(
+                created_by=admin["id"],
+                target_group=broadcast_data.target_group,
+                title=broadcast_data.title,
+                message_text=broadcast_data.message_text,
+                attachment_type=broadcast_data.attachment_type,
+                attachment_url=broadcast_data.attachment_url,
+                button_text=broadcast_data.button_text,
+                button_url=broadcast_data.button_url,
+                status='pending'
+            )
+            
+            # Зберігаємо message_blocks якщо передані
+            if broadcast_data.message_blocks:
+                import json
+                broadcast.message_blocks = json.dumps(broadcast_data.message_blocks)
+            
+            db.add(broadcast)
+            db.flush()  # Отримуємо ID
+            
+            logger.info(f"Broadcast created with ID: {broadcast.id}, title in object: '{broadcast.title}'")
+            
+            # Вибираємо користувачів за групою
+            if broadcast_data.target_group == 'active':
+                users = db.query(User).filter(User.subscription_active == True).all()
+            elif broadcast_data.target_group == 'inactive':
+                users = db.query(User).filter(
+                    User.subscription_active == False,
+                    User.stripe_subscription_id.isnot(None)
+                ).all()
+            elif broadcast_data.target_group == 'no_payment':
+                users = db.query(User).filter(User.stripe_subscription_id.is_(None)).all()
+            else:
+                raise HTTPException(status_code=400, detail="Invalid target group")
+            
+            # Додаємо користувачів в чергу
+            for user in users:
+                queue_item = BroadcastQueue(
+                    broadcast_id=broadcast.id,
+                    user_id=user.id,
+                    telegram_id=user.telegram_id
+                )
+                db.add(queue_item)
+            
+            broadcast.total_recipients = len(users)
+            db.commit()
+            
+            return {
+                "success": True,
+                "broadcast_id": broadcast.id,
+                "total_recipients": len(users)
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating broadcast: {str(e)}")
+
+@app.get("/api/broadcasts/{broadcast_id}")
+async def get_broadcast_detail(
+    broadcast_id: int,
+    admin: Dict = Depends(get_current_admin_flexible)
+) -> Dict[str, Any]:
+    """Отримати детальну інформацію про розсилку"""
+    try:
+        db = get_database()
+        cursor = db.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT 
+                b.*,
+                a.username as created_by_username
+            FROM broadcasts b
+            LEFT JOIN admins a ON b.created_by = a.id
+            WHERE b.id = %s
+        """, (broadcast_id,))
+        
+        broadcast = cursor.fetchone()
+        
+        if not broadcast:
+            raise HTTPException(status_code=404, detail="Broadcast not found")
+        
+        cursor.close()
+        db.close()
+        
+        return {"broadcast": broadcast}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching broadcast: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

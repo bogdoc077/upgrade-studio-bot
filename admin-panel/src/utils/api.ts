@@ -155,13 +155,8 @@ export interface Admin {
   email: string
   first_name: string
   last_name?: string
-  role: string
   is_active: boolean
   is_superadmin: boolean
-  can_manage_users: boolean
-  can_manage_payments: boolean
-  can_manage_settings: boolean
-  can_manage_admins: boolean
   created_at: string
   last_login_at?: string
 }

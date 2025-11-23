@@ -1,0 +1,40 @@
+/* ============================================
+   DASHBOARD PAGE STYLES
+   Note: Main dashboard styles are in globals.css
+   This file contains only dashboard-specific overrides
+   ============================================ */
+
+/* Dashboard container specific styles */
+.dashboard {
+  min-height: 100vh;
+  background-color: var(--color-bg);
+}
+
+/* Loading state specific to dashboard */
+.dashboard__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.dashboard__loading-text {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  text-align: center;
+}
+
+/* Error state specific to dashboard */
+.dashboard__error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.dashboard__error-message {
+  color: var(--color-danger);
+  font-size: var(--font-size-base);
+  margin: 0 0 var(--spacing-base) 0;
+  text-align: center;
+}
