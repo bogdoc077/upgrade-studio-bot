@@ -7,10 +7,13 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
+    console.log('[DELETE User] Request received');
     const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
     const userId = parseInt(resolvedParams.id);
+    console.log('[DELETE User] User ID:', userId);
     
     if (isNaN(userId)) {
+      console.error('[DELETE User] Invalid user ID');
       return NextResponse.json({
         success: false,
         error: 'Invalid user ID'
@@ -21,8 +24,10 @@ export async function DELETE(
     const authHeader = request.headers.get('authorization');
     const cookieToken = request.cookies.get('auth_token')?.value;
     const token = authHeader?.replace('Bearer ', '') || cookieToken;
+    console.log('[DELETE User] Token present:', !!token);
 
     if (!token) {
+      console.error('[DELETE User] No authorization token');
       return NextResponse.json({
         success: false,
         error: 'Authorization required'
@@ -30,6 +35,7 @@ export async function DELETE(
     }
 
     // Direct call to FastAPI
+    console.log(`[DELETE User] Calling FastAPI: ${API_BASE_URL}/api/users/${userId}`);
     const apiResponse = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
       method: 'DELETE',
       headers: {
@@ -38,8 +44,11 @@ export async function DELETE(
       },
     });
 
+    console.log('[DELETE User] FastAPI response status:', apiResponse.status);
+
     if (!apiResponse.ok) {
       const errorData = await apiResponse.json().catch(() => ({}));
+      console.error('[DELETE User] FastAPI error:', errorData);
       return NextResponse.json({
         success: false,
         error: errorData.detail || 'Failed to delete user'
@@ -47,6 +56,7 @@ export async function DELETE(
     }
 
     const data = await apiResponse.json();
+    console.log('[DELETE User] Success');
 
     return NextResponse.json({
       success: true,
@@ -54,7 +64,7 @@ export async function DELETE(
     });
 
   } catch (error) {
-    console.error('Delete user error:', error);
+    console.error('[DELETE User] Exception:', error);
     
     return NextResponse.json({
       success: false,
