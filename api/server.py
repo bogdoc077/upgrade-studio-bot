@@ -49,6 +49,14 @@ class AdminUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str
+    
+class UserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    goals: Optional[str] = None
+    injuries: Optional[str] = None
+    subscription_active: Optional[int] = None
+    subscription_paused: Optional[int] = None
 
 class SettingUpdate(BaseModel):
     key: str
@@ -740,6 +748,118 @@ async def delete_user(
         db.close()
         
         return {"success": True, "message": "User deleted successfully"}
+    except HTTPException:
+        if db:
+            try:
+                db.rollback()
+                db.close()
+            except:
+                pass
+        raise
+    except Exception as e:
+        if db:
+            try:
+                db.rollback()
+                db.close()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.put("/api/users/{user_id}")
+async def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    admin: Dict = Depends(get_current_admin_flexible)
+):
+    """Оновити дані користувача"""
+    if not check_admin_permission(admin, "manage_users"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    db = None
+    try:
+        db = get_database()
+        cursor = db.cursor()
+        
+        # Check if user exists
+        cursor.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            db.close()
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Build update query dynamically based on provided fields
+        update_fields = []
+        update_values = []
+        
+        if user_data.first_name is not None:
+            update_fields.append("first_name = %s")
+            update_values.append(user_data.first_name)
+        
+        if user_data.last_name is not None:
+            update_fields.append("last_name = %s")
+            update_values.append(user_data.last_name)
+        
+        if user_data.goals is not None:
+            update_fields.append("goals = %s")
+            update_values.append(user_data.goals)
+        
+        if user_data.injuries is not None:
+            update_fields.append("injuries = %s")
+            update_values.append(user_data.injuries)
+        
+        if user_data.subscription_active is not None:
+            update_fields.append("subscription_active = %s")
+            update_values.append(user_data.subscription_active)
+        
+        if user_data.subscription_paused is not None:
+            update_fields.append("subscription_paused = %s")
+            update_values.append(user_data.subscription_paused)
+        
+        if not update_fields:
+            cursor.close()
+            db.close()
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        # Add user_id to values
+        update_values.append(user_id)
+        
+        # Execute update
+        query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = %s"
+        cursor.execute(query, tuple(update_values))
+        db.commit()
+        
+        # Fetch updated user
+        cursor.execute("""
+            SELECT id, telegram_id, username, first_name, last_name, goals, injuries,
+                   subscription_active, subscription_paused, subscription_end_date, next_billing_date
+            FROM users WHERE id = %s
+        """, (user_id,))
+        
+        user = cursor.fetchone()
+        cursor.close()
+        db.close()
+        
+        if user:
+            return {
+                "success": True,
+                "message": "User updated successfully",
+                "user": {
+                    "id": user[0],
+                    "telegram_id": user[1],
+                    "username": user[2],
+                    "first_name": user[3],
+                    "last_name": user[4],
+                    "goals": user[5],
+                    "injuries": user[6],
+                    "subscription_active": user[7],
+                    "subscription_paused": user[8],
+                    "subscription_end_date": user[9].isoformat() if user[9] else None,
+                    "next_billing_date": user[10].isoformat() if user[10] else None,
+                }
+            }
+        else:
+            return {"success": True, "message": "User updated successfully"}
+            
     except HTTPException:
         if db:
             try:

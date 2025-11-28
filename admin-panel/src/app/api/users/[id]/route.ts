@@ -101,7 +101,7 @@ export async function PUT(
       }, { status: 401 });
     }
 
-    // Оновлення підписки
+    // Оновлення підписки (action-based requests)
     if (body.action && ['activate', 'deactivate', 'extend'].includes(body.action)) {
       const apiResponse = await fetch(`${API_BASE_URL}/api/users/${userId}/subscription/${body.action}`, {
         method: 'POST',
@@ -127,10 +127,31 @@ export async function PUT(
       });
     }
 
+    // Оновлення даних користувача (regular user update)
+    const apiResponse = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!apiResponse.ok) {
+      const errorData = await apiResponse.json().catch(() => ({}));
+      return NextResponse.json({
+        success: false,
+        error: errorData.detail || 'Failed to update user'
+      }, { status: apiResponse.status });
+    }
+
+    const data = await apiResponse.json();
+
     return NextResponse.json({
-      success: false,
-      error: 'Invalid action'
-    }, { status: 400 });
+      success: true,
+      message: 'User updated successfully',
+      data: data.user
+    });
 
   } catch (error) {
     console.error('Update user error:', error);
