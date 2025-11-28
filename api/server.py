@@ -1259,11 +1259,11 @@ async def upload_broadcast_file(
                 detail=f"File type {file.content_type} not allowed. Allowed types: images, videos, PDF, ZIP, DOCX, XLSX"
             )
         
-        # Перевіряємо розмір (максимум 20MB)
-        max_size = 20 * 1024 * 1024  # 20MB
+        # Перевіряємо розмір (максимум 50MB)
+        max_size = 50 * 1024 * 1024  # 50MB
         file_content = await file.read()
         if len(file_content) > max_size:
-            raise HTTPException(status_code=400, detail="File too large. Maximum size is 20MB")
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 50MB")
         
         # Генеруємо унікальне ім'я файлу
         file_extension = file.filename.split('.')[-1] if '.' in file.filename else ''
