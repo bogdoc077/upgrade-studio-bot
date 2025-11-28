@@ -638,6 +638,30 @@ class DatabaseManager:
             return 0
     
     @staticmethod
+    def update_channel_join_status(telegram_id: int, joined: bool):
+        """Оновити статус приєднання до каналу"""
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if user:
+                user.joined_channel = joined
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                return True
+            return False
+    
+    @staticmethod
+    def update_chat_join_status(telegram_id: int, joined: bool):
+        """Оновити статус приєднання до чату"""
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if user:
+                user.joined_chat = joined
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                return True
+            return False
+    
+    @staticmethod
     def get_user_by_stripe_customer_id(customer_id: str) -> Optional[User]:
         """Отримати користувача за Stripe customer ID"""
         with DatabaseManager() as db:
