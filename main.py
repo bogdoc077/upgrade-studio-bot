@@ -326,12 +326,47 @@ class UpgradeStudioBot:
     
     async def _show_subscription_management_menu(self, user_id: int, user):
         """Показати меню керування підпискою"""
+        # Якщо підписка активна - перевіряємо реальний статус членства в каналі та групі
+        joined_channel = user.joined_channel
+        joined_chat = user.joined_chat
+        
+        if user.subscription_active:
+            # Перевіряємо членство в каналі
+            try:
+                channel_member = await self.bot.get_chat_member(
+                    chat_id=settings.private_channel_id,
+                    user_id=user_id
+                )
+                # Оновлюємо статус якщо користувач є членом
+                is_member_channel = channel_member.status in ['member', 'administrator', 'creator']
+                if is_member_channel != user.joined_channel:
+                    DatabaseManager.update_channel_join_status(user_id, is_member_channel)
+                    joined_channel = is_member_channel
+                    logger.info(f"Updated channel membership for user {user_id}: {is_member_channel}")
+            except Exception as e:
+                logger.warning(f"Could not check channel membership for user {user_id}: {e}")
+            
+            # Перевіряємо членство в чаті
+            try:
+                chat_member = await self.bot.get_chat_member(
+                    chat_id=settings.private_chat_id,
+                    user_id=user_id
+                )
+                # Оновлюємо статус якщо користувач є членом
+                is_member_chat = chat_member.status in ['member', 'administrator', 'creator']
+                if is_member_chat != user.joined_chat:
+                    DatabaseManager.update_chat_join_status(user_id, is_member_chat)
+                    joined_chat = is_member_chat
+                    logger.info(f"Updated chat membership for user {user_id}: {is_member_chat}")
+            except Exception as e:
+                logger.warning(f"Could not check chat membership for user {user_id}: {e}")
+        
         keyboard = get_subscription_management_keyboard(
             subscription_active=user.subscription_active,
             subscription_paused=user.subscription_paused,
             subscription_cancelled=user.subscription_cancelled,
-            joined_channel=user.joined_channel,
-            joined_chat=user.joined_chat
+            joined_channel=joined_channel,
+            joined_chat=joined_chat
         )
         
         # Формуємо текст з інформацією про підписку
