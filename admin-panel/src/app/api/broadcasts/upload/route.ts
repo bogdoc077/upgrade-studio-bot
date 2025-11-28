@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const API_BASE_URL = process.env.API_INTERNAL_URL || 'http://localhost:8001';
 
-// Configure Next.js to accept larger file uploads (50MB)
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60 seconds timeout
 
