@@ -2188,6 +2188,10 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             if self.task_scheduler:
                 try:
                     self.task_scheduler.stop_sync()
+                except RuntimeError as e:
+                    # Ignore "Event loop is closed" error on shutdown
+                    if "closed" not in str(e).lower():
+                        logger.error(f"Помилка при зупинці планувальника: {e}")
                 except Exception as e:
                     logger.error(f"Помилка при зупинці планувальника: {e}")
     
