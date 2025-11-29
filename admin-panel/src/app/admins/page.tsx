@@ -344,20 +344,10 @@ export default function AdminsPage() {
                   <tr key={admin.id} className="admin-table__row">
                     <td className="admin-table__cell admin-table__cell--bold">{admin.id}</td>
                     <td className="admin-table__cell">
-                        <div className="admin-table__user-info">
-                          <div className="admin-table__user-name">
-                            {admin.first_name} {admin.last_name || ''}
-                          </div>
-                          {admin.is_superadmin && (
-                            <div className="admin-table__user-badge">
-                              <ShieldCheckIcon className="w-3 h-3" />
-                              Super Admin
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="admin-table__cell font-medium">{admin.username}</td>
-                      <td className="admin-table__cell">{admin.email}</td>
+                      {admin.first_name} {admin.last_name || ''}
+                    </td>
+                    <td className="admin-table__cell font-medium">{admin.username}</td>
+                    <td className="admin-table__cell">{admin.email}</td>
                       <td className="admin-table__cell">
                         <span className={`admin-status ${
                           admin.is_active ? 'admin-status--active' : 'admin-status--inactive'
