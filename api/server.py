@@ -49,6 +49,9 @@ class AdminUpdate(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str
+
+class AdminPasswordChange(BaseModel):
+    new_password: str
     
 class UserUpdate(BaseModel):
     first_name: Optional[str] = None
@@ -1087,27 +1090,26 @@ async def delete_admin(admin_id: int, admin: Dict = Depends(get_current_admin_fr
         db.close()
 
 @app.post("/api/admins/{admin_id}/change-password")
-async def change_admin_password(admin_id: int, password_data: PasswordChange, admin: Dict = Depends(get_current_admin_from_token)):
-    """Змінити пароль адміна"""
+async def change_admin_password(admin_id: int, password_data: AdminPasswordChange, admin: Dict = Depends(get_current_admin_from_token)):
+    """Змінити пароль адміна (для управління іншими адмінами)"""
     # Можна змінити свій пароль або якщо є права manage_admins
     if admin["id"] != admin_id and not check_admin_permission(admin, "manage_admins"):
         raise HTTPException(status_code=403, detail="Permission denied")
+    
+    # Валідація паролю
+    if len(password_data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     
     db = get_database()
     cursor = db.cursor(dictionary=True)
     
     try:
-        # Отримуємо поточний пароль
-        cursor.execute("SELECT password_hash FROM admins WHERE id = %s", (admin_id,))
+        # Перевіряємо чи існує адмін
+        cursor.execute("SELECT id FROM admins WHERE id = %s", (admin_id,))
         admin_data = cursor.fetchone()
         
         if not admin_data:
             raise HTTPException(status_code=404, detail="Admin not found")
-        
-        # Перевіряємо поточний пароль (тільки якщо змінюємо свій)
-        if admin["id"] == admin_id:
-            if not verify_password(password_data.current_password, admin_data["password_hash"]):
-                raise HTTPException(status_code=400, detail="Current password is incorrect")
         
         # Хешуємо новий пароль
         new_password_hash = hash_password(password_data.new_password)

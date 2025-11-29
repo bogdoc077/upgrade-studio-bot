@@ -26,6 +26,7 @@ export default function AdminEditModal({ isOpen, onClose, admin, onSave }: Admin
     last_name: '',
     is_active: true,
   });
+  const [password, setPassword] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function AdminEditModal({ isOpen, onClose, admin, onSave }: Admin
         last_name: admin.last_name || '',
         is_active: admin.is_active,
       });
+      setPassword(''); // Reset password field when opening modal
     }
   }, [isOpen, admin]);
 
@@ -45,10 +47,29 @@ export default function AdminEditModal({ isOpen, onClose, admin, onSave }: Admin
     
     setIsSaving(true);
     try {
+      // Save basic admin data
       await onSave(admin.id, formData);
+      
+      // If password is provided, change it separately
+      if (password.trim()) {
+        const response = await fetch(`/api/admins/${admin.id}/change-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ new_password: password }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Помилка зміни паролю');
+        }
+      }
+      
       onClose();
     } catch (error) {
       console.error('Error saving admin:', error);
+      alert(error instanceof Error ? error.message : 'Помилка збереження');
     } finally {
       setIsSaving(false);
     }
@@ -125,6 +146,25 @@ export default function AdminEditModal({ isOpen, onClose, admin, onSave }: Admin
                   />
                   Активний
                 </label>
+              </div>
+
+              <div className="admin-form__group">
+                <label className="admin-form__label">
+                  Новий пароль (залиште порожнім, якщо не хочете змінювати)
+                </label>
+                <input
+                  type="password"
+                  className="admin-form__input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Введіть новий пароль"
+                  minLength={6}
+                />
+                {password && password.length < 6 && (
+                  <span style={{ color: 'var(--color-error)', fontSize: '0.875rem', marginTop: '4px', display: 'block' }}>
+                    Пароль має містити мінімум 6 символів
+                  </span>
+                )}
               </div>
 
               <div className="admin-alert admin-alert--info" style={{ marginTop: 'var(--spacing-base)' }}>
