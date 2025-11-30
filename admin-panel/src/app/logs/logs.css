@@ -244,3 +244,95 @@
     min-width: 30px;
   }
 }
+
+/* System Logs */
+.system-logs {
+  padding: var(--spacing-base);
+}
+
+.system-logs__stats {
+  margin-bottom: var(--spacing-lg);
+}
+
+.system-logs__stats h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-base);
+  color: var(--text-primary);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-base);
+}
+
+.stat-card {
+  padding: var(--spacing-base);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-base);
+}
+
+.stat-card h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+}
+
+.stat-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: 0.8125rem;
+}
+
+.stat-metrics span {
+  color: var(--text-secondary);
+}
+
+.stat-success {
+  color: var(--success-color);
+}
+
+.stat-error {
+  color: var(--error-color);
+}
+
+.system-logs__table {
+  overflow-x: auto;
+}
+
+.system-logs__table table {
+  font-size: 0.8125rem;
+}
+
+.system-logs__table code {
+  padding: 2px 6px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+}
+
+.system-logs__table details {
+  cursor: pointer;
+}
+
+.system-logs__table details summary {
+  color: var(--primary-color);
+  font-size: 0.75rem;
+}
+
+.system-logs__table details pre {
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: var(--radius-sm);
+  font-size: 0.6875rem;
+  max-height: 200px;
+  overflow: auto;
+}

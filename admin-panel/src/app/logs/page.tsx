@@ -192,7 +192,7 @@ export default function SystemLogs() {
 
       {/* Logs Display */}
       <div className="logs-container">
-        {loading && !logsData ? (
+        {loading && !logsData && !systemLogsData ? (
           <div className="logs-loading">
             <div className="admin-loading__spinner"></div>
             <p>Завантаження логів...</p>
@@ -203,6 +203,96 @@ export default function SystemLogs() {
             <button onClick={handleRefresh} className="admin-btn admin-btn--primary">
               Спробувати знову
             </button>
+          </div>
+        ) : activeTab === 'system' && systemLogsData ? (
+          <div className="system-logs">
+            {/* Статистика задач */}
+            {systemLogsData.stats && systemLogsData.stats.length > 0 && (
+              <div className="system-logs__stats">
+                <h3>Статистика за 24 години</h3>
+                <div className="stats-grid">
+                  {systemLogsData.stats.map((stat) => (
+                    <div key={stat.task_type} className="stat-card">
+                      <h4>{stat.task_type}</h4>
+                      <div className="stat-metrics">
+                        <span>Всього: {stat.total}</span>
+                        <span className="stat-success">Успішно: {stat.completed}</span>
+                        <span className="stat-error">Помилок: {stat.failed}</span>
+                        {stat.avg_duration_ms && (
+                          <span>Сер. час: {Math.round(stat.avg_duration_ms)}ms</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Таблиця логів */}
+            <div className="system-logs__table">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Час</th>
+                    <th>Задача</th>
+                    <th>Статус</th>
+                    <th>Повідомлення</th>
+                    <th>Деталі</th>
+                    <th>Тривалість</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {systemLogsData.data.map((log) => (
+                    <tr key={log.id}>
+                      <td>{new Date(log.created_at).toLocaleString('uk-UA')}</td>
+                      <td><code>{log.task_type}</code></td>
+                      <td>
+                        <span className={`admin-status admin-status--${
+                          log.status === 'completed' ? 'active' : 
+                          log.status === 'failed' ? 'inactive' : 
+                          'warning'
+                        }`}>
+                          {log.status}
+                        </span>
+                      </td>
+                      <td>{log.message}</td>
+                      <td>
+                        {log.details && (
+                          <details>
+                            <summary>Показати</summary>
+                            <pre>{JSON.stringify(log.details, null, 2)}</pre>
+                          </details>
+                        )}
+                      </td>
+                      <td>{log.duration_ms ? `${log.duration_ms}ms` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Пагінація */}
+            {systemLogsData.pagination.total_pages > 1 && (
+              <div className="admin-pagination">
+                <button
+                  className="admin-pagination__btn"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  ← Назад
+                </button>
+                <span className="admin-pagination__info">
+                  Сторінка {page} з {systemLogsData.pagination.total_pages}
+                </span>
+                <button
+                  className="admin-pagination__btn"
+                  onClick={() => setPage(p => Math.min(systemLogsData.pagination.total_pages, p + 1))}
+                  disabled={page === systemLogsData.pagination.total_pages}
+                >
+                  Вперед →
+                </button>
+              </div>
+            )}
           </div>
         ) : logsData?.logs && logsData.logs.length > 0 ? (
           <>
