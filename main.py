@@ -597,6 +597,9 @@ class UpgradeStudioBot:
         query = update.callback_query
         data = query.data
         
+        # Логуємо callback для діагностики
+        logger.info(f"Отримано callback: {data} від користувача {query.from_user.id}")
+        
         if data.startswith("goal_"):
             await self.handle_goal_selection(update, context)
         elif data.startswith("injury_"):
