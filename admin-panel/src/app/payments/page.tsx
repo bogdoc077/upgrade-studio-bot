@@ -48,7 +48,11 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('');
+  
+  // Additional filter states
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,7 +66,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchPayments();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, statusFilter, dateFrom, dateTo]);
 
   const fetchPayments = async () => {
     try {
@@ -80,7 +84,18 @@ export default function PaymentsPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`/api/payments?page=${currentPage}&limit=${itemsPerPage}`, {
+      // Формуємо URL з параметрами фільтрації
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString(),
+      });
+      
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('status', statusFilter);
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+      
+      const response = await fetch(`/api/payments?${params.toString()}`, {
         headers,
       });
       
@@ -303,6 +318,133 @@ export default function PaymentsPage() {
             )}
           </p>
         </div>
+
+        {/* Filters */}
+        <div className="admin-filters" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-base)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+            {/* Search */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                Пошук
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && fetchPayments()}
+                  placeholder="Користувач, ID платежу..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 2.5rem 0.5rem 0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.875rem'
+                  }}
+                />
+                <MagnifyingGlassIcon 
+                  style={{ 
+                    position: 'absolute', 
+                    right: '0.75rem', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)', 
+                    width: '1.25rem', 
+                    height: '1.25rem',
+                    color: 'var(--text-tertiary)',
+                    pointerEvents: 'none'
+                  }} 
+                />
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                Статус платежу
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.875rem',
+                  background: 'var(--bg-primary)'
+                }}
+              >
+                <option value="">Всі</option>
+                <option value="succeeded">Успішно</option>
+                <option value="pending">В очікуванні</option>
+                <option value="failed">Не вдалося</option>
+              </select>
+            </div>
+
+            {/* Date From */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                Дата платежу від
+              </label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.875rem'
+                }}
+              />
+            </div>
+
+            {/* Date To */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                Дата платежу до
+              </label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.875rem'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Filter Actions */}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={fetchPayments}
+              className="admin-btn admin-btn--primary admin-btn--sm"
+            >
+              <MagnifyingGlassIcon className="w-4 h-4" />
+              Застосувати фільтри
+            </button>
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('');
+                setDateFrom('');
+                setDateTo('');
+                setCurrentPage(1);
+              }}
+              className="admin-btn admin-btn--secondary admin-btn--sm"
+            >
+              <XCircleIcon className="w-4 h-4" />
+              Очистити
+            </button>
+          </div>
+        </div>
+
         {filteredPayments.length > 0 ? (
           <>
           <div className="admin-table-wrapper">
