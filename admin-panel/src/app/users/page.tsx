@@ -312,7 +312,7 @@ export default function UsersPage() {
                       <span className={`admin-status ${
                         user.subscription_active === 1 ? 'admin-status--active' : 'admin-status--inactive'
                       }`}>
-                        {user.subscription_active === 1 ? 'Активна підписка' : user.subscription_status || 'Неактивний'}
+                        {user.subscription_active === 1 ? 'Активна підписка' : 'Неактивний'}
                       </span>
                     </td>
                     <td className="admin-table__cell">

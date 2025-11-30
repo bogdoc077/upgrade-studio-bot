@@ -342,39 +342,67 @@ async def get_users(
     page: int = 1, 
     limit: int = 50, 
     search: str = "", 
+    subscription_status: Optional[str] = None,  # active, inactive, paused, cancelled
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     admin: Dict = Depends(get_current_admin_flexible)
 ) -> Dict[str, Any]:
-    """Отримати список користувачів"""
+    """Отримати список користувачів з фільтрацією"""
     try:
         db = get_database()
         cursor = db.cursor(dictionary=True)
         
         offset = (page - 1) * limit
         
+        # Будуємо WHERE умови
+        where_conditions = []
+        query_params = []
+        
+        # Пошук по імені, username, telegram_id
         if search:
             search_query = f"%{search}%"
-            count_sql = """
-                SELECT COUNT(*) as total 
-                FROM users 
-                WHERE CAST(telegram_id AS CHAR) LIKE %s OR first_name LIKE %s OR last_name LIKE %s
-            """
-            cursor.execute(count_sql, (search_query, search_query, search_query))
-            result = cursor.fetchone()
-            total_users = result["total"] if result else 0
-            
-            users_sql = """
-                SELECT * FROM users 
-                WHERE CAST(telegram_id AS CHAR) LIKE %s OR first_name LIKE %s OR last_name LIKE %s
-                ORDER BY created_at DESC 
-                LIMIT %s OFFSET %s
-            """
-            cursor.execute(users_sql, (search_query, search_query, search_query, limit, offset))
-        else:
-            cursor.execute("SELECT COUNT(*) as total FROM users")
-            result = cursor.fetchone()
-            total_users = result["total"] if result else 0
-            
-            cursor.execute("SELECT * FROM users ORDER BY created_at DESC LIMIT %s OFFSET %s", (limit, offset))
+            where_conditions.append(
+                "(CAST(telegram_id AS CHAR) LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR username LIKE %s)"
+            )
+            query_params.extend([search_query, search_query, search_query, search_query])
+        
+        # Фільтр по статусу підписки
+        if subscription_status:
+            if subscription_status == "active":
+                where_conditions.append("subscription_active = 1 AND subscription_paused = 0")
+            elif subscription_status == "inactive":
+                where_conditions.append("subscription_active = 0")
+            elif subscription_status == "paused":
+                where_conditions.append("subscription_paused = 1")
+            elif subscription_status == "cancelled":
+                where_conditions.append("subscription_cancelled = 1")
+        
+        # Фільтр по даті реєстрації
+        if date_from:
+            where_conditions.append("DATE(created_at) >= %s")
+            query_params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("DATE(created_at) <= %s")
+            query_params.append(date_to)
+        
+        # Формуємо WHERE clause
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        
+        # Підраховуємо загальну кількість
+        count_sql = f"SELECT COUNT(*) as total FROM users WHERE {where_clause}"
+        cursor.execute(count_sql, tuple(query_params))
+        result = cursor.fetchone()
+        total_users = result["total"] if result else 0
+        
+        # Отримуємо користувачів
+        users_sql = f"""
+            SELECT * FROM users 
+            WHERE {where_clause}
+            ORDER BY created_at DESC 
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(users_sql, tuple(query_params + [limit, offset]))
         
         users = cursor.fetchall() or []
         
@@ -501,29 +529,81 @@ async def export_users(
 @app.get("/api/payments")
 async def get_payments(
     page: int = 1, 
-    limit: int = 50, 
+    limit: int = 50,
+    search: str = "",
+    status: Optional[str] = None,  # succeeded, pending, failed
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    min_amount: Optional[float] = None,
+    max_amount: Optional[float] = None,
     admin: Dict = Depends(get_current_admin_flexible)
 ) -> Dict[str, Any]:
-    """Отримати список платежів"""
+    """Отримати список платежів з фільтрацією"""
     try:
         db = get_database()
         cursor = db.cursor(dictionary=True)
         
         offset = (page - 1) * limit
         
-        # Count total payments
-        cursor.execute("SELECT COUNT(*) as total FROM payments")
+        # Будуємо WHERE умови
+        where_conditions = []
+        query_params = []
+        
+        # Пошук по користувачу або ID
+        if search:
+            search_query = f"%{search}%"
+            where_conditions.append(
+                "(CAST(u.telegram_id AS CHAR) LIKE %s OR u.first_name LIKE %s OR u.last_name LIKE %s OR u.username LIKE %s OR CAST(p.id AS CHAR) LIKE %s)"
+            )
+            query_params.extend([search_query, search_query, search_query, search_query, search_query])
+        
+        # Фільтр по статусу
+        if status:
+            where_conditions.append("p.status = %s")
+            query_params.append(status)
+        
+        # Фільтр по даті
+        if date_from:
+            where_conditions.append("DATE(p.created_at) >= %s")
+            query_params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("DATE(p.created_at) <= %s")
+            query_params.append(date_to)
+        
+        # Фільтр по сумі
+        if min_amount is not None:
+            where_conditions.append("p.amount >= %s")
+            query_params.append(min_amount)
+        
+        if max_amount is not None:
+            where_conditions.append("p.amount <= %s")
+            query_params.append(max_amount)
+        
+        # Формуємо WHERE clause
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        
+        # Підраховуємо загальну кількість
+        count_sql = f"""
+            SELECT COUNT(*) as total 
+            FROM payments p
+            JOIN users u ON p.user_id = u.id
+            WHERE {where_clause}
+        """
+        cursor.execute(count_sql, tuple(query_params))
         result = cursor.fetchone()
         total_payments = result["total"] if result else 0
         
-        # Get payments with user info
-        cursor.execute("""
+        # Отримуємо платежі
+        payments_sql = f"""
             SELECT p.*, u.telegram_id, u.first_name, u.last_name
             FROM payments p
             JOIN users u ON p.user_id = u.id
+            WHERE {where_clause}
             ORDER BY p.created_at DESC
             LIMIT %s OFFSET %s
-        """, (limit, offset))
+        """
+        cursor.execute(payments_sql, tuple(query_params + [limit, offset]))
         
         payments = cursor.fetchall() or []
         

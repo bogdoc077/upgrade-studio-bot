@@ -47,6 +47,18 @@ class UpgradeStudioBot:
         # Словник для відстеження ID повідомлень з кроками приєднання
         self.join_step_messages = {}  # {user_id: [message_id1, message_id2, ...]}
     
+    async def send_admin_notification(self, message: str):
+        """Відправити повідомлення адміністратору"""
+        try:
+            await self.bot.send_message(
+                chat_id=settings.admin_chat_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            logger.info(f"Повідомлення адміну надіслано: {message[:50]}...")
+        except Exception as e:
+            logger.error(f"Помилка відправки повідомлення адміну: {e}")
+    
     async def clear_previous_inline_keyboards(self, chat_id: int, exclude_message_id: int = None):
         """Очистити inline кнопки з попередніх повідомлень"""
         try:
@@ -891,6 +903,16 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 text="⏸ Підписка призупинена"
             )
             
+            # Відправляємо повідомлення адміну
+            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
+            await self.send_admin_notification(
+                f"⏸ **Підписка призупинена**\n\n"
+                f"Користувач: {user_info}\n"
+                f"ID: `{query.from_user.id}`\n"
+                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
+                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            )
+            
             # Автоматично відкриваємо меню керування підпискою
             await self.handle_subscription_management_from_callback(query.from_user.id)
         else:
@@ -1040,6 +1062,17 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                      f"Після цієї дати доступ до приватних каналів буде заблокований.\n\n"
                      f"Дякуємо, що були з нами! Ви можете оформити нову підписку в будь-який час через /start",
                 parse_mode='Markdown'
+            )
+            
+            # Відправляємо повідомлення адміну
+            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
+            await self.send_admin_notification(
+                f"🔴 **Підписка скасована**\n\n"
+                f"Користувач: {user_info}\n"
+                f"ID: `{query.from_user.id}`\n"
+                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
+                f"Доступ до: {subscription_end_date.strftime('%d.%m.%Y')}\n"
+                f"Дата скасування: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
             
             # Автоматично відкриваємо меню керування підпискою
