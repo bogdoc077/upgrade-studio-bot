@@ -857,25 +857,27 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         # Перевіряємо, чи це адмін з тестовими даними
         if user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
             # Імітуємо призупинення для адміна
+            # Встановлюємо дату закінчення через 30 днів (тестовий період)
+            subscription_end_date = datetime.utcnow() + timedelta(days=30)
+            
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
-                    db_user.subscription_active = False
+                    # Підписка залишається активною до subscription_end_date
+                    db_user.subscription_active = True
                     db_user.subscription_paused = True
                     db_user.subscription_cancelled = False
-                    db_user.next_billing_date = None
-                    db_user.auto_payment_enabled = False
-                    # При призупиненні скидаємо статуси приєднання
-                    db_user.joined_channel = False
-                    db_user.joined_chat = False
+                    db_user.subscription_end_date = subscription_end_date
+                    db_user.next_billing_date = None  # Скасовуємо наступне списання
+                    db_user.auto_payment_enabled = False  # Деактивуємо автоплатіж
                     db.commit()
-                    logger.info(f"Призупинено підписку для {query.from_user.id}: active=False, paused=True, cancelled=False, next_billing=None, auto_payment=False")
+                    logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
-                text="⏸ **Підписка призупинена** (тестовий режим адміна)\n\n"
-                     "Ваша тестова підписка була призупинена. "
-                     "Ви можете поновити її в будь-який час.",
+                text=f"⏸ **Підписка призупинена** (тестовий режим адміна)\n\n"
+                     f"Автоплатіж деактивовано. Доступ до приватних каналів зберігається до {subscription_end_date.strftime('%d.%m.%Y')}.\n\n"
+                     f"Ви можете поновити автоплатіж в будь-який час.",
                 parse_mode='Markdown'
             )
             
@@ -885,30 +887,38 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         
         # Звичайна обробка для реальних користувачів
         logger.info(f"Спроба призупинити підписку для користувача {query.from_user.id}, stripe_sub_id={user.stripe_subscription_id}")
+        
+        # Отримуємо поточну дату закінчення підписки (до якої оплачено)
+        subscription_end_date = user.subscription_end_date or user.next_billing_date
+        if not subscription_end_date:
+            # Якщо немає дати - встановлюємо 30 днів
+            subscription_end_date = datetime.utcnow() + timedelta(days=30)
+        
         success = await StripeManager.pause_subscription(user.stripe_subscription_id)
         logger.info(f"Результат призупинення підписки в Stripe: {success}")
         
         if success:
-            # Оновлюємо статус в базі
+            # Оновлюємо статус в базі - підписка залишається активною до кінця періоду
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
-                    db_user.subscription_active = False
-                    db_user.subscription_paused = True
+                    db_user.subscription_active = True  # Залишаємо активною
+                    db_user.subscription_paused = True  # Позначаємо як призупинену
                     db_user.subscription_cancelled = False
-                    db_user.next_billing_date = None
-                    db_user.auto_payment_enabled = False
-                    # При призупиненні скидаємо статуси приєднання
-                    db_user.joined_channel = False
-                    db_user.joined_chat = False
+                    db_user.subscription_end_date = subscription_end_date  # Доступ до цієї дати
+                    db_user.next_billing_date = None  # Скасовуємо наступне списання
+                    db_user.auto_payment_enabled = False  # Деактивуємо автоплатіж
                     db.commit()
-                    logger.info(f"Призупинено підписку для {query.from_user.id}: active=False, paused=True, cancelled=False, next_billing=None, auto_payment=False")
+                    logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
                 else:
                     logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
-                text="⏸ Підписка призупинена"
+                text=f"⏸ **Підписка призупинена**\n\n"
+                     f"Автоплатіж деактивовано. Доступ до приватних каналів зберігається до {subscription_end_date.strftime('%d.%m.%Y') if isinstance(subscription_end_date, datetime) else subscription_end_date}.\n\n"
+                     f"Ви можете поновити автоплатіж в будь-який час.",
+                parse_mode='Markdown'
             )
             
             # Відправляємо повідомлення адміну
