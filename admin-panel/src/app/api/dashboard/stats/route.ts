@@ -33,10 +33,10 @@ export async function GET() {
     const [usersResponse, paymentsResponse] = await Promise.all([
       fetch(`${API_URL}/api/users?limit=5`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      }).then(r => r.ok ? r.json() : { users: [] }).catch(() => ({ users: [] })),
+      }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
       fetch(`${API_URL}/api/payments?limit=5`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      }).then(r => r.ok ? r.json() : { payments: [] }).catch(() => ({ payments: [] }))
+      }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] }))
     ]);
 
     // Use real data from FastAPI
@@ -48,14 +48,14 @@ export async function GET() {
       payments_today: 0
     };
 
-    // Extract users array from response
-    const users = (usersResponse?.users || []).map((user: any) => ({
+    // Extract users array from response (API returns { data: [...], total: N, pagination: {...} })
+    const users = (usersResponse?.data || []).map((user: any) => ({
       ...user,
       is_premium: user.subscription_active === 1 || user.subscription_active === true
     }));
 
-    // Extract payments array from response
-    const payments = paymentsResponse?.payments || [];
+    // Extract payments array from response (API returns { data: [...], total: N, pagination: {...} })
+    const payments = paymentsResponse?.data || [];
 
     // Format payments to include username
     const formattedPayments = payments.map((payment: any) => ({
