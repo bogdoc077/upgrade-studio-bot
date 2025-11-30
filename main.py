@@ -231,9 +231,25 @@ class UpgradeStudioBot:
         DatabaseManager.save_survey_data(query.from_user.id, goals=full_goal)
         DatabaseManager.update_user_state(query.from_user.id, UserState.SURVEY_INJURIES)
         
-        # Повідомлення про збереження
-        await query.edit_message_text(
-            text="✅ Відповідь збережено\n\nЧи є у тебе травми про які мені варто знати?",
+        # Видаляємо попереднє повідомлення
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        
+        # Окреме повідомлення про збереження з текстом відповіді
+        await self.bot.send_message(
+            chat_id=query.from_user.id,
+            text=f"✅ Відповідь '{full_goal}' збережено"
+        )
+        
+        # Затримка перед наступним питанням
+        await asyncio.sleep(0.5)
+        
+        # Наступне питання
+        await self.bot.send_message(
+            chat_id=query.from_user.id,
+            text="Чи є у тебе травми про які мені варто знати?",
             reply_markup=get_survey_injuries_keyboard()
         )
     
@@ -251,8 +267,25 @@ class UpgradeStudioBot:
             # Просимо користувача описати травму детальніше
             DatabaseManager.update_user_state(query.from_user.id, UserState.SURVEY_INJURIES_CUSTOM)
             
-            await query.edit_message_text(
-                text="✅ Відповідь збережено\n\nОпиши, будь ласка, свою травму детальніше.",
+            # Видаляємо попереднє повідомлення
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            
+            # Окреме повідомлення про збереження
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="✅ Відповідь 'Так' збережено"
+            )
+            
+            # Затримка перед наступним питанням
+            await asyncio.sleep(0.5)
+            
+            # Запит деталей
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="Опиши, будь ласка, свою травму детальніше.",
                 parse_mode='Markdown'
             )
         else:  # "Ні"
@@ -260,9 +293,25 @@ class UpgradeStudioBot:
             DatabaseManager.save_survey_data(query.from_user.id, injuries="Немає травм")
             DatabaseManager.update_user_state(query.from_user.id, UserState.SUBSCRIPTION_OFFER)
             
-            # Повідомлення про збереження та завершення опитування
-            await query.edit_message_text(
-                text="✅ Відповідь збережено\n\n🎉 Дякую! Всі відповіді збережено.",
+            # Видаляємо попереднє повідомлення
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            
+            # Окреме повідомлення про збереження
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="✅ Відповідь 'Ні' збережено"
+            )
+            
+            # Затримка
+            await asyncio.sleep(0.5)
+            
+            # Фінальне повідомлення про завершення опитування
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="🎉 Дякую! Всі відповіді збережено.",
                 parse_mode='Markdown'
             )
             
@@ -610,8 +659,20 @@ class UpgradeStudioBot:
             DatabaseManager.save_survey_data(update.effective_user.id, injuries=f"Травма: {user_text}")
             DatabaseManager.update_user_state(update.effective_user.id, UserState.SUBSCRIPTION_OFFER)
             
+            # Скорочуємо текст відповіді для відображення (максимум 100 символів)
+            short_text = user_text[:100] + '...' if len(user_text) > 100 else user_text
+            
+            # Окреме повідомлення про збереження з текстом відповіді
             await update.message.reply_text(
-                f"✅ Відповідь збережено\n\n🎉 Дякую! Всі відповіді збережено.\nЦе буде враховано при складанні програми тренувань.",
+                f"✅ Відповідь '{short_text}' збережено"
+            )
+            
+            # Затримка
+            await asyncio.sleep(0.5)
+            
+            # Фінальне повідомлення
+            await update.message.reply_text(
+                f"🎉 Дякую! Всі відповіді збережено.\nЦе буде враховано при складанні програми тренувань.",
                 parse_mode='Markdown'
             )
             
