@@ -195,13 +195,23 @@
   overflow: hidden;
 }
 
+/* Wrapper для горизонтального скролу тільки таблиці */
+.admin-table-wrapper {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto; /* Автоматична ширина по контенту */
 }
 
 .admin-table__header {
   background-color: var(--color-bg-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .admin-table__header-cell {
@@ -213,6 +223,8 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--color-border);
+  white-space: nowrap; /* Запобігаємо переносу тексту в заголовках */
+  background-color: var(--color-bg-secondary); /* Для sticky */
 }
 
 .admin-table__header-cell--center {
@@ -221,6 +233,16 @@
 
 .admin-table__header-cell--right {
   text-align: right;
+}
+
+/* Закріплена колонка Дії справа */
+.admin-table__header-cell--actions {
+  position: sticky;
+  right: 0;
+  text-align: center;
+  background-color: var(--color-bg-secondary);
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.05);
+  z-index: 11;
 }
 
 .admin-table__body {
@@ -244,6 +266,7 @@
   padding: var(--spacing-base) var(--spacing-lg);
   font-size: var(--font-size-sm);
   color: var(--color-text);
+  white-space: nowrap; /* Запобігаємо переносу тексту */
 }
 
 .admin-table__cell--center {
@@ -260,6 +283,20 @@
 
 .admin-table__cell--muted {
   color: var(--color-text-secondary);
+}
+
+/* Закріплена колонка Дії */
+.admin-table__cell--actions {
+  position: sticky;
+  right: 0;
+  text-align: center;
+  background-color: var(--color-surface);
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.05);
+  z-index: 5;
+}
+
+.admin-table__row:hover .admin-table__cell--actions {
+  background-color: var(--color-bg);
 }
 
 .admin-table__empty {
@@ -287,14 +324,6 @@
 }
 
 @media (max-width: 768px) {
-  .admin-table-container {
-    overflow-x: auto;
-  }
-  
-  .admin-table {
-    min-width: 600px;
-  }
-  
   .admin-table__header-cell,
   .admin-table__cell {
     padding: var(--spacing-sm) var(--spacing-md);

@@ -463,7 +463,7 @@ export default function PaymentsPage() {
                   <th className="admin-table__header-cell">Статус</th>
                   <th className="admin-table__header-cell">Stripe ID</th>
                   <th className="admin-table__header-cell">Дата створення</th>
-                  <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
+                  <th className="admin-table__header-cell admin-table__header-cell--actions">Дії</th>
                 </tr>
               </thead>
               <tbody className="admin-table__body">
@@ -490,7 +490,7 @@ export default function PaymentsPage() {
                     <td className="admin-table__cell">
                       {new Date(payment.created_at).toLocaleString('uk-UA')}
                     </td>
-                    <td className="admin-table__cell admin-table__cell--center">
+                    <td className="admin-table__cell admin-table__cell--actions">
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button 
                           className="admin-btn admin-btn--sm admin-btn--secondary"

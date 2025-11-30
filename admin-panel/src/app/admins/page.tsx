@@ -336,7 +336,7 @@ export default function AdminsPage() {
                   <th className="admin-table__header-cell">Email</th>
                   <th className="admin-table__header-cell">Статус</th>
                   <th className="admin-table__header-cell">Останній вхід</th>
-                  <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
+                  <th className="admin-table__header-cell admin-table__header-cell--actions">Дії</th>
                 </tr>
               </thead>
               <tbody className="admin-table__body">
@@ -358,7 +358,7 @@ export default function AdminsPage() {
                       <td className="admin-table__cell">
                         {formatDate(admin.last_login_at)}
                       </td>
-                    <td className="admin-table__cell admin-table__cell--center">
+                    <td className="admin-table__cell admin-table__cell--actions">
                       <div className="flex items-center justify-center gap-2">
                         <button 
                           className="admin-btn admin-btn--sm admin-btn--secondary"

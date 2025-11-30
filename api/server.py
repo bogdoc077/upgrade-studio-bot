@@ -408,6 +408,15 @@ async def get_users(
         cursor.execute(stats_sql)
         stats = cursor.fetchone() or {}
         
+        # Конвертуємо статистику в int (MySQL повертає Decimal/str)
+        stats_converted = {
+            "total": int(stats.get('total', 0)) if stats.get('total') is not None else 0,
+            "active": int(stats.get('active', 0)) if stats.get('active') is not None else 0,
+            "paused": int(stats.get('paused', 0)) if stats.get('paused') is not None else 0,
+            "cancelled": int(stats.get('cancelled', 0)) if stats.get('cancelled') is not None else 0,
+            "inactive": int(stats.get('inactive', 0)) if stats.get('inactive') is not None else 0
+        }
+        
         # Отримуємо користувачів
         users_sql = f"""
             SELECT * FROM users 
@@ -444,13 +453,7 @@ async def get_users(
         return {
             "data": users,
             "total": total_users,
-            "stats": {
-                "total": stats.get('total', 0),
-                "active": stats.get('active', 0),
-                "paused": stats.get('paused', 0),
-                "cancelled": stats.get('cancelled', 0),
-                "inactive": stats.get('inactive', 0)
-            },
+            "stats": stats_converted,
             "pagination": {
                 "current_page": page,
                 "total_pages": total_pages,

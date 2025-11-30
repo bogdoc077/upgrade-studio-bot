@@ -82,13 +82,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, searchTerm, subscriptionStatus, dateFrom, dateTo]);
   
-  // Окремий effect для фільтрів - скидає на першу сторінку
+  // Скидати на першу сторінку при зміні фільтрів
   useEffect(() => {
-    if (currentPage === 1) {
-      fetchUsers();
-    } else {
+    if (currentPage !== 1) {
       setCurrentPage(1);
     }
   }, [searchTerm, subscriptionStatus, dateFrom, dateTo]);
@@ -491,7 +489,7 @@ export default function UsersPage() {
                   <th className="admin-table__header-cell">Підписка призупинена</th>
                   <th className="admin-table__header-cell">Підписка скасована</th>
                   <th className="admin-table__header-cell">Статус автоплатежу</th>
-                  <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
+                  <th className="admin-table__header-cell admin-table__header-cell--actions">Дії</th>
                 </tr>
               </thead>
               <tbody className="admin-table__body">
@@ -540,7 +538,7 @@ export default function UsersPage() {
                         {user.auto_payment_enabled !== false ? 'Увімкнено' : 'Вимкнено'}
                       </span>
                     </td>
-                    <td className="admin-table__cell admin-table__cell--center">
+                    <td className="admin-table__cell admin-table__cell--actions">
                       <div className="flex items-center justify-center gap-2">
                         <button 
                           className="admin-btn admin-btn--sm admin-btn--secondary"

@@ -309,7 +309,7 @@ export default function BroadcastsPage() {
                 <th className="admin-table__header-cell">Відправлено</th>
                 <th className="admin-table__header-cell">Помилок</th>
                 <th className="admin-table__header-cell">Створено</th>
-                <th className="admin-table__header-cell">Дії</th>
+                <th className="admin-table__header-cell admin-table__header-cell--actions">Дії</th>
               </tr>
             </thead>
             <tbody className="admin-table__body">
@@ -340,7 +340,7 @@ export default function BroadcastsPage() {
                     <td className="admin-table__cell">
                       {new Date(broadcast.created_at).toLocaleDateString('uk-UA')}
                     </td>
-                    <td className="admin-table__cell">
+                    <td className="admin-table__cell admin-table__cell--actions">
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
                           onClick={() => {
