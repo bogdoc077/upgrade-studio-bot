@@ -449,7 +449,17 @@ export default function UsersPage() {
           </div>
 
           {/* Filter Actions */}
-          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => {
+                setCurrentPage(1);
+                fetchUsers();
+              }}
+              className="admin-btn admin-btn--primary admin-btn--sm"
+            >
+              <MagnifyingGlassIcon className="w-4 h-4" />
+              Застосувати фільтри
+            </button>
             <button
               onClick={() => {
                 setSearchTerm('');
@@ -462,17 +472,7 @@ export default function UsersPage() {
               className="admin-btn admin-btn--secondary admin-btn--sm"
             >
               <XCircleIcon className="w-4 h-4" />
-              Очистити фільтри
-            </button>
-            <button
-              onClick={() => {
-                setCurrentPage(1);
-                fetchUsers();
-              }}
-              className="admin-btn admin-btn--primary admin-btn--sm"
-            >
-              <MagnifyingGlassIcon className="w-4 h-4" />
-              Застосувати фільтри
+              Очистити
             </button>
           </div>
         </div>
