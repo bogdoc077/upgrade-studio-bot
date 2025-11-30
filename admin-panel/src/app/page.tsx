@@ -200,7 +200,7 @@ export default function Dashboard() {
                     <div className="dashboard-activity__item-status">
                       {user.is_premium && (
                         <span className="admin-status admin-status--success">
-                          Premium
+                          Активна підписка
                         </span>
                       )}
                     </div>
