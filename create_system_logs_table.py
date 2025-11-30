@@ -1,8 +1,7 @@
 """
 Створення таблиці system_logs для логування автоматичних задач
 """
-from database import Base, engine
-from database.models import SystemLog
+from database.models import Base, engine, SystemLog
 
 def create_system_logs_table():
     """Створити таблицю system_logs"""
