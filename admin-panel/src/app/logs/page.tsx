@@ -206,6 +206,66 @@ export default function SystemLogs() {
           </div>
         ) : activeTab === 'system' && systemLogsData ? (
           <div className="system-logs">
+            {/* Інформація про розклад задач */}
+            <div className="system-logs__schedule">
+              <h3>📅 Розклад автоматичних задач</h3>
+              <div className="schedule-grid">
+                <div className="schedule-item">
+                  <div className="schedule-item__icon">⏰</div>
+                  <div className="schedule-item__content">
+                    <h4>process_reminders</h4>
+                    <p className="schedule-time">Кожну хвилину</p>
+                    <p className="schedule-desc">Обробка та надсилання нагадувань користувачам</p>
+                  </div>
+                </div>
+                
+                <div className="schedule-item">
+                  <div className="schedule-item__icon">💳</div>
+                  <div className="schedule-item__content">
+                    <h4>process_payment_events</h4>
+                    <p className="schedule-time">Кожні 10 секунд</p>
+                    <p className="schedule-desc">Обробка подій успішних оплат</p>
+                  </div>
+                </div>
+                
+                <div className="schedule-item">
+                  <div className="schedule-item__icon">📢</div>
+                  <div className="schedule-item__content">
+                    <h4>process_broadcasts</h4>
+                    <p className="schedule-time">Кожні 30 секунд</p>
+                    <p className="schedule-desc">Обробка та відправка розсилок</p>
+                  </div>
+                </div>
+                
+                <div className="schedule-item">
+                  <div className="schedule-item__icon">🔍</div>
+                  <div className="schedule-item__content">
+                    <h4>check_expired_subscriptions</h4>
+                    <p className="schedule-time">Щодня о 01:00</p>
+                    <p className="schedule-desc">Перевірка та деактивація закінчених підписок</p>
+                  </div>
+                </div>
+                
+                <div className="schedule-item">
+                  <div className="schedule-item__icon">🧹</div>
+                  <div className="schedule-item__content">
+                    <h4>cleanup_old_reminders</h4>
+                    <p className="schedule-time">Щодня о 02:00</p>
+                    <p className="schedule-desc">Видалення старих неактивних нагадувань (&gt;30 днів)</p>
+                  </div>
+                </div>
+                
+                <div className="schedule-item">
+                  <div className="schedule-item__icon">🔔</div>
+                  <div className="schedule-item__content">
+                    <h4>schedule_subscription_reminders</h4>
+                    <p className="schedule-time">Щодня о 10:00</p>
+                    <p className="schedule-desc">Планування нагадувань про продовження підписок</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Статистика задач */}
             {systemLogsData.stats && systemLogsData.stats.length > 0 && (
               <div className="system-logs__stats">
