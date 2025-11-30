@@ -231,8 +231,9 @@ class UpgradeStudioBot:
         DatabaseManager.save_survey_data(query.from_user.id, goals=full_goal)
         DatabaseManager.update_user_state(query.from_user.id, UserState.SURVEY_INJURIES)
         
+        # Повідомлення про збереження
         await query.edit_message_text(
-            text="Чи є у тебе травми про які мені варто знати?",
+            text="✅ Відповідь збережено\n\nЧи є у тебе травми про які мені варто знати?",
             reply_markup=get_survey_injuries_keyboard()
         )
     
@@ -251,7 +252,7 @@ class UpgradeStudioBot:
             DatabaseManager.update_user_state(query.from_user.id, UserState.SURVEY_INJURIES_CUSTOM)
             
             await query.edit_message_text(
-                text="Опиши, будь ласка, свою травму детальніше.",
+                text="✅ Відповідь збережено\n\nОпиши, будь ласка, свою травму детальніше.",
                 parse_mode='Markdown'
             )
         else:  # "Ні"
@@ -259,7 +260,16 @@ class UpgradeStudioBot:
             DatabaseManager.save_survey_data(query.from_user.id, injuries="Немає травм")
             DatabaseManager.update_user_state(query.from_user.id, UserState.SUBSCRIPTION_OFFER)
             
-            await self.show_subscription_offer(query.from_user.id, query)
+            # Повідомлення про збереження та завершення опитування
+            await query.edit_message_text(
+                text="✅ Відповідь збережено\n\n🎉 Дякую! Всі відповіді збережено.",
+                parse_mode='Markdown'
+            )
+            
+            # Невелика затримка перед показом пропозиції підписки
+            await asyncio.sleep(1)
+            
+            await self.show_subscription_offer(query.from_user.id, query=None)
     
     def find_goal_by_key(self, key: str) -> str:
         """Знайти повний текст цілі за ключовим словом"""
@@ -601,9 +611,12 @@ class UpgradeStudioBot:
             DatabaseManager.update_user_state(update.effective_user.id, UserState.SUBSCRIPTION_OFFER)
             
             await update.message.reply_text(
-                f"Дякую за інформацію! Це буде враховано при складанні програми тренувань.",
+                f"✅ Відповідь збережено\n\n🎉 Дякую! Всі відповіді збережено.\nЦе буде враховано при складанні програми тренувань.",
                 parse_mode='Markdown'
             )
+            
+            # Невелика затримка перед показом пропозиції підписки
+            await asyncio.sleep(1)
             
             # Показуємо пропозицію підписки
             await self.show_subscription_offer(update.effective_user.id)
