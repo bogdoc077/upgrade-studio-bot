@@ -57,6 +57,17 @@ export async function GET() {
     // Extract payments array from response (API returns { data: [...], total: N, pagination: {...} })
     const payments = paymentsResponse?.data || [];
 
+    // Debug logging
+    console.log('Dashboard Stats API Debug:');
+    console.log('Users count:', users.length);
+    console.log('Payments count:', payments.length);
+    if (users.length > 0) {
+      console.log('First user:', JSON.stringify(users[0]));
+    }
+    if (payments.length > 0) {
+      console.log('First payment:', JSON.stringify(payments[0]));
+    }
+
     // Format payments to include username
     const formattedPayments = payments.map((payment: any) => ({
       ...payment,
@@ -64,6 +75,8 @@ export async function GET() {
         ? `${payment.first_name}${payment.last_name ? ' ' + payment.last_name : ''}`
         : payment.telegram_id ? `ID: ${payment.telegram_id}` : 'Невідомо'
     }));
+
+    console.log('Formatted payments count:', formattedPayments.length);
 
     return NextResponse.json({
       success: true,
