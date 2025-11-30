@@ -883,7 +883,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             return
         
         # Звичайна обробка для реальних користувачів
+        logger.info(f"Спроба призупинити підписку для користувача {query.from_user.id}, stripe_sub_id={user.stripe_subscription_id}")
         success = await StripeManager.pause_subscription(user.stripe_subscription_id)
+        logger.info(f"Результат призупинення підписки в Stripe: {success}")
         
         if success:
             # Оновлюємо статус в базі
@@ -1053,26 +1055,19 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             return
         
         # Звичайна обробка для реальних користувачів
-        # Спочатку отримуємо інформацію про підписку з Stripe для визначення дати закінчення
-        try:
-            subscription_info = await StripeManager.get_subscription_info(user.stripe_subscription_id)
-            if subscription_info and 'current_period_end' in subscription_info:
-                # Конвертуємо timestamp в datetime
-                subscription_end_date = datetime.fromtimestamp(subscription_info['current_period_end'])
-            else:
-                # Fallback: додаємо 30 днів від поточної дати
-                subscription_end_date = datetime.utcnow() + timedelta(days=30)
-        except Exception as e:
-            logger.error(f"Помилка отримання інформації про підписку: {e}")
-            subscription_end_date = datetime.utcnow() + timedelta(days=30)
+        # Встановлюємо дату закінчення - 30 днів від поточної дати
+        subscription_end_date = datetime.utcnow() + timedelta(days=30)
         
         success = await StripeManager.cancel_subscription(user.stripe_subscription_id)
+        
+        logger.info(f"Результат скасування підписки в Stripe: {success}")
         
         if success:
             # Оновлюємо статус в базі - не видаляємо активність до кінця періоду
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
+                    logger.info(f"До скасування: paused={db_user.subscription_paused}, cancelled={db_user.subscription_cancelled}, auto_payment={db_user.auto_payment_enabled}")
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = True
                     db_user.subscription_end_date = subscription_end_date
@@ -1080,6 +1075,8 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.auto_payment_enabled = False
                     db.commit()
                     logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date}")
+                else:
+                    logger.error(f"Користувач {query.from_user.id} не знайдений в базі при скасуванні підписки")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
