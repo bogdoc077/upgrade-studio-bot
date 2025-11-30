@@ -36,13 +36,29 @@ export interface Settings {
 // Типи для користувачів
 export interface User {
   id: number;
-  telegram_id: string;
+  telegram_id: number;
   username?: string;
   first_name?: string;
   last_name?: string;
-  is_premium: boolean;
-  subscription_end?: string;
+  state?: string;
+  goals?: string;
+  injuries?: string;
+  subscription_active: number | boolean;
+  subscription_paused: number | boolean;
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  joined_channel: number | boolean;
+  joined_chat: number | boolean;
+  workouts_completed: number;
+  member_since: string;
   created_at: string;
+  updated_at: string;
+  role: string;
+  subscription_cancelled: number | boolean;
+  subscription_end_date?: string;
+  next_billing_date?: string;
+  subscription_status: string;
+  auto_payment_enabled?: number | boolean;
 }
 
 // Типи для платежів

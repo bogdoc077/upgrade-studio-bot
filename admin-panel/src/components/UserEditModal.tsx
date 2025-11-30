@@ -2,18 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-
-interface User {
-  id: number;
-  telegram_id: number;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  goals?: string;
-  injuries?: string;
-  subscription_active: number;
-  subscription_paused: number;
-}
+import { User } from '@/types';
 
 interface UserEditModalProps {
   isOpen: boolean;
@@ -28,8 +17,8 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
     last_name: '',
     goals: '',
     injuries: '',
-    subscription_active: 0,
-    subscription_paused: 0,
+    subscription_active: 0 as number | boolean,
+    subscription_paused: 0 as number | boolean,
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -40,8 +29,8 @@ export default function UserEditModal({ isOpen, onClose, user, onSave }: UserEdi
         last_name: user.last_name || '',
         goals: user.goals || '',
         injuries: user.injuries || '',
-        subscription_active: user.subscription_active,
-        subscription_paused: user.subscription_paused,
+        subscription_active: user.subscription_active || 0,
+        subscription_paused: user.subscription_paused || 0,
       });
     }
   }, [isOpen, user]);

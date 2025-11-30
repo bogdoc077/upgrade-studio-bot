@@ -14,33 +14,7 @@ import ViewModal from '@/components/ViewModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UserEditModal from '@/components/UserEditModal';
 import Pagination from '@/components/Pagination';
-
-interface User {
-  id: number;
-  telegram_id: number;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  state: string;
-  goals?: string;
-  injuries?: string;
-  subscription_active: number;
-  subscription_paused: number;
-  stripe_customer_id?: string;
-  stripe_subscription_id?: string;
-  joined_channel: number;
-  joined_chat: number;
-  workouts_completed: number;
-  member_since: string;
-  created_at: string;
-  updated_at: string;
-  role: string;
-  subscription_cancelled: number;
-  subscription_end_date?: string;
-  next_billing_date?: string;
-  subscription_status: string;
-  auto_payment_enabled?: boolean;
-}
+import { User } from '@/types';
 
 interface Stats {
   total: number;
@@ -523,23 +497,23 @@ export default function UsersPage() {
                     </td>
                     <td className="admin-table__cell">
                       <span className={`admin-status ${
-                        user.subscription_paused === 1 ? 'admin-status--warning' : 'admin-status--inactive'
+                        user.subscription_paused ? 'admin-status--warning' : 'admin-status--inactive'
                       }`}>
-                        {user.subscription_paused === 1 ? 'Так' : 'Ні'}
+                        {user.subscription_paused ? 'Так' : 'Ні'}
                       </span>
                     </td>
                     <td className="admin-table__cell">
                       <span className={`admin-status ${
-                        user.subscription_cancelled === 1 ? 'admin-status--danger' : 'admin-status--inactive'
+                        user.subscription_cancelled ? 'admin-status--danger' : 'admin-status--inactive'
                       }`}>
-                        {user.subscription_cancelled === 1 ? 'Так' : 'Ні'}
+                        {user.subscription_cancelled ? 'Так' : 'Ні'}
                       </span>
                     </td>
                     <td className="admin-table__cell">
                       <span className={`admin-status ${
-                        user.auto_payment_enabled !== false ? 'admin-status--active' : 'admin-status--inactive'
+                        user.auto_payment_enabled === true ? 'admin-status--active' : 'admin-status--inactive'
                       }`}>
-                        {user.auto_payment_enabled !== false ? 'Увімкнено' : 'Вимкнено'}
+                        {user.auto_payment_enabled === true ? 'Увімкнено' : 'Вимкнено'}
                       </span>
                     </td>
                     <td className="admin-table__cell admin-table__cell--actions">

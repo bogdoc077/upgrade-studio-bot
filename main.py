@@ -397,11 +397,11 @@ class UpgradeStudioBot:
     
     async def _show_subscription_management_menu(self, user_id: int, user):
         """Показати меню керування підпискою"""
-        # Якщо підписка активна - перевіряємо реальний статус членства в каналі та групі
+        # Якщо підписка активна І НЕ призупинена І НЕ скасована - перевіряємо реальний статус членства
         joined_channel = user.joined_channel
         joined_chat = user.joined_chat
         
-        if user.subscription_active:
+        if user.subscription_active and not user.subscription_paused and not user.subscription_cancelled:
             # Перевіряємо членство в каналі
             try:
                 channel_member = await self.bot.get_chat_member(
@@ -860,6 +860,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
+                    db_user.subscription_active = False
                     db_user.subscription_paused = True
                     db_user.subscription_cancelled = False
                     db_user.next_billing_date = None
@@ -868,7 +869,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.joined_channel = False
                     db_user.joined_chat = False
                     db.commit()
-                    logger.info(f"Призупинено підписку для {query.from_user.id}: paused=True, cancelled=False, next_billing=None, auto_payment=False")
+                    logger.info(f"Призупинено підписку для {query.from_user.id}: active=False, paused=True, cancelled=False, next_billing=None, auto_payment=False")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -892,6 +893,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
+                    db_user.subscription_active = False
                     db_user.subscription_paused = True
                     db_user.subscription_cancelled = False
                     db_user.next_billing_date = None
@@ -900,7 +902,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.joined_channel = False
                     db_user.joined_chat = False
                     db.commit()
-                    logger.info(f"Призупинено підписку для {query.from_user.id}: paused=True, cancelled=False, next_billing=None, auto_payment=False")
+                    logger.info(f"Призупинено підписку для {query.from_user.id}: active=False, paused=True, cancelled=False, next_billing=None, auto_payment=False")
                 else:
                     logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
             
