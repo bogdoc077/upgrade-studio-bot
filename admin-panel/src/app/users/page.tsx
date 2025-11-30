@@ -511,9 +511,9 @@ export default function UsersPage() {
                     </td>
                     <td className="admin-table__cell">
                       <span className={`admin-status ${
-                        user.auto_payment_enabled === true ? 'admin-status--active' : 'admin-status--inactive'
+                        user.auto_payment_enabled ? 'admin-status--active' : 'admin-status--inactive'
                       }`}>
-                        {user.auto_payment_enabled === true ? 'Увімкнено' : 'Вимкнено'}
+                        {user.auto_payment_enabled ? 'Увімкнено' : 'Вимкнено'}
                       </span>
                     </td>
                     <td className="admin-table__cell admin-table__cell--actions">
