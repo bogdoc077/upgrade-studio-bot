@@ -55,7 +55,7 @@ export default function SystemLogs() {
   ];
 
   const fetchLogs = async (service: ServiceType) => {
-    try:
+    try {
       setLoading(true);
       setError(null);
 
