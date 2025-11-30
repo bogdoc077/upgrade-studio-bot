@@ -8,6 +8,9 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const search = searchParams.get('search') || '';
+    const subscriptionStatus = searchParams.get('subscription_status') || '';
+    const dateFrom = searchParams.get('date_from') || '';
+    const dateTo = searchParams.get('date_to') || '';
 
     // Отримуємо токен авторизації з заголовків
     const authHeader = request.headers.get('authorization');
@@ -24,6 +27,9 @@ export async function GET(request: NextRequest) {
     if (page) queryParams.append('page', page.toString());
     if (limit) queryParams.append('limit', limit.toString());
     if (search) queryParams.append('search', search);
+    if (subscriptionStatus) queryParams.append('subscription_status', subscriptionStatus);
+    if (dateFrom) queryParams.append('date_from', dateFrom);
+    if (dateTo) queryParams.append('date_to', dateTo);
     
     const query = queryParams.toString();
     const url = `${API_BASE_URL}/api/users${query ? `?${query}` : ''}`;
@@ -51,6 +57,13 @@ export async function GET(request: NextRequest) {
       success: true,
       data: response.data || [],
       total: response.total || 0,
+      stats: response.stats || {
+        total: 0,
+        active: 0,
+        paused: 0,
+        cancelled: 0,
+        inactive: 0
+      },
       pagination: response.pagination || {}
     });
 

@@ -7,6 +7,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
+    const search = searchParams.get('search') || '';
+    const status = searchParams.get('status') || '';
+    const dateFrom = searchParams.get('date_from') || '';
+    const dateTo = searchParams.get('date_to') || '';
 
     // Отримуємо токен авторизації з заголовків
     const authHeader = request.headers.get('authorization');
@@ -22,6 +26,10 @@ export async function GET(request: NextRequest) {
     const queryParams = new URLSearchParams();
     if (page) queryParams.append('page', page.toString());
     if (limit) queryParams.append('limit', limit.toString());
+    if (search) queryParams.append('search', search);
+    if (status) queryParams.append('status', status);
+    if (dateFrom) queryParams.append('date_from', dateFrom);
+    if (dateTo) queryParams.append('date_to', dateTo);
     
     const query = queryParams.toString();
     const url = `${API_BASE_URL}/api/payments${query ? `?${query}` : ''}`;

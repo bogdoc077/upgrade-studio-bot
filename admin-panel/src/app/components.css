@@ -197,6 +197,7 @@
 
 /* Wrapper для горизонтального скролу тільки таблиці */
 .admin-table-wrapper {
+  width: 100%;
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on mobile */
@@ -204,6 +205,7 @@
 
 .admin-table {
   width: 100%;
+  min-width: max-content; /* Таблиця має мінімальну ширину по контенту */
   border-collapse: collapse;
   table-layout: auto; /* Автоматична ширина по контенту */
 }
