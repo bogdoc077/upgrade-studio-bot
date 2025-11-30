@@ -862,11 +862,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 if db_user:
                     db_user.subscription_paused = True
                     db_user.subscription_cancelled = False  # Скасовуємо статус скасування при призупиненні
+                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
                     # При призупиненні скидаємо статуси приєднання
                     db_user.joined_channel = False
                     db_user.joined_chat = False
                     db.commit()
-                    logger.info(f"Оновлено subscription_paused=True та скинуто joined статуси для користувача {query.from_user.id} (тестовий режим)")
+                    logger.info(f"Оновлено subscription_paused=True, очищено next_billing_date та скинуто joined статуси для користувача {query.from_user.id} (тестовий режим)")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -890,11 +891,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 if db_user:
                     db_user.subscription_paused = True
                     db_user.subscription_cancelled = False  # Скасовуємо статус скасування при призупиненні
+                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
                     # При призупиненні скидаємо статуси приєднання
                     db_user.joined_channel = False
                     db_user.joined_chat = False
                     db.commit()
-                    logger.info(f"Оновлено subscription_paused=True та скинуто joined статуси для користувача {query.from_user.id}")
+                    logger.info(f"Оновлено subscription_paused=True, очищено next_billing_date та скинуто joined статуси для користувача {query.from_user.id}")
                 else:
                     logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
             
@@ -1014,6 +1016,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = True
                     db_user.subscription_end_date = subscription_end_date
+                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
                     db.commit()
             
             await self.bot.send_message(
@@ -1053,6 +1056,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = True
                     db_user.subscription_end_date = subscription_end_date
+                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
                     db.commit()
             
             await self.bot.send_message(

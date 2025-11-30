@@ -35,6 +35,7 @@ class User(Base):
     subscription_cancelled = Column(Boolean, default=False)
     subscription_end_date = Column(DateTime, nullable=True)
     next_billing_date = Column(DateTime, nullable=True)
+    auto_payment_enabled = Column(Boolean, default=True)  # Статус автоплатежу
     stripe_customer_id = Column(String(255), nullable=True)
     stripe_subscription_id = Column(String(255), nullable=True)
     

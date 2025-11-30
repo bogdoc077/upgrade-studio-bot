@@ -137,19 +137,10 @@ export default function PaymentsPage() {
     });
   };
 
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = 
-      payment.id.toString().includes(searchTerm) ||
-      payment.user_id.toString().includes(searchTerm) ||
-      payment.stripe_payment_intent_id?.includes(searchTerm) ||
-      payment.amount.toString().includes(searchTerm);
-    
-    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+  // Фільтрація тепер на сервері, тому просто використовуємо payments
+  const filteredPayments = payments;
 
-  const filteredSum = filteredPayments
+  const filteredSum = payments
     .filter(p => p.status === 'completed' || p.status === 'succeeded')
     .reduce((sum, p) => sum + (p.amount / 100), 0);  // Конвертуємо центи в євро
 
@@ -337,10 +328,13 @@ export default function PaymentsPage() {
                   style={{
                     width: '100%',
                     padding: '0.5rem 2.5rem 0.5rem 0.75rem',
-                    border: '1px solid var(--border-color)',
+                    border: '2px solid #e5e7eb',
                     borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.875rem'
+                    fontSize: '0.875rem',
+                    outline: 'none'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                  onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                 />
                 <MagnifyingGlassIcon 
                   style={{ 
@@ -368,11 +362,14 @@ export default function PaymentsPage() {
                 style={{
                   width: '100%',
                   padding: '0.5rem 0.75rem',
-                  border: '1px solid var(--border-color)',
+                  border: '2px solid #e5e7eb',
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '0.875rem',
-                  background: 'var(--bg-primary)'
+                  background: 'var(--bg-primary)',
+                  outline: 'none'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               >
                 <option value="">Всі</option>
                 <option value="succeeded">Успішно</option>
@@ -393,10 +390,13 @@ export default function PaymentsPage() {
                 style={{
                   width: '100%',
                   padding: '0.5rem 0.75rem',
-                  border: '1px solid var(--border-color)',
+                  border: '2px solid #e5e7eb',
                   borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.875rem'
+                  fontSize: '0.875rem',
+                  outline: 'none'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               />
             </div>
 
@@ -412,10 +412,13 @@ export default function PaymentsPage() {
                 style={{
                   width: '100%',
                   padding: '0.5rem 0.75rem',
-                  border: '1px solid var(--border-color)',
+                  border: '2px solid #e5e7eb',
                   borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.875rem'
+                  fontSize: '0.875rem',
+                  outline: 'none'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               />
             </div>
           </div>
@@ -436,6 +439,8 @@ export default function PaymentsPage() {
                 setDateFrom('');
                 setDateTo('');
                 setCurrentPage(1);
+                // Оновлюємо таблицю після очищення
+                setTimeout(() => fetchPayments(), 0);
               }}
               className="admin-btn admin-btn--secondary admin-btn--sm"
             >

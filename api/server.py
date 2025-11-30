@@ -395,6 +395,19 @@ async def get_users(
         result = cursor.fetchone()
         total_users = result["total"] if result else 0
         
+        # Додаємо статистику по статусах підписки
+        stats_sql = """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN subscription_active = 1 AND subscription_paused = 0 THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN subscription_paused = 1 THEN 1 ELSE 0 END) as paused,
+                SUM(CASE WHEN subscription_cancelled = 1 THEN 1 ELSE 0 END) as cancelled,
+                SUM(CASE WHEN subscription_active = 0 AND subscription_paused = 0 AND subscription_cancelled = 0 THEN 1 ELSE 0 END) as inactive
+            FROM users
+        """
+        cursor.execute(stats_sql)
+        stats = cursor.fetchone() or {}
+        
         # Отримуємо користувачів
         users_sql = f"""
             SELECT * FROM users 
@@ -418,6 +431,10 @@ async def get_users(
                 user['next_billing_date'] = user['next_billing_date'].isoformat()
             if user.get('member_since'):
                 user['member_since'] = user['member_since'].isoformat()
+            
+            # Додаємо auto_payment_enabled (за замовчуванням True якщо колонка ще не існує)
+            if 'auto_payment_enabled' not in user:
+                user['auto_payment_enabled'] = True
         
         total_pages = (total_users + limit - 1) // limit if total_users > 0 else 1
         
@@ -427,6 +444,13 @@ async def get_users(
         return {
             "data": users,
             "total": total_users,
+            "stats": {
+                "total": stats.get('total', 0),
+                "active": stats.get('active', 0),
+                "paused": stats.get('paused', 0),
+                "cancelled": stats.get('cancelled', 0),
+                "inactive": stats.get('inactive', 0)
+            },
             "pagination": {
                 "current_page": page,
                 "total_pages": total_pages,

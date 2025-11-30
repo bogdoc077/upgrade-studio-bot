@@ -39,6 +39,15 @@ interface User {
   subscription_end_date?: string;
   next_billing_date?: string;
   subscription_status: string;
+  auto_payment_enabled?: boolean;
+}
+
+interface Stats {
+  total: number;
+  active: number;
+  paused: number;
+  cancelled: number;
+  inactive: number;
 }
 
 export default function UsersPage() {
@@ -46,6 +55,13 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    active: 0,
+    paused: 0,
+    cancelled: 0,
+    inactive: 0
+  });
   
   // Filter states
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('');
@@ -104,6 +120,9 @@ export default function UsersPage() {
         console.log('Users data:', data); // Для діагностики
         setUsers(data.data || []);
         setTotalItems(data.total || 0);
+        if (data.stats) {
+          setStats(data.stats);
+        }
       } else {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Помилка завантаження користувачів');
@@ -266,27 +285,41 @@ export default function UsersPage() {
             <UsersIcon className="admin-stats__icon" />
           </div>
           <div className="admin-stats__content">
-            <div className="admin-stats__value">{totalUsers.toLocaleString()}</div>
+            <div className="admin-stats__value">{stats.total.toLocaleString()}</div>
           </div>
         </div>
 
         <div className="admin-stats__card">
           <div className="admin-stats__header">
-            <span className="admin-stats__title">Преміум користувачі</span>
+            <span className="admin-stats__title">Активні підписки</span>
             <UsersIcon className="admin-stats__icon" />
           </div>
           <div className="admin-stats__content">
-            <div className="admin-stats__value">{premiumUsers.toLocaleString()}</div>
+            <div className="admin-stats__value">{stats.active.toLocaleString()}</div>
           </div>
         </div>
 
         <div className="admin-stats__card">
           <div className="admin-stats__header">
-            <span className="admin-stats__title">Безкоштовні</span>
-            <UsersIcon className="admin-stats__icon" />
+            <span className="admin-stats__title">Призупинені підписки</span>
+            <UsersIcon className="admin-stats__icon" style={{ color: 'var(--color-warning)' }} />
           </div>
           <div className="admin-stats__content">
-            <div className="admin-stats__value">{freeUsers.toLocaleString()}</div>
+            <div className="admin-stats__value" style={{ color: 'var(--color-warning)' }}>
+              {stats.paused.toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Скасовані підписки</span>
+            <UsersIcon className="admin-stats__icon" style={{ color: 'var(--color-danger)' }} />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value" style={{ color: 'var(--color-danger)' }}>
+              {stats.cancelled.toLocaleString()}
+            </div>
           </div>
         </div>
       </div>
@@ -318,10 +351,13 @@ export default function UsersPage() {
                   style={{
                     width: '100%',
                     padding: '0.5rem 2.5rem 0.5rem 0.75rem',
-                    border: '1px solid var(--border-color)',
+                    border: '2px solid #e5e7eb',
                     borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.875rem'
+                    fontSize: '0.875rem',
+                    outline: 'none'
                   }}
+                  onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                  onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                 />
                 <MagnifyingGlassIcon 
                   style={{ 
@@ -349,11 +385,14 @@ export default function UsersPage() {
                 style={{
                   width: '100%',
                   padding: '0.5rem 0.75rem',
-                  border: '1px solid var(--border-color)',
+                  border: '2px solid #e5e7eb',
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '0.875rem',
-                  background: 'var(--bg-primary)'
+                  background: 'var(--bg-primary)',
+                  outline: 'none'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               >
                 <option value="">Всі</option>
                 <option value="active">Активна</option>
@@ -375,10 +414,13 @@ export default function UsersPage() {
                 style={{
                   width: '100%',
                   padding: '0.5rem 0.75rem',
-                  border: '1px solid var(--border-color)',
+                  border: '2px solid #e5e7eb',
                   borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.875rem'
+                  fontSize: '0.875rem',
+                  outline: 'none'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               />
             </div>
 
@@ -394,10 +436,13 @@ export default function UsersPage() {
                 style={{
                   width: '100%',
                   padding: '0.5rem 0.75rem',
-                  border: '1px solid var(--border-color)',
+                  border: '2px solid #e5e7eb',
                   borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.875rem'
+                  fontSize: '0.875rem',
+                  outline: 'none'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               />
             </div>
           </div>
@@ -418,6 +463,8 @@ export default function UsersPage() {
                 setDateFrom('');
                 setDateTo('');
                 setCurrentPage(1);
+                // Оновлюємо таблицю після очищення
+                setTimeout(() => fetchUsers(), 0);
               }}
               className="admin-btn admin-btn--secondary admin-btn--sm"
             >
@@ -439,7 +486,9 @@ export default function UsersPage() {
                   <th className="admin-table__header-cell">Ім'я</th>
                   <th className="admin-table__header-cell">Статус</th>
                   <th className="admin-table__header-cell">Дата реєстрації</th>
-                  <th className="admin-table__header-cell">Підписка до</th>
+                  <th className="admin-table__header-cell">Наступний платіж</th>
+                  <th className="admin-table__header-cell">Підписка призупинена</th>
+                  <th className="admin-table__header-cell">Статус автоплатежу</th>
                   <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
                 </tr>
               </thead>
@@ -463,10 +512,24 @@ export default function UsersPage() {
                       {new Date(user.created_at).toLocaleDateString('uk-UA')}
                     </td>
                     <td className="admin-table__cell">
-                      {user.subscription_end_date 
-                        ? new Date(user.subscription_end_date).toLocaleDateString('uk-UA')
+                      {user.next_billing_date 
+                        ? new Date(user.next_billing_date).toLocaleDateString('uk-UA')
                         : '-'
                       }
+                    </td>
+                    <td className="admin-table__cell">
+                      <span className={`admin-status ${
+                        user.subscription_paused === 1 ? 'admin-status--warning' : 'admin-status--inactive'
+                      }`}>
+                        {user.subscription_paused === 1 ? 'Так' : 'Ні'}
+                      </span>
+                    </td>
+                    <td className="admin-table__cell">
+                      <span className={`admin-status ${
+                        user.auto_payment_enabled !== false ? 'admin-status--active' : 'admin-status--inactive'
+                      }`}>
+                        {user.auto_payment_enabled !== false ? 'Увімкнено' : 'Вимкнено'}
+                      </span>
                     </td>
                     <td className="admin-table__cell admin-table__cell--center">
                       <div className="flex items-center justify-center gap-2">
