@@ -622,6 +622,12 @@ class UpgradeStudioBot:
             await self.handle_channel_access_request(update, context)
         elif data == "join_chat_access":
             await self.handle_chat_access_request(update, context)
+        elif data == "go_to_channel" or data == "go_to_chat":
+            # Застаріла кнопка - оновлюємо меню
+            await query.answer("Оновлюю меню...")
+            user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
+            if user:
+                await self._show_subscription_management_menu(query.from_user.id, user)
         elif data == "channel_joined":
             await self.handle_channel_joined(update, context)
         elif data == "chat_joined":
