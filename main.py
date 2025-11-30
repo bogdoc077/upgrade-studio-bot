@@ -428,6 +428,12 @@ class UpgradeStudioBot:
             joined_chat=joined_chat
         )
         
+        # Логування для діагностики
+        logger.info(f"Показуємо меню для користувача {user_id}: "
+                   f"subscription_active={user.subscription_active}, "
+                   f"joined_channel={joined_channel}, "
+                   f"joined_chat={joined_chat}")
+        
         # Формуємо текст з інформацією про підписку
         if user.subscription_active:
             # Використовуємо дані з бази даних
@@ -624,9 +630,16 @@ class UpgradeStudioBot:
             await self.handle_chat_access_request(update, context)
         elif data == "go_to_channel" or data == "go_to_chat":
             # Застаріла кнопка - оновлюємо меню
-            await query.answer("Оновлюю меню...")
+            await query.answer()
             user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
             if user:
+                # Видаляємо попереднє повідомлення
+                try:
+                    await query.message.delete()
+                except Exception as e:
+                    logger.warning(f"Не вдалося видалити повідомлення: {e}")
+                
+                # Показуємо оновлене меню
                 await self._show_subscription_management_menu(query.from_user.id, user)
         elif data == "channel_joined":
             await self.handle_channel_joined(update, context)
