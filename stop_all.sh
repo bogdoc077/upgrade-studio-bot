@@ -42,11 +42,19 @@ ps aux | grep "webhook_server.py" | grep -v grep | awk '{print $2}' | xargs kill
 # Bot
 ps aux | grep "main.py" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null && echo "✓ Зупинено Telegram Bot" || true
 
-# Next.js Admin Panel
-pkill -f "next dev" 2>/dev/null && echo "✓ Зупинено Admin Panel (dev)" || true
-pkill -f "next start" 2>/dev/null && echo "✓ Зупинено Admin Panel (production)" || true
-pkill -f "npm run dev" 2>/dev/null && echo "✓ Зупинено npm dev" || true
+# Next.js Admin Panel - зупиняємо всі можливі процеси
+echo "Зупинка Next.js процесів..."
+pkill -f "next dev" 2>/dev/null && echo "✓ Зупинено next dev" || true
+pkill -f "next start" 2>/dev/null && echo "✓ Зупинено next start" || true
+pkill -f "next-server" 2>/dev/null && echo "✓ Зупинено next-server" || true
+pkill -f "npm run dev" 2>/dev/null && echo "✓ Зупинено npm run dev" || true
 pkill -f "npm start" 2>/dev/null && echo "✓ Зупинено npm start" || true
+
+# Зупинка Node.js процесів в admin-panel директорії
+ps aux | grep "node.*admin-panel" | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null && echo "✓ Зупинено Node.js admin-panel" || true
+
+# Зупинка всіх Node.js процесів на порту 3000
+lsof -ti:3000 -sTCP:LISTEN | xargs kill -9 2>/dev/null && echo "✓ Зупинено процеси на порту 3000" || true
 
 # Звільнення портів (додаткова перевірка)
 echo "Звільнення портів..."
