@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import './logs.css';
 
-type ServiceType = 'bot' | 'api' | 'webhook' | 'admin';
+type ServiceType = 'bot' | 'api' | 'webhook' | 'admin' | 'system';
 
 interface LogsData {
   success: boolean;
@@ -14,15 +14,40 @@ interface LogsData {
   message?: string;
 }
 
+interface SystemLog {
+  id: number;
+  task_type: string;
+  status: string;
+  message: string | null;
+  details: any;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+interface SystemLogsData {
+  data: SystemLog[];
+  total: number;
+  stats: any[];
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    total_logs: number;
+    per_page: number;
+  };
+}
+
 export default function SystemLogs() {
-  const [activeTab, setActiveTab] = useState<ServiceType>('bot');
+  const [activeTab, setActiveTab] = useState<ServiceType>('system');
   const [logsData, setLogsData] = useState<LogsData | null>(null);
+  const [systemLogsData, setSystemLogsData] = useState<SystemLogsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [lines, setLines] = useState(100);
+  const [page, setPage] = useState(1);
 
   const services = [
+    { id: 'system' as ServiceType, name: 'Автоматичні задачі' },
     { id: 'bot' as ServiceType, name: 'Telegram Bot' },
     { id: 'api' as ServiceType, name: 'API Server' },
     { id: 'webhook' as ServiceType, name: 'Webhook Server' },
@@ -30,17 +55,29 @@ export default function SystemLogs() {
   ];
 
   const fetchLogs = async (service: ServiceType) => {
-    try {
+    try:
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/logs?service=${service}&lines=${lines}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch logs');
+      if (service === 'system') {
+        // Завантажуємо системні логи
+        const response = await fetch(`/api/system-logs?page=${page}&limit=50`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch system logs');
+        }
+        const data = await response.json();
+        setSystemLogsData(data);
+        setLogsData(null);
+      } else {
+        // Завантажуємо звичайні логи
+        const response = await fetch(`/api/logs?service=${service}&lines=${lines}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch logs');
+        }
+        const data = await response.json();
+        setLogsData(data);
+        setSystemLogsData(null);
       }
-
-      const data = await response.json();
-      setLogsData(data);
     } catch (err) {
       console.error('Error fetching logs:', err);
       setError('Помилка завантаження логів');
@@ -51,7 +88,7 @@ export default function SystemLogs() {
 
   useEffect(() => {
     fetchLogs(activeTab);
-  }, [activeTab, lines]);
+  }, [activeTab, lines, page]);
 
   useEffect(() => {
     if (autoRefresh) {

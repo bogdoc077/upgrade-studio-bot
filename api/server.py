@@ -1751,6 +1751,104 @@ async def get_service_logs(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading logs: {str(e)}")
 
+
+@app.get("/api/system-logs")
+async def get_system_logs(
+    page: int = 1,
+    limit: int = 50,
+    task_type: Optional[str] = None,
+    status: Optional[str] = None,
+    admin: Dict = Depends(get_current_admin_flexible)
+) -> Dict[str, Any]:
+    """Отримати системні логи автоматичних задач"""
+    try:
+        db = get_database()
+        cursor = db.cursor(dictionary=True)
+        
+        offset = (page - 1) * limit
+        
+        # Будуємо WHERE умови
+        where_conditions = []
+        query_params = []
+        
+        if task_type:
+            where_conditions.append("task_type = %s")
+            query_params.append(task_type)
+        
+        if status:
+            where_conditions.append("status = %s")
+            query_params.append(status)
+        
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        
+        # Підраховуємо загальну кількість
+        count_sql = f"SELECT COUNT(*) as total FROM system_logs WHERE {where_clause}"
+        cursor.execute(count_sql, tuple(query_params))
+        result = cursor.fetchone()
+        total_logs = result["total"] if result else 0
+        
+        # Отримуємо логи
+        logs_sql = f"""
+            SELECT * FROM system_logs 
+            WHERE {where_clause}
+            ORDER BY created_at DESC 
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(logs_sql, tuple(query_params + [limit, offset]))
+        logs = cursor.fetchall() or []
+        
+        # Convert datetime objects to ISO strings
+        for log in logs:
+            if log.get('created_at'):
+                log['created_at'] = log['created_at'].isoformat()
+            # Parse JSON details if exists
+            if log.get('details'):
+                try:
+                    import json
+                    log['details'] = json.loads(log['details'])
+                except:
+                    pass
+        
+        total_pages = (total_logs + limit - 1) // limit if total_logs > 0 else 1
+        
+        # Отримуємо статистику
+        stats_sql = """
+            SELECT 
+                task_type,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+                AVG(duration_ms) as avg_duration_ms
+            FROM system_logs
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY task_type
+        """
+        cursor.execute(stats_sql)
+        stats = cursor.fetchall() or []
+        
+        cursor.close()
+        db.close()
+        
+        return {
+            "data": logs,
+            "total": total_logs,
+            "stats": stats,
+            "pagination": {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_logs": total_logs,
+                "per_page": limit
+            }
+        }
+    except Exception as e:
+        if 'db' in locals():
+            try:
+                db.close()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)

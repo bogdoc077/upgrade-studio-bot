@@ -767,6 +767,25 @@ class DatabaseManager:
             return count
 
 
+    @staticmethod
+    def create_system_log(task_type: str, status: str, message: str = None, details: dict = None, duration_ms: int = None):
+        """Створити системний лог для автоматичної задачі"""
+        import json
+        with DatabaseManager() as db:
+            log = SystemLog(
+                task_type=task_type,
+                status=status,
+                message=message,
+                details=json.dumps(details, ensure_ascii=False) if details else None,
+                duration_ms=duration_ms,
+                created_at=datetime.utcnow()
+            )
+            db.add(log)
+            db.commit()
+            db.refresh(log)
+            return log
+
+
 class Broadcast(Base):
     """Модель для розсилок"""
     __tablename__ = "broadcasts"
@@ -818,6 +837,34 @@ class BroadcastQueue(Base):
     # Relationships
     broadcast = relationship("Broadcast")
     user = relationship("User")
+
+
+class SystemLog(Base):
+    """Системні логи для автоматичних задач"""
+    __tablename__ = "system_logs"
+    
+    id = Column(Integer, primary_key=True)
+    
+    # Тип задачі
+    task_type = Column(String(50), nullable=False)  # 'check_expired_subscriptions', 'process_reminders', etc.
+    
+    # Статус виконання
+    status = Column(String(20), nullable=False)  # 'started', 'completed', 'failed'
+    
+    # Повідомлення
+    message = Column(Text, nullable=True)
+    
+    # Деталі виконання (JSON)
+    details = Column(Text, nullable=True)  # JSON з деталями: кількість оброблених, помилки і т.д.
+    
+    # Час виконання
+    duration_ms = Column(Integer, nullable=True)  # Тривалість виконання в мілісекундах
+    
+    # Дати
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<SystemLog(task={self.task_type}, status={self.status}, created_at={self.created_at})>"
 
 
 def get_database():

@@ -91,14 +91,38 @@ class TaskScheduler:
     
     async def process_reminders(self):
         """Обробити всі нагадування"""
+        start_time = datetime.utcnow()
         try:
+            DatabaseManager.create_system_log(
+                task_type='process_reminders',
+                status='started',
+                message='Розпочато обробку нагадувань'
+            )
             reminders = DatabaseManager.get_pending_reminders()
+            sent_count = 0
             
             for reminder in reminders:
                 await self.send_reminder(reminder)
+                sent_count += 1
+            
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='process_reminders',
+                status='completed',
+                message=f'Оброблено {sent_count} нагадувань',
+                details={'reminders_sent': sent_count},
+                duration_ms=duration
+            )
                 
         except Exception as e:
             logger.error(f"Помилка при обробці нагадувань: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='process_reminders',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )
     
     async def send_reminder(self, reminder: Reminder):
         """Надіслати нагадування користувачу"""
@@ -347,7 +371,13 @@ class TaskScheduler:
     
     async def cleanup_old_reminders(self):
         """Очистити старі нагадування"""
+        start_time = datetime.utcnow()
         try:
+            DatabaseManager.create_system_log(
+                task_type='cleanup_old_reminders',
+                status='started',
+                message='Розпочато очищення старих нагадувань'
+            )
             cutoff_date = datetime.utcnow() - timedelta(days=30)
             
             with DatabaseManager() as db:
@@ -360,8 +390,24 @@ class TaskScheduler:
                 db.commit()
                 logger.info(f"Видалено {deleted_count} старих нагадувань")
                 
+                duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                DatabaseManager.create_system_log(
+                    task_type='cleanup_old_reminders',
+                    status='completed',
+                    message=f'Видалено {deleted_count} старих нагадувань',
+                    details={'deleted_count': deleted_count},
+                    duration_ms=duration
+                )
+                
         except Exception as e:
             logger.error(f"Помилка при очищенні старих нагадувань: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='cleanup_old_reminders',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )
     
     async def handle_successful_payment(self, user_id: int):
         """Обробити успішну оплату - запланувати нагадування про приєднання"""
@@ -475,37 +521,78 @@ class TaskScheduler:
                     db.commit()
                     logger.info(f"Оброблено {len(expired_users)} закінчених підписок")
                 
-                # Також перевіряємо користувачів з призупиненими підписками без end_date
+                # Перевіряємо призупинені підписки - НЕ деактивуємо, тільки нагадуємо про end_date
+                # Призупинені підписки мають subscription_active=True до end_date
                 paused_users = db.query(User).filter(
                     User.subscription_paused == True,
-                    User.subscription_active == True
+                    User.subscription_active == True,
+                    User.auto_payment_enabled == False,
+                    User.subscription_end_date.isnot(None)
                 ).all()
                 
                 for user in paused_users:
-                    # Для призупинених підписок теж видаляємо з чатів
-                    if user.joined_channel or user.joined_chat:
-                        await self._remove_user_from_chats(user.telegram_id)
-                    
-                    # Для призупинених підписок теж скидаємо joined статуси
-                    user.subscription_active = False
-                    user.joined_channel = False
-                    user.joined_chat = False
-                    
-                    logger.info(f"Скинуто joined статуси для призупиненого користувача {user.telegram_id}")
-                
-                if paused_users:
-                    db.commit()
-                    logger.info(f"Оброблено {len(paused_users)} призупинених підписок")
+                    days_left = (user.subscription_end_date - now).days
+                    if 0 <= days_left <= 3:
+                        # Нагадуємо користувачу про закінчення через 3 дні або менше
+                        logger.info(f"Призупинена підписка користувача {user.telegram_id} закінчується через {days_left} днів")
+                        
+                        try:
+                            await self.bot.send_message(
+                                chat_id=user.telegram_id,
+                                text=f"""⚠️ **Нагадування про підписку**
+
+Ваша підписка закінчується через **{days_left} {'день' if days_left == 1 else 'дні'}** ({user.subscription_end_date.strftime('%d.%m.%Y')}).
+
+❌ Автоматичне продовження вимкнене (підписка призупинена)
+
+Щоб продовжити доступ:
+1. Відновіть підписку через /subscription
+2. Або зв'яжіться з підтримкою
+
+📞 Підтримка: @{settings.support_username if hasattr(settings, 'support_username') else 'support'}""",
+                                parse_mode='Markdown'
+                            )
+                        except Exception as e:
+                            logger.error(f"Помилка надсилання нагадування користувачу {user.telegram_id}: {e}")
+            
+            # Логуємо успішне виконання
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='check_expired_subscriptions',
+                status='completed',
+                message=f'Перевірку закінчених підписок завершено',
+                details={
+                    'expired_count': len(expired_users) if 'expired_users' in locals() else 0,
+                    'paused_reminded': len([u for u in paused_users if 0 <= (u.subscription_end_date - now).days <= 3]) if 'paused_users' in locals() else 0
+                },
+                duration_ms=duration
+            )
                     
         except Exception as e:
             logger.error(f"Помилка при перевірці закінчених підписок: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='check_expired_subscriptions',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )
     
     async def process_payment_events(self):
         """Обробити події успішних оплат"""
+        start_time = datetime.utcnow()
+        processed_count = 0
         try:
             from payment_events import get_pending_payment_events, mark_event_processed
             
             events = get_pending_payment_events()
+            
+            if events:
+                DatabaseManager.create_system_log(
+                    task_type='process_payment_events',
+                    status='started',
+                    message=f'Розпочато обробку {len(events)} подій оплат'
+                )
             
             if not events:
                 return  # Немає подій для обробки
@@ -524,20 +611,68 @@ class TaskScheduler:
                     # Позначаємо подію як оброблену
                     mark_event_processed(event['id'])
                     logger.info(f"Подія оплати {event['id']} оброблена успішно")
+                    processed_count += 1
                     
                 except Exception as e:
                     logger.error(f"Помилка обробки події оплати {event['id']}: {e}")
                     # Не позначаємо як оброблену, щоб спробувати знову
+            
+            if events:
+                duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                DatabaseManager.create_system_log(
+                    task_type='process_payment_events',
+                    status='completed',
+                    message=f'Оброблено {processed_count} з {len(events)} подій оплат',
+                    details={'processed': processed_count, 'total': len(events)},
+                    duration_ms=duration
+                )
                     
         except Exception as e:
-            logger.error(f"Помилка при обробці подій оплат: {e}")    
+            logger.error(f"Помилка при обробці подій оплат: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='process_payment_events',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )    
     async def process_broadcasts(self):
         """Обробити pending розсилки"""
+        start_time = datetime.utcnow()
         try:
             from bot.broadcast_handler import BroadcastHandler
+            
+            # Лог тільки якщо є щось для обробки
+            with DatabaseManager() as db:
+                from database.models import Broadcast
+                pending_count = db.query(Broadcast).filter(Broadcast.status == 'pending').count()
+            
+            if pending_count > 0:
+                DatabaseManager.create_system_log(
+                    task_type='process_broadcasts',
+                    status='started',
+                    message=f'Розпочато обробку {pending_count} розсилок'
+                )
             
             handler = BroadcastHandler(self.bot)
             await handler.process_pending_broadcasts()
             
+            if pending_count > 0:
+                duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                DatabaseManager.create_system_log(
+                    task_type='process_broadcasts',
+                    status='completed',
+                    message=f'Обробку розсилок завершено',
+                    details={'broadcasts_processed': pending_count},
+                    duration_ms=duration
+                )
+            
         except Exception as e:
             logger.error(f"Помилка при обробці розсилок: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='process_broadcasts',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )

@@ -279,22 +279,20 @@ async def handle_customer_subscription_updated(subscription):
                     db_user.subscription_status = 'active'
                     if not cancel_at_period_end:
                         db_user.subscription_cancelled = False
+                        db_user.auto_payment_enabled = True  # Включаємо автоплатіж при активації
                     logger.info(f"Webhook: Статус підписки 'active' для користувача {user.telegram_id}")
                 elif status == 'paused':
                     db_user.subscription_paused = True
-                    logger.info(f"Webhook: Статус підписки 'paused' для користувача {user.telegram_id}")
+                    db_user.auto_payment_enabled = False  # Вимикаємо автоплатіж при паузі
+                    # subscription_active залишається True до subscription_end_date
+                    # joined_channel/chat НЕ скидаємо - доступ до end_date
+                    logger.info(f"Webhook: Підписка призупинена для користувача {user.telegram_id}, доступ до end_date")
                 elif status in ['canceled', 'cancelled']:
-                    db_user.subscription_active = False
                     db_user.subscription_cancelled = True
-                    # При скасуванні підписки скидаємо статуси приєднання
-                    db_user.joined_channel = False
-                    db_user.joined_chat = False
-                    logger.info(f"Webhook: Статус підписки 'canceled' для користувача {user.telegram_id}")
-                
-                # При призупиненні також скидаємо статуси приєднання
-                if status == 'paused':
-                    db_user.joined_channel = False
-                    db_user.joined_chat = False
+                    db_user.auto_payment_enabled = False  # Вимикаємо автоплатіж
+                    # subscription_active залишається True до subscription_end_date
+                    # joined_channel/chat НЕ скидаємо - доступ до end_date
+                    logger.info(f"Webhook: Підписка скасована для користувача {user.telegram_id}, доступ до end_date")
                 
                 # Оновлюємо дати
                 if 'current_period_end' in subscription:
@@ -319,10 +317,20 @@ async def handle_customer_subscription_updated(subscription):
                 if cancel_at_period_end:
                     await send_telegram_notification(
                         user.telegram_id,
-                        f" **Підписка скасована**\n\n"
+                        f"⚠️ **Підписка скасована**\n\n"
                         f"Ваша підписка буде активна до {period_end.strftime('%d.%m.%Y')}.\n"
                         "Після цієї дати доступ до каналів буде припинено.\n\n"
+                        "❌ Автоматичне продовження вимкнено\n\n"
                         "Ви можете поновити підписку у будь-який момент!"
+                    )
+                elif status == 'paused':
+                    await send_telegram_notification(
+                        user.telegram_id,
+                        f"⏸️ **Підписка призупинена**\n\n"
+                        f"Ваша підписка залишається активною до {period_end.strftime('%d.%m.%Y')}.\n"
+                        "Доступ до каналів зберігається до цієї дати.\n\n"
+                        "❌ Автоматичне продовження вимкнено\n\n"
+                        "Ви можете відновити автоплатіж через /subscription"
                     )
                 elif status == 'active' and not db_user.subscription_paused:
                     # Перевіряємо чи це поновлення існуючої підписки (а не перша активація)
@@ -427,6 +435,16 @@ async def handle_invoice_payment_succeeded(invoice):
                         db_user.next_billing_date = end_date
                         db_user.subscription_end_date = end_date
                         db_user.subscription_active = True
+                        db_user.auto_payment_enabled = True  # Успішна оплата = автоплатіж працює
+                        
+                        # Якщо була призупинена або скасована - знімаємо ці статуси
+                        if db_user.subscription_paused:
+                            db_user.subscription_paused = False
+                            logger.info(f"Знято статус 'paused' після успішної оплати для {user.telegram_id}")
+                        if db_user.subscription_cancelled:
+                            db_user.subscription_cancelled = False
+                            logger.info(f"Знято статус 'cancelled' після успішної оплати для {user.telegram_id}")
+                        
                         logger.info(f"Оновлено дати підписки до {end_date} для користувача {user.telegram_id}")
                         
                         # Створюємо нагадування за 7 днів до списання
