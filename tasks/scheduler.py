@@ -91,38 +91,14 @@ class TaskScheduler:
     
     async def process_reminders(self):
         """Обробити всі нагадування"""
-        start_time = datetime.utcnow()
         try:
-            DatabaseManager.create_system_log(
-                task_type='process_reminders',
-                status='started',
-                message='Розпочато обробку нагадувань'
-            )
             reminders = DatabaseManager.get_pending_reminders()
-            sent_count = 0
             
             for reminder in reminders:
                 await self.send_reminder(reminder)
-                sent_count += 1
-            
-            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-            DatabaseManager.create_system_log(
-                task_type='process_reminders',
-                status='completed',
-                message=f'Оброблено {sent_count} нагадувань',
-                details={'reminders_sent': sent_count},
-                duration_ms=duration
-            )
                 
         except Exception as e:
             logger.error(f"Помилка при обробці нагадувань: {e}")
-            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-            DatabaseManager.create_system_log(
-                task_type='process_reminders',
-                status='failed',
-                message=f'Помилка: {str(e)}',
-                duration_ms=duration
-            )
     
     async def send_reminder(self, reminder: Reminder):
         """Надіслати нагадування користувачу"""
@@ -378,7 +354,7 @@ class TaskScheduler:
                 status='started',
                 message='Розпочато очищення старих нагадувань'
             )
-            cutoff_date = datetime.utcnow() - timedelta(days=30)
+            cutoff_date = datetime.utcnow() - timedelta(days=5)
             
             with DatabaseManager() as db:
                 # Видаляємо старі неактивні нагадування
@@ -580,19 +556,10 @@ class TaskScheduler:
     
     async def process_payment_events(self):
         """Обробити події успішних оплат"""
-        start_time = datetime.utcnow()
-        processed_count = 0
         try:
             from payment_events import get_pending_payment_events, mark_event_processed
             
             events = get_pending_payment_events()
-            
-            if events:
-                DatabaseManager.create_system_log(
-                    task_type='process_payment_events',
-                    status='started',
-                    message=f'Розпочато обробку {len(events)} подій оплат'
-                )
             
             if not events:
                 return  # Немає подій для обробки
@@ -611,68 +578,20 @@ class TaskScheduler:
                     # Позначаємо подію як оброблену
                     mark_event_processed(event['id'])
                     logger.info(f"Подія оплати {event['id']} оброблена успішно")
-                    processed_count += 1
                     
                 except Exception as e:
                     logger.error(f"Помилка обробки події оплати {event['id']}: {e}")
                     # Не позначаємо як оброблену, щоб спробувати знову
-            
-            if events:
-                duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-                DatabaseManager.create_system_log(
-                    task_type='process_payment_events',
-                    status='completed',
-                    message=f'Оброблено {processed_count} з {len(events)} подій оплат',
-                    details={'processed': processed_count, 'total': len(events)},
-                    duration_ms=duration
-                )
                     
         except Exception as e:
-            logger.error(f"Помилка при обробці подій оплат: {e}")
-            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-            DatabaseManager.create_system_log(
-                task_type='process_payment_events',
-                status='failed',
-                message=f'Помилка: {str(e)}',
-                duration_ms=duration
-            )    
+            logger.error(f"Помилка при обробці подій оплат: {e}")    
     async def process_broadcasts(self):
         """Обробити pending розсилки"""
-        start_time = datetime.utcnow()
         try:
             from bot.broadcast_handler import BroadcastHandler
-            
-            # Лог тільки якщо є щось для обробки
-            with DatabaseManager() as db:
-                from database.models import Broadcast
-                pending_count = db.query(Broadcast).filter(Broadcast.status == 'pending').count()
-            
-            if pending_count > 0:
-                DatabaseManager.create_system_log(
-                    task_type='process_broadcasts',
-                    status='started',
-                    message=f'Розпочато обробку {pending_count} розсилок'
-                )
             
             handler = BroadcastHandler(self.bot)
             await handler.process_pending_broadcasts()
             
-            if pending_count > 0:
-                duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-                DatabaseManager.create_system_log(
-                    task_type='process_broadcasts',
-                    status='completed',
-                    message=f'Обробку розсилок завершено',
-                    details={'broadcasts_processed': pending_count},
-                    duration_ms=duration
-                )
-            
         except Exception as e:
             logger.error(f"Помилка при обробці розсилок: {e}")
-            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-            DatabaseManager.create_system_log(
-                task_type='process_broadcasts',
-                status='failed',
-                message=f'Помилка: {str(e)}',
-                duration_ms=duration
-            )

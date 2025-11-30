@@ -272,31 +272,24 @@
 }
 
 .schedule-item {
-  display: flex;
-  gap: var(--spacing-base);
   padding: var(--spacing-base);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-base);
+  border-left: 3px solid var(--primary-color);
+  border-radius: var(--radius-sm);
   transition: all var(--transition-base);
 }
 
 .schedule-item:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.schedule-item__icon {
-  font-size: 2rem;
-  flex-shrink: 0;
+  background: var(--bg-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .schedule-item__content {
-  flex: 1;
+  width: 100%;
 }
 
 .schedule-item__content h4 {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   margin-bottom: var(--spacing-xs);
   color: var(--text-primary);
@@ -304,16 +297,17 @@
 }
 
 .schedule-time {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--primary-color);
   margin-bottom: var(--spacing-xs);
 }
 
 .schedule-desc {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   margin: 0;
+  line-height: 1.4;
 }
 
 .system-logs__stats {
@@ -369,36 +363,151 @@
 
 .system-logs__table {
   overflow-x: auto;
+  margin-top: var(--spacing-base);
 }
 
 .system-logs__table table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 0.8125rem;
 }
 
-.system-logs__table code {
-  padding: 2px 6px;
-  background: var(--bg-primary);
-  border-radius: var(--radius-sm);
+.system-logs__table th {
+  background: var(--bg-secondary);
+  padding: var(--spacing-sm) var(--spacing-base);
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.system-logs__table td {
+  padding: var(--spacing-sm) var(--spacing-base);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.system-logs__table tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.log-time {
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.log-task {
   font-family: 'Courier New', monospace;
   font-size: 0.75rem;
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
-.system-logs__table details {
-  cursor: pointer;
+.log-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.system-logs__table details summary {
-  color: var(--primary-color);
+.log-status.started {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.log-status.completed {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.log-status.failed {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.log-message {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  max-width: 300px;
+  word-wrap: break-word;
+}
+
+.log-details {
   font-size: 0.75rem;
 }
 
-.system-logs__table details pre {
+.log-details summary {
+  cursor: pointer;
+  color: var(--primary-color);
+  font-weight: 500;
+  user-select: none;
+}
+
+.log-details summary:hover {
+  text-decoration: underline;
+}
+
+.log-details pre {
   margin-top: var(--spacing-xs);
   padding: var(--spacing-sm);
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: var(--bg-secondary);
   border-radius: var(--radius-sm);
   font-size: 0.6875rem;
-  max-height: 200px;
-  overflow: auto;
+  overflow-x: auto;
+  max-width: 400px;
+}
+
+.log-duration {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Пагінація для системних логів */
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-base);
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-base);
+  border-top: 1px solid var(--border-color);
+}
+
+.admin-pagination__btn {
+  padding: var(--spacing-sm) var(--spacing-base);
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.admin-pagination__btn:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.admin-pagination__btn:disabled {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.admin-pagination__info {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
