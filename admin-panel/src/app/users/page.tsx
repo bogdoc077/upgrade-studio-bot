@@ -84,12 +84,12 @@ export default function UsersPage() {
     fetchUsers();
   }, [currentPage, itemsPerPage, searchTerm, subscriptionStatus, dateFrom, dateTo]);
   
-  // Скидати на першу сторінку при зміні фільтрів
+  // Скидати на першу сторінку при зміні фільтрів (але не пошуку)
   useEffect(() => {
-    if (currentPage !== 1) {
+    if (currentPage !== 1 && (subscriptionStatus || dateFrom || dateTo)) {
       setCurrentPage(1);
     }
-  }, [searchTerm, subscriptionStatus, dateFrom, dateTo]);
+  }, [subscriptionStatus, dateFrom, dateTo]);
 
   const fetchUsers = async () => {
     try {
@@ -125,11 +125,17 @@ export default function UsersPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('Users data:', data); // Для діагностики
+        console.log('Stats from API:', data.stats); // Діагностика stats
         setUsers(data.data || []);
         setTotalItems(data.total || 0);
-        if (data.stats) {
-          setStats(data.stats);
-        }
+        // Обов'язково встановлюємо stats, навіть якщо вони порожні
+        setStats(data.stats || {
+          total: 0,
+          active: 0,
+          paused: 0,
+          cancelled: 0,
+          inactive: 0
+        });
       } else {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Помилка завантаження користувачів');
@@ -450,14 +456,7 @@ export default function UsersPage() {
           </div>
 
           {/* Filter Actions */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              onClick={fetchUsers}
-              className="admin-btn admin-btn--primary admin-btn--sm"
-            >
-              <MagnifyingGlassIcon className="w-4 h-4" />
-              Застосувати фільтри
-            </button>
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
             <button
               onClick={() => {
                 setSearchTerm('');
@@ -468,7 +467,7 @@ export default function UsersPage() {
               className="admin-btn admin-btn--secondary admin-btn--sm"
             >
               <XCircleIcon className="w-4 h-4" />
-              Очистити
+              Очистити фільтри
             </button>
           </div>
         </div>

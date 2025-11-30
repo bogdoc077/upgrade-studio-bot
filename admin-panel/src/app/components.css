@@ -199,6 +199,7 @@
 .admin-table-wrapper {
   overflow-x: auto;
   overflow-y: visible;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on mobile */
 }
 
 .admin-table {
