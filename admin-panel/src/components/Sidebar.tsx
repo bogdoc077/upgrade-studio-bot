@@ -10,6 +10,7 @@ import {
   SpeakerWaveIcon,
   UserGroupIcon,
   Cog6ToothIcon,
+  DocumentTextIcon,
   ArrowRightOnRectangleIcon,
   Bars3Icon
 } from '@heroicons/react/24/outline';
@@ -26,6 +27,7 @@ const menuItems: MenuItem[] = [
   { id: 'users', label: 'Користувачі', path: '/users', icon: 'UsersIcon' },
   { id: 'payments', label: 'Платежі', path: '/payments', icon: 'CreditCardIcon' },
   { id: 'broadcasts', label: 'Розсилки', path: '/broadcasts', icon: 'SpeakerWaveIcon' },
+  { id: 'logs', label: 'Логи системи', path: '/logs', icon: 'DocumentTextIcon' },
   { id: 'admins', label: 'Адміни', path: '/admins', icon: 'UserGroupIcon' },
   { id: 'settings', label: 'Налаштування', path: '/settings', icon: 'Cog6ToothIcon' },
 ];
@@ -37,6 +39,7 @@ const iconComponents = {
   SpeakerWaveIcon,
   UserGroupIcon,
   Cog6ToothIcon,
+  DocumentTextIcon,
 };
 
 export default function Sidebar({ isOpen = true, onToggle, onClose }: SidebarProps) {
@@ -182,7 +185,7 @@ export default function Sidebar({ isOpen = true, onToggle, onClose }: SidebarPro
               <span>Вийти</span>
             </button>
             <div className="admin-sidebar__version">
-              Версія 1.0.0
+              Версія 1.4.0
             </div>
           </div>
         </div>

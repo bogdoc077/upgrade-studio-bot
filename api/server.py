@@ -1598,6 +1598,56 @@ async def get_broadcast_detail(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching broadcast: {str(e)}")
 
+@app.get("/api/logs/{service}")
+async def get_service_logs(
+    service: str,
+    lines: int = 100,
+    admin: Dict = Depends(get_current_admin_flexible)
+) -> Dict[str, Any]:
+    """Отримати логи сервісу"""
+    try:
+        # Мапінг сервісів на файли логів
+        log_files = {
+            "bot": "bot.log",
+            "api": "api.log",
+            "webhook": "webhook.log",
+            "admin": "admin_panel.log"
+        }
+        
+        if service not in log_files:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid service. Available: {', '.join(log_files.keys())}"
+            )
+        
+        log_path = PROJECT_ROOT / "logs" / log_files[service]
+        
+        if not log_path.exists():
+            return {
+                "success": True,
+                "service": service,
+                "logs": [],
+                "message": f"Log file {log_files[service]} not found"
+            }
+        
+        # Читаємо останні N рядків
+        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+            all_lines = f.readlines()
+            log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        
+        return {
+            "success": True,
+            "service": service,
+            "logs": [line.rstrip('\n') for line in log_lines],
+            "total_lines": len(log_lines),
+            "file_path": str(log_path)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading logs: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
