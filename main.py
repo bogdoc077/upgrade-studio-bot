@@ -1,5 +1,5 @@
 """
-Основний файл телеграм бота upgrade studio
+Основний файл телеграм бота UPGRADE21 STUDIO
 """
 import asyncio
 import logging
@@ -165,7 +165,7 @@ class UpgradeStudioBot:
                 await update.message.reply_text(
                     "**Дякуємо за оплату!**\n\n"
                     "Ваша підписка успішно оформлена. Зараз ви отримаєте доступ до приватних каналів та чатів.\n\n"
-                    "Ласкаво просимо до UPGRADE STUDIO! ",
+                    "Ласкаво просимо до UPGRADE21 STUDIO! ",
                     parse_mode='Markdown'
                 )
                 return
@@ -186,7 +186,7 @@ class UpgradeStudioBot:
             # Користувач пройшов опитування, але немає підписки - показуємо пропозицію підписки
             await update.message.reply_text(
                 f"Привіт знову, {user.first_name}! \n\n"
-                f"Я пам'ятаю наше знайомство. Ви готові оформити підписку і приєднатися до UPGRADE STUDIO?",
+                f"Я пам'ятаю наше знайомство. Ви готові оформити підписку і приєднатися до UPGRADE21 STUDIO?",
                 reply_markup=get_subscription_offer_keyboard()
             )
         else:
@@ -619,10 +619,6 @@ class UpgradeStudioBot:
             await self.handle_channel_access_request(update, context)
         elif data == "join_chat_access":
             await self.handle_chat_access_request(update, context)
-        elif data == "go_to_channel":
-            await self.handle_go_to_channel(update, context)
-        elif data == "go_to_chat":
-            await self.handle_go_to_chat(update, context)
         elif data == "channel_joined":
             await self.handle_channel_joined(update, context)
         elif data == "chat_joined":
@@ -708,7 +704,7 @@ class UpgradeStudioBot:
 
 Готові змінити своє життя?
 
-UPGRADE STUDIO — це не просто фітнес, це ваша трансформація!
+UPGRADE21 STUDIO — це не просто фітнес, це ваша трансформація!
 
 Що вас чекає:
 • Персональні тренування під ваші цілі
@@ -792,14 +788,17 @@ UPGRADE STUDIO — це не просто фітнес, це ваша транс
                 [InlineKeyboardButton("Оплатити підписку", url=checkout_data['url'])]
             ])
             
-            await query.edit_message_text(
-                text="**Оформлення підписки UPGRADE STUDIO**\n\n"
+            payment_msg = await query.edit_message_text(
+                text="**Оформлення підписки UPGRADE21 STUDIO**\n\n"
                      "Натисніть кнопку нижче для безпечної оплати через Stripe\n\n"
-                     "Всі платежі захищені банківським рівнем безпеки\n"
-                     "Оплата відкриється прямо в Telegram",
+                     "Всі платежі захищені банківським рівнем безпеки",
                 reply_markup=payment_keyboard,
                 parse_mode='Markdown'
             )
+            
+            # Зберігаємо ID повідомлення з оплатою для подальшого видалення
+            self.payment_message_ids[user_id] = payment_msg.message_id
+            logger.info(f"Збережено ID повідомлення оплати {payment_msg.message_id} для користувача {user_id}")
         else:
             await query.edit_message_text(
                 "Виникла помилка при створенні платежу. Спробуйте пізніше або зверніться до підтримки."
@@ -1036,6 +1035,20 @@ UPGRADE STUDIO — це не просто фітнес, це ваша транс
             if not user:
                 return
             
+            # Видаляємо попереднє повідомлення з кнопкою оплати (якщо є)
+            if telegram_id in self.payment_message_ids:
+                try:
+                    await self.bot.delete_message(
+                        chat_id=telegram_id,
+                        message_id=self.payment_message_ids[telegram_id]
+                    )
+                    logger.info(f"Видалено повідомлення оплати для користувача {telegram_id}")
+                except Exception as e:
+                    logger.warning(f"Не вдалося видалити повідомлення оплати: {e}")
+                finally:
+                    # Видаляємо зі словника незалежно від результату
+                    del self.payment_message_ids[telegram_id]
+            
             # Оновлюємо статус підписки - активуємо та скидаємо всі негативні статуси
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == telegram_id).first()
@@ -1043,9 +1056,15 @@ UPGRADE STUDIO — це не просто фітнес, це ваша транс
                     db_user.subscription_active = True
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = False
-                    db_user.subscription_end_date = None  # Очищаємо дату закінчення
+                    
+                    # Встановлюємо дату закінчення підписки (через 30 днів від зараз)
+                    subscription_end = datetime.utcnow() + timedelta(days=30)
+                    db_user.subscription_end_date = subscription_end
+                    db_user.next_billing_date = subscription_end
+                    
                     db.commit()
-                    logger.info(f"Оновлено статус підписки для користувача {telegram_id}")
+                    logger.info(f"Оновлено статус підписки для користувача {telegram_id}, "
+                              f"subscription_end_date={subscription_end.strftime('%Y-%m-%d')}")
             
             # Скасовуємо всі нагадування про підписку, оскільки оплата пройшла
             cancelled_count = DatabaseManager.cancel_subscription_reminders_if_active(telegram_id)
@@ -1056,12 +1075,12 @@ UPGRADE STUDIO — це не просто фітнес, це ваша транс
             await self.bot.send_message(
                 chat_id=telegram_id,
                 text="🎉 **Вітаю! Оплата успішна!**\n\n"
-                     "Ваша підписка активована! Тепер ви — частина UPGRADE STUDIO.\n\n"
+                     "Ваша підписка активована! Тепер ви — частина UPGRADE21 STUDIO.\n\n"
                      "**Що далі:**\n"
                      "1. Приєднайтеся до наших приватних спільнот\n"
                      "2. Знайдіться з тренером\n"
                      "3. Почніть свою трансформацію!\n\n"
-                     "Ласкаво просимо в родину UPGRADE! 💪",
+                     "Ласкаво просимо в родину UPGRADE21! 💪",
                 parse_mode='Markdown'
             )
             
@@ -1246,6 +1265,11 @@ UPGRADE STUDIO — це не просто фітнес, це ваша транс
                     user.stripe_customer_id = test_customer_id
                     user.stripe_subscription_id = test_subscription_id
                     user.updated_at = datetime.utcnow()
+                    
+                    # Встановлюємо дату закінчення підписки (через 30 днів для тестової підписки)
+                    subscription_end = datetime.utcnow() + timedelta(days=30)
+                    user.subscription_end_date = subscription_end
+                    user.next_billing_date = subscription_end
                     
                     # Створюємо запис про тестовий платіж
                     from database.models import Payment
@@ -1716,7 +1740,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                         # Надсилаємо фінальне повідомлення про успішне завершення
                         await self.bot.send_message(
                             chat_id=user_id,
-                            text="🎉 **Вітаємо у UPGRADE STUDIO!**\n\n"
+                            text="🎉 **Вітаємо у UPGRADE21 STUDIO!**\n\n"
                                  "✅ Ви успішно приєдналися до каналу та групи!\n\n"
                                  "Тепер у вас є повний доступ до:\n"
                                  "• Всіх тренувань та матеріалів\n"
@@ -1940,7 +1964,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         # Відправляємо повідомлення про успішне завершення приєднання
         await self.bot.send_message(
             chat_id=user_id,
-            text="**Вітаємо у UPGRADE STUDIO!**\n\n"
+            text="**Вітаємо у UPGRADE21 STUDIO!**\n\n"
                  "Ви успішно приєдналися до каналу та чату!\n"
                  "Тепер у вас є повний доступ до всіх можливостей нашої спільноти!\n\n"
                  "Переходимо до керування вашою підпискою...",
@@ -2060,7 +2084,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         # Очищаємо попередні повідомлення
         await self.cleanup_previous_messages(update)
         
-        info_text = f"""**Детальна інформація про UPGRADE STUDIO:**
+        info_text = f"""**Детальна інформація про UPGRADE21 STUDIO:**
 
  **Що включає підписка:**
 • Персоналізовані тренування під ваші цілі та фізичну підготовку
@@ -2112,7 +2136,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             f"⏰ **Нагадування встановлено!**\n\n"
             f"Ми нагадаємо вам про підписку через 24 години.\n\n"
             f"У будь-який час ви можете оформити підписку, написавши /start\n\n"
-            f"Дякуємо за інтерес до UPGRADE STUDIO! ",
+            f"Дякуємо за інтерес до UPGRADE21 STUDIO! ",
             parse_mode='Markdown'
         )
         
