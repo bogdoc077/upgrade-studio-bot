@@ -440,10 +440,6 @@ async def get_users(
                 user['next_billing_date'] = user['next_billing_date'].isoformat()
             if user.get('member_since'):
                 user['member_since'] = user['member_since'].isoformat()
-            
-            # Додаємо auto_payment_enabled (за замовчуванням True якщо колонка ще не існує)
-            if 'auto_payment_enabled' not in user:
-                user['auto_payment_enabled'] = True
         
         total_pages = (total_users + limit - 1) // limit if total_users > 0 else 1
         
