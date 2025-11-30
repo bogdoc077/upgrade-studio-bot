@@ -16,22 +16,35 @@ export async function GET(request: NextRequest) {
     }
 
     // Передаємо всі query параметри
-    const searchParams = request.nextUrl.searchParams;
-    const queryString = searchParams.toString();
+    const { searchParams } = new URL(request.url);
+    const page = searchParams.get('page') || '1';
+    const limit = searchParams.get('limit') || '50';
+    const task_type = searchParams.get('task_type');
+    const status = searchParams.get('status');
+    
+    let queryString = `page=${page}&limit=${limit}`;
+    if (task_type) queryString += `&task_type=${task_type}`;
+    if (status) queryString += `&status=${status}`;
     
     const response = await fetch(
-      `${API_BASE_URL}/api/system-logs${queryString ? `?${queryString}` : ''}`,
+      `${API_BASE_URL}/api/system-logs?${queryString}`,
       {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        cache: 'no-store',
       }
     );
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(error, { status: response.status });
+      const errorText = await response.text();
+      console.error('API error:', response.status, errorText);
+      return NextResponse.json(
+        { error: 'Failed to fetch system logs', details: errorText },
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
