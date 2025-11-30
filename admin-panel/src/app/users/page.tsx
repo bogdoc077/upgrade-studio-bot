@@ -82,14 +82,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, [currentPage, itemsPerPage, searchTerm, subscriptionStatus, dateFrom, dateTo]);
-  
-  // Скидати на першу сторінку при зміні фільтрів (але не пошуку)
-  useEffect(() => {
-    if (currentPage !== 1 && (subscriptionStatus || dateFrom || dateTo)) {
-      setCurrentPage(1);
-    }
-  }, [subscriptionStatus, dateFrom, dateTo]);
+  }, [currentPage, itemsPerPage]);
 
   const fetchUsers = async () => {
     try {
@@ -463,11 +456,23 @@ export default function UsersPage() {
                 setSubscriptionStatus('');
                 setDateFrom('');
                 setDateTo('');
+                setCurrentPage(1);
+                fetchUsers();
               }}
               className="admin-btn admin-btn--secondary admin-btn--sm"
             >
               <XCircleIcon className="w-4 h-4" />
               Очистити фільтри
+            </button>
+            <button
+              onClick={() => {
+                setCurrentPage(1);
+                fetchUsers();
+              }}
+              className="admin-btn admin-btn--primary admin-btn--sm"
+            >
+              <MagnifyingGlassIcon className="w-4 h-4" />
+              Застосувати фільтри
             </button>
           </div>
         </div>

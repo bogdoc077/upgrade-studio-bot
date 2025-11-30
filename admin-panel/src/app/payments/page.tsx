@@ -66,7 +66,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchPayments();
-  }, [currentPage, itemsPerPage, statusFilter, dateFrom, dateTo]);
+  }, [currentPage, itemsPerPage]);
 
   const fetchPayments = async () => {
     try {
@@ -426,7 +426,10 @@ export default function PaymentsPage() {
           {/* Filter Actions */}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
-              onClick={fetchPayments}
+              onClick={() => {
+                setCurrentPage(1);
+                fetchPayments();
+              }}
               className="admin-btn admin-btn--primary admin-btn--sm"
             >
               <MagnifyingGlassIcon className="w-4 h-4" />
@@ -439,8 +442,7 @@ export default function PaymentsPage() {
                 setDateFrom('');
                 setDateTo('');
                 setCurrentPage(1);
-                // Оновлюємо таблицю після очищення
-                setTimeout(() => fetchPayments(), 0);
+                fetchPayments();
               }}
               className="admin-btn admin-btn--secondary admin-btn--sm"
             >
