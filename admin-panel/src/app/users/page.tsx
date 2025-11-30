@@ -82,7 +82,16 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, [currentPage, itemsPerPage, subscriptionStatus, dateFrom, dateTo]);
+  }, [currentPage, itemsPerPage]);
+  
+  // Окремий effect для фільтрів - скидає на першу сторінку
+  useEffect(() => {
+    if (currentPage === 1) {
+      fetchUsers();
+    } else {
+      setCurrentPage(1);
+    }
+  }, [searchTerm, subscriptionStatus, dateFrom, dateTo]);
 
   const fetchUsers = async () => {
     try {
@@ -231,13 +240,8 @@ export default function UsersPage() {
     }
   };
 
-  // Фільтрація тепер на сервері через search параметр, тому просто показуємо users
+  // Фільтрація на сервері, показуємо users без додаткової фільтрації
   const filteredUsers = users;
-
-  // Статистика з totalItems (загальна кількість з сервера)
-  const totalUsers = totalItems;
-  const premiumUsers = users.filter(u => u.subscription_active === 1).length;
-  const freeUsers = users.filter(u => u.subscription_active === 0).length;
 
   if (loading) {
     return (
@@ -329,7 +333,7 @@ export default function UsersPage() {
         <div className="admin-card__header">
           <h3 className="admin-card__title">Список користувачів</h3>
           <p className="admin-card__subtitle">
-            Показано {filteredUsers.length} з {totalUsers} користувачів
+            Показано {filteredUsers.length} з {totalItems} користувачів
           </p>
         </div>
         
@@ -462,9 +466,6 @@ export default function UsersPage() {
                 setSubscriptionStatus('');
                 setDateFrom('');
                 setDateTo('');
-                setCurrentPage(1);
-                // Оновлюємо таблицю після очищення
-                setTimeout(() => fetchUsers(), 0);
               }}
               className="admin-btn admin-btn--secondary admin-btn--sm"
             >
@@ -488,6 +489,7 @@ export default function UsersPage() {
                   <th className="admin-table__header-cell">Дата реєстрації</th>
                   <th className="admin-table__header-cell">Наступний платіж</th>
                   <th className="admin-table__header-cell">Підписка призупинена</th>
+                  <th className="admin-table__header-cell">Підписка скасована</th>
                   <th className="admin-table__header-cell">Статус автоплатежу</th>
                   <th className="admin-table__header-cell admin-table__header-cell--center">Дії</th>
                 </tr>
@@ -522,6 +524,13 @@ export default function UsersPage() {
                         user.subscription_paused === 1 ? 'admin-status--warning' : 'admin-status--inactive'
                       }`}>
                         {user.subscription_paused === 1 ? 'Так' : 'Ні'}
+                      </span>
+                    </td>
+                    <td className="admin-table__cell">
+                      <span className={`admin-status ${
+                        user.subscription_cancelled === 1 ? 'admin-status--danger' : 'admin-status--inactive'
+                      }`}>
+                        {user.subscription_cancelled === 1 ? 'Так' : 'Ні'}
                       </span>
                     </td>
                     <td className="admin-table__cell">

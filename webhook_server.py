@@ -184,6 +184,7 @@ async def handle_checkout_session_completed(session):
                 user.subscription_active = True
                 user.subscription_paused = False
                 user.subscription_cancelled = False
+                user.auto_payment_enabled = True
                 user.stripe_customer_id = session.get('customer')
                 user.stripe_subscription_id = subscription_id
                 

@@ -861,13 +861,14 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
                     db_user.subscription_paused = True
-                    db_user.subscription_cancelled = False  # Скасовуємо статус скасування при призупиненні
-                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
+                    db_user.subscription_cancelled = False
+                    db_user.next_billing_date = None
+                    db_user.auto_payment_enabled = False
                     # При призупиненні скидаємо статуси приєднання
                     db_user.joined_channel = False
                     db_user.joined_chat = False
                     db.commit()
-                    logger.info(f"Оновлено subscription_paused=True, очищено next_billing_date та скинуто joined статуси для користувача {query.from_user.id} (тестовий режим)")
+                    logger.info(f"Призупинено підписку для {query.from_user.id}: paused=True, cancelled=False, next_billing=None, auto_payment=False")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -890,13 +891,14 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
                     db_user.subscription_paused = True
-                    db_user.subscription_cancelled = False  # Скасовуємо статус скасування при призупиненні
-                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
+                    db_user.subscription_cancelled = False
+                    db_user.next_billing_date = None
+                    db_user.auto_payment_enabled = False
                     # При призупиненні скидаємо статуси приєднання
                     db_user.joined_channel = False
                     db_user.joined_chat = False
                     db.commit()
-                    logger.info(f"Оновлено subscription_paused=True, очищено next_billing_date та скинуто joined статуси для користувача {query.from_user.id}")
+                    logger.info(f"Призупинено підписку для {query.from_user.id}: paused=True, cancelled=False, next_billing=None, auto_payment=False")
                 else:
                     logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
             
@@ -946,9 +948,13 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
                     db_user.subscription_paused = False
-                    db_user.subscription_cancelled = False  # Скасовуємо статус скасування
-                    db_user.subscription_end_date = None  # Очищаємо дату закінчення
+                    db_user.subscription_cancelled = False
+                    db_user.subscription_end_date = None
+                    db_user.auto_payment_enabled = True
+                    # Встановлюємо дату наступного платежу (через 30 днів)
+                    db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
                     db.commit()
+                    logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True, next_billing={db_user.next_billing_date}")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -970,9 +976,22 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
                     db_user.subscription_paused = False
-                    db_user.subscription_cancelled = False  # Скасовуємо статус скасування
-                    db_user.subscription_end_date = None  # Очищаємо дату закінчення
+                    db_user.subscription_cancelled = False
+                    db_user.subscription_end_date = None
+                    db_user.auto_payment_enabled = True
+                    
+                    # Отримуємо дату наступного платежу з Stripe
+                    try:
+                        subscription_obj = await StripeManager.get_subscription_info(user.stripe_subscription_id)
+                        if subscription_obj and 'current_period_end' in subscription_obj:
+                            db_user.next_billing_date = datetime.fromtimestamp(subscription_obj['current_period_end'])
+                        else:
+                            db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
+                    except:
+                        db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
+                    
                     db.commit()
+                    logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True, next_billing={db_user.next_billing_date}")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -1012,12 +1031,13 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
-                    # Не видаляємо активність негайно, але позначаємо як скасовану
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = True
                     db_user.subscription_end_date = subscription_end_date
-                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
+                    db_user.next_billing_date = None
+                    db_user.auto_payment_enabled = False
                     db.commit()
+                    logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date}")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -1056,8 +1076,10 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = True
                     db_user.subscription_end_date = subscription_end_date
-                    db_user.next_billing_date = None  # Очищаємо дату наступного платежу
+                    db_user.next_billing_date = None
+                    db_user.auto_payment_enabled = False
                     db.commit()
+                    logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date}")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
