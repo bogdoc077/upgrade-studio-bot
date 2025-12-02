@@ -351,6 +351,7 @@ class UpgradeStudioBot:
         """Керування підпискою"""
         # Видаляємо попереднє повідомлення з кнопками
         if update.callback_query:
+            await update.callback_query.answer()
             try:
                 await update.callback_query.message.delete()
             except Exception:
@@ -361,10 +362,10 @@ class UpgradeStudioBot:
         
         if not user:
             error_text = "Користувача не знайдено"
-            if update.callback_query:
-                await update.callback_query.message.reply_text(error_text)
-            else:
-                await update.message.reply_text(error_text)
+            await self.bot.send_message(
+                chat_id=user_id,
+                text=error_text
+            )
             return
         
         await self._show_subscription_management_menu(user_id, user)
@@ -582,6 +583,7 @@ class UpgradeStudioBot:
         """Показати контакти підтримки"""
         # Видаляємо попереднє повідомлення з кнопками
         if update.callback_query:
+            await update.callback_query.answer()
             try:
                 await update.callback_query.message.delete()
             except Exception:
