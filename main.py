@@ -526,12 +526,13 @@ class UpgradeStudioBot:
             parse_mode='Markdown'
         )
         
-        # Відправляємо головне меню окремим повідомленням
-        await self.bot.send_message(
+        # Відновлюємо ReplyKeyboard (відправляємо і одразу видаляємо)
+        temp_msg = await self.bot.send_message(
             chat_id=user_id,
-            text=".",
+            text="⚡",
             reply_markup=get_main_menu_keyboard()
         )
+        await self.bot.delete_message(chat_id=user_id, message_id=temp_msg.message_id)
         
         # Зберігаємо ID нового повідомлення меню
         self.last_menu_messages[user_id] = sent_message.message_id
@@ -623,24 +624,14 @@ class UpgradeStudioBot:
                 parse_mode='Markdown',
                 reply_markup=get_dashboard_keyboard()
             )
-            # Відправляємо головне меню окремим повідомленням
-            await self.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=".",
-                reply_markup=get_main_menu_keyboard()
-            )
+
         else:
             sent_message = await update.message.reply_text(
                 dashboard_text,
                 parse_mode='Markdown',
                 reply_markup=get_dashboard_keyboard()
             )
-            # Для текстових повідомлень додаємо головне меню
-            await self.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=".",
-                reply_markup=get_main_menu_keyboard()
-            )
+
         
         # Зберігаємо ID нового повідомлення меню
         self.last_menu_messages[user_id] = sent_message.message_id
@@ -682,24 +673,14 @@ class UpgradeStudioBot:
                 parse_mode='Markdown',
                 reply_markup=get_support_keyboard()
             )
-            # Відправляємо головне меню окремим повідомленням
-            await self.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=".",
-                reply_markup=get_main_menu_keyboard()
-            )
+
         else:
             sent_message = await update.message.reply_text(
                 support_text,
                 parse_mode='Markdown',
                 reply_markup=get_support_keyboard()
             )
-            # Для текстових повідомлень додаємо головне меню
-            await self.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=".",
-                reply_markup=get_main_menu_keyboard()
-            )
+
         
         # Зберігаємо ID нового повідомлення меню
         self.last_menu_messages[user_id] = sent_message.message_id
