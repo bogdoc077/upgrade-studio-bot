@@ -48,6 +48,8 @@ class UpgradeStudioBot:
         self.join_step_messages = {}  # {user_id: [message_id1, message_id2, ...]}
         # Словник для відстеження повідомлень про помилки в опитуванні
         self.survey_error_messages = {}  # {user_id: [message_id1, message_id2]}
+        # Словник для відстеження останнього повідомлення меню для кожного користувача
+        self.last_menu_messages = {}  # {user_id: message_id}
     
     async def send_admin_notification(self, message: str):
         """Відправити повідомлення адміністратору"""
@@ -329,26 +331,53 @@ class UpgradeStudioBot:
 
     async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати головне меню"""
+        user_id = update.effective_user.id
+        
+        # Видаляємо попереднє повідомлення меню
+        if user_id in self.last_menu_messages:
+            try:
+                await self.bot.delete_message(
+                    chat_id=update.effective_chat.id,
+                    message_id=self.last_menu_messages[user_id]
+                )
+            except Exception:
+                pass
+        
         if update.callback_query:
             await update.callback_query.answer()
-            # Видаляємо попереднє повідомлення з кнопками
+            # Видаляємо повідомлення callback
             try:
                 await update.callback_query.message.delete()
             except Exception:
                 pass
-            await self.bot.send_message(
+            sent_message = await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="Головне меню",
                 reply_markup=get_main_menu_keyboard()
             )
         else:
-            await update.message.reply_text(
+            sent_message = await update.message.reply_text(
                 "Головне меню",
                 reply_markup=get_main_menu_keyboard()
             )
+        
+        # Зберігаємо ID нового повідомлення меню
+        self.last_menu_messages[user_id] = sent_message.message_id
     
     async def handle_subscription_management(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Керування підпискою"""
+        user_id = update.effective_user.id
+        
+        # Видаляємо попереднє повідомлення меню
+        if user_id in self.last_menu_messages:
+            try:
+                await self.bot.delete_message(
+                    chat_id=update.effective_chat.id,
+                    message_id=self.last_menu_messages[user_id]
+                )
+            except Exception:
+                pass
+        
         # Видаляємо попереднє повідомлення з кнопками
         if update.callback_query:
             await update.callback_query.answer()
@@ -490,15 +519,30 @@ class UpgradeStudioBot:
             text = "У вас немає активної підписки"
         
         # Відправляємо повідомлення
-        await self.bot.send_message(
+        sent_message = await self.bot.send_message(
             chat_id=user_id, 
             text=text, 
             reply_markup=keyboard, 
             parse_mode='Markdown'
         )
+        
+        # Зберігаємо ID нового повідомлення меню
+        self.last_menu_messages[user_id] = sent_message.message_id
     
     async def handle_dashboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати дашборд користувача"""
+        user_id = update.effective_user.id
+        
+        # Видаляємо попереднє повідомлення меню
+        if user_id in self.last_menu_messages:
+            try:
+                await self.bot.delete_message(
+                    chat_id=update.effective_chat.id,
+                    message_id=self.last_menu_messages[user_id]
+                )
+            except Exception:
+                pass
+        
         # Видаляємо попереднє повідомлення з кнопками
         if update.callback_query:
             await update.callback_query.answer()
@@ -516,12 +560,13 @@ class UpgradeStudioBot:
         if not user:
             error_text = "Користувача не знайдено"
             if is_callback:
-                await self.bot.send_message(
+                sent_message = await self.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=error_text
                 )
             else:
-                await update.message.reply_text(error_text)
+                sent_message = await update.message.reply_text(error_text)
+            self.last_menu_messages[user_id] = sent_message.message_id
             return
         
         if not user.subscription_active:
@@ -538,13 +583,14 @@ class UpgradeStudioBot:
             )
             
             if is_callback:
-                await self.bot.send_message(
+                sent_message = await self.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=dashboard_text,
                     parse_mode='Markdown'
                 )
             else:
-                await update.message.reply_text(dashboard_text, parse_mode='Markdown')
+                sent_message = await update.message.reply_text(dashboard_text, parse_mode='Markdown')
+            self.last_menu_messages[user_id] = sent_message.message_id
             return
         
         # Рахуємо дні членства
@@ -564,18 +610,21 @@ class UpgradeStudioBot:
 Продовжуйте тренуватися! """
         
         if is_callback:
-            await self.bot.send_message(
+            sent_message = await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=dashboard_text,
                 parse_mode='Markdown',
                 reply_markup=get_dashboard_keyboard()
             )
         else:
-            await update.message.reply_text(
+            sent_message = await update.message.reply_text(
                 dashboard_text,
                 parse_mode='Markdown',
                 reply_markup=get_dashboard_keyboard()
             )
+        
+        # Зберігаємо ID нового повідомлення меню
+        self.last_menu_messages[user_id] = sent_message.message_id
     
     async def handle_support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати контакти підтримки"""
