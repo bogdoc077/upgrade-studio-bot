@@ -657,6 +657,56 @@ class UpgradeStudioBot:
         # Очищаємо попередні повідомлення
         await self.cleanup_previous_messages(update)
         
+        # Якщо користувач у стані вибору цілі - очікуємо тільки callback з кнопок
+        if user.state == UserState.SURVEY_GOALS:
+            # Видаляємо повідомлення користувача
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            
+            # Показуємо попередження
+            await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Оберіть один з наведених варіантів"
+            )
+            
+            # Затримка
+            await asyncio.sleep(0.5)
+            
+            # Повторно показуємо питання з варіантами
+            await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Яку ключову ціль занять ти переслідуєш?",
+                reply_markup=get_survey_goals_keyboard()
+            )
+            return
+        
+        # Якщо користувач у стані вибору травм - очікуємо тільки callback з кнопок
+        if user.state == UserState.SURVEY_INJURIES:
+            # Видаляємо повідомлення користувача
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            
+            # Показуємо попередження
+            await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Оберіть один з наведених варіантів"
+            )
+            
+            # Затримка
+            await asyncio.sleep(0.5)
+            
+            # Повторно показуємо питання з варіантами
+            await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Чи є у тебе травми про які мені варто знати?",
+                reply_markup=get_survey_injuries_keyboard()
+            )
+            return
+        
         if user.state == UserState.SURVEY_INJURIES_CUSTOM:
             # Зберігаємо опис травми
             DatabaseManager.save_survey_data(update.effective_user.id, injuries=f"Травма: {user_text}")
