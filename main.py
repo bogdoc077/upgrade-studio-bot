@@ -662,9 +662,6 @@ class UpgradeStudioBot:
         if user_text in menu_buttons:
             return
         
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update)
-        
         # Якщо користувач у стані вибору цілі - очікуємо тільки callback з кнопок
         if user.state == UserState.SURVEY_GOALS:
             # Видаляємо повідомлення користувача
