@@ -46,6 +46,8 @@ class UpgradeStudioBot:
         self.payment_message_ids = {}
         # Словник для відстеження ID повідомлень з кроками приєднання
         self.join_step_messages = {}  # {user_id: [message_id1, message_id2, ...]}
+        # Словник для відстеження повідомлень про помилки в опитуванні
+        self.survey_error_messages = {}  # {user_id: [message_id1, message_id2]}
     
     async def send_admin_notification(self, message: str):
         """Відправити повідомлення адміністратору"""
@@ -108,31 +110,19 @@ class UpgradeStudioBot:
             elif update.message:
                 current_message_id = update.message.message_id
             
-            # Спробуємо очистити останні 15 повідомлень
-            for i in range(1, 16):
+            # Спробуємо очистити останні 20 повідомлень (збільшено для захоплення помилок)
+            for i in range(1, 21):
                 try:
                     if current_message_id:
                         message_id_to_process = current_message_id - i
                         if message_id_to_process > 0:
-                            # Спочатку пробуємо видалити повідомлення
+                            # Пробуємо видалити повідомлення (бот може видаляти свої власні повідомлення)
                             try:
-                                # Отримуємо інформацію про повідомлення щоб перевірити тип
-                                chat_member = await self.bot.get_chat_member(chat_id, self.bot.id)
-                                if chat_member.status in ['administrator', 'creator']:
-                                    # Якщо бот має права адміна, може видаляти повідомлення
-                                    await self.bot.delete_message(
-                                        chat_id=chat_id,
-                                        message_id=message_id_to_process
-                                    )
-                                    logger.debug(f"Видалено повідомлення {message_id_to_process}")
-                                else:
-                                    # Якщо немає прав - тільки очищаємо кнопки
-                                    await self.bot.edit_message_reply_markup(
-                                        chat_id=chat_id,
-                                        message_id=message_id_to_process,
-                                        reply_markup=None
-                                    )
-                                    logger.debug(f"Очищено кнопки повідомлення {message_id_to_process}")
+                                await self.bot.delete_message(
+                                    chat_id=chat_id,
+                                    message_id=message_id_to_process
+                                )
+                                logger.debug(f"Видалено повідомлення {message_id_to_process}")
                             except Exception:
                                 # Якщо не вдалося видалити - пробуємо очистити кнопки
                                 try:
@@ -233,6 +223,18 @@ class UpgradeStudioBot:
         query = update.callback_query
         await query.answer()
         
+        # Видаляємо збережені повідомлення про помилки (якщо є)
+        if query.from_user.id in self.survey_error_messages:
+            for msg_id in self.survey_error_messages[query.from_user.id]:
+                try:
+                    await self.bot.delete_message(
+                        chat_id=query.from_user.id,
+                        message_id=msg_id
+                    )
+                except Exception:
+                    pass
+            del self.survey_error_messages[query.from_user.id]
+        
         # Очищаємо попередні повідомлення
         await self.cleanup_previous_messages(update)
         
@@ -260,6 +262,18 @@ class UpgradeStudioBot:
         """Обробка вибору травм/обмежень"""
         query = update.callback_query
         await query.answer()
+        
+        # Видаляємо збережені повідомлення про помилки (якщо є)
+        if query.from_user.id in self.survey_error_messages:
+            for msg_id in self.survey_error_messages[query.from_user.id]:
+                try:
+                    await self.bot.delete_message(
+                        chat_id=query.from_user.id,
+                        message_id=msg_id
+                    )
+                except Exception:
+                    pass
+            del self.survey_error_messages[query.from_user.id]
         
         # Очищаємо попередні повідомлення
         await self.cleanup_previous_messages(update)
@@ -656,6 +670,62 @@ class UpgradeStudioBot:
         
         # Очищаємо попередні повідомлення
         await self.cleanup_previous_messages(update)
+        
+        # Якщо користувач у стані вибору цілі - очікуємо тільки callback з кнопок
+        if user.state == UserState.SURVEY_GOALS:
+            # Видаляємо повідомлення користувача
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            
+            # Показуємо попередження та зберігаємо ID
+            warning_msg = await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Оберіть один з наведених варіантів"
+            )
+            
+            # Затримка
+            await asyncio.sleep(0.5)
+            
+            # Повторно показуємо питання з варіантами та зберігаємо ID
+            question_msg = await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Яку ключову ціль занять ти переслідуєш?",
+                reply_markup=get_survey_goals_keyboard()
+            )
+            
+            # Зберігаємо ID обох повідомлень
+            self.survey_error_messages[update.effective_user.id] = [warning_msg.message_id, question_msg.message_id]
+            return
+        
+        # Якщо користувач у стані вибору травм - очікуємо тільки callback з кнопок
+        if user.state == UserState.SURVEY_INJURIES:
+            # Видаляємо повідомлення користувача
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            
+            # Показуємо попередження та зберігаємо ID
+            warning_msg = await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Оберіть один з наведених варіантів"
+            )
+            
+            # Затримка
+            await asyncio.sleep(0.5)
+            
+            # Повторно показуємо питання з варіантами та зберігаємо ID
+            question_msg = await self.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="Чи є у тебе травми про які мені варто знати?",
+                reply_markup=get_survey_injuries_keyboard()
+            )
+            
+            # Зберігаємо ID обох повідомлень
+            self.survey_error_messages[update.effective_user.id] = [warning_msg.message_id, question_msg.message_id]
+            return
         
         if user.state == UserState.SURVEY_INJURIES_CUSTOM:
             # Зберігаємо опис травми
