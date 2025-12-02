@@ -235,9 +235,6 @@ class UpgradeStudioBot:
                     pass
             del self.survey_error_messages[query.from_user.id]
         
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update)
-        
         goal_data = query.data.replace("goal_", "")
         
         # Знаходимо повний текст цілі за ключовим словом
@@ -274,9 +271,6 @@ class UpgradeStudioBot:
                 except Exception:
                     pass
             del self.survey_error_messages[query.from_user.id]
-        
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update)
         
         injury_data = query.data.replace("injury_", "")
         
