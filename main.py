@@ -108,19 +108,31 @@ class UpgradeStudioBot:
             elif update.message:
                 current_message_id = update.message.message_id
             
-            # Спробуємо очистити останні 20 повідомлень (збільшено для захоплення помилок)
-            for i in range(1, 21):
+            # Спробуємо очистити останні 15 повідомлень
+            for i in range(1, 16):
                 try:
                     if current_message_id:
                         message_id_to_process = current_message_id - i
                         if message_id_to_process > 0:
-                            # Пробуємо видалити повідомлення (бот може видаляти свої власні повідомлення)
+                            # Спочатку пробуємо видалити повідомлення
                             try:
-                                await self.bot.delete_message(
-                                    chat_id=chat_id,
-                                    message_id=message_id_to_process
-                                )
-                                logger.debug(f"Видалено повідомлення {message_id_to_process}")
+                                # Отримуємо інформацію про повідомлення щоб перевірити тип
+                                chat_member = await self.bot.get_chat_member(chat_id, self.bot.id)
+                                if chat_member.status in ['administrator', 'creator']:
+                                    # Якщо бот має права адміна, може видаляти повідомлення
+                                    await self.bot.delete_message(
+                                        chat_id=chat_id,
+                                        message_id=message_id_to_process
+                                    )
+                                    logger.debug(f"Видалено повідомлення {message_id_to_process}")
+                                else:
+                                    # Якщо немає прав - тільки очищаємо кнопки
+                                    await self.bot.edit_message_reply_markup(
+                                        chat_id=chat_id,
+                                        message_id=message_id_to_process,
+                                        reply_markup=None
+                                    )
+                                    logger.debug(f"Очищено кнопки повідомлення {message_id_to_process}")
                             except Exception:
                                 # Якщо не вдалося видалити - пробуємо очистити кнопки
                                 try:
@@ -644,56 +656,6 @@ class UpgradeStudioBot:
         
         # Очищаємо попередні повідомлення
         await self.cleanup_previous_messages(update)
-        
-        # Якщо користувач у стані вибору цілі - очікуємо тільки callback з кнопок
-        if user.state == UserState.SURVEY_GOALS:
-            # Видаляємо повідомлення користувача
-            try:
-                await update.message.delete()
-            except Exception:
-                pass
-            
-            # Показуємо попередження
-            await self.bot.send_message(
-                chat_id=update.effective_user.id,
-                text="Оберіть один з наведених варіантів"
-            )
-            
-            # Затримка
-            await asyncio.sleep(0.5)
-            
-            # Повторно показуємо питання з варіантами
-            await self.bot.send_message(
-                chat_id=update.effective_user.id,
-                text="Яку ключову ціль занять ти переслідуєш?",
-                reply_markup=get_survey_goals_keyboard()
-            )
-            return
-        
-        # Якщо користувач у стані вибору травм - очікуємо тільки callback з кнопок
-        if user.state == UserState.SURVEY_INJURIES:
-            # Видаляємо повідомлення користувача
-            try:
-                await update.message.delete()
-            except Exception:
-                pass
-            
-            # Показуємо попередження
-            await self.bot.send_message(
-                chat_id=update.effective_user.id,
-                text="Оберіть один з наведених варіантів"
-            )
-            
-            # Затримка
-            await asyncio.sleep(0.5)
-            
-            # Повторно показуємо питання з варіантами
-            await self.bot.send_message(
-                chat_id=update.effective_user.id,
-                text="Чи є у тебе травми про які мені варто знати?",
-                reply_markup=get_survey_injuries_keyboard()
-            )
-            return
         
         if user.state == UserState.SURVEY_INJURIES_CUSTOM:
             # Зберігаємо опис травми
