@@ -518,12 +518,19 @@ class UpgradeStudioBot:
         else:
             text = "У вас немає активної підписки"
         
-        # Відправляємо повідомлення
+        # Відправляємо повідомлення з inline кнопками
         sent_message = await self.bot.send_message(
             chat_id=user_id, 
             text=text, 
             reply_markup=keyboard, 
             parse_mode='Markdown'
+        )
+        
+        # Відправляємо головне меню окремим повідомленням
+        await self.bot.send_message(
+            chat_id=user_id,
+            text=".",
+            reply_markup=get_main_menu_keyboard()
         )
         
         # Зберігаємо ID нового повідомлення меню
@@ -616,11 +623,23 @@ class UpgradeStudioBot:
                 parse_mode='Markdown',
                 reply_markup=get_dashboard_keyboard()
             )
+            # Відправляємо головне меню окремим повідомленням
+            await self.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=".",
+                reply_markup=get_main_menu_keyboard()
+            )
         else:
             sent_message = await update.message.reply_text(
                 dashboard_text,
                 parse_mode='Markdown',
                 reply_markup=get_dashboard_keyboard()
+            )
+            # Для текстових повідомлень додаємо головне меню
+            await self.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=".",
+                reply_markup=get_main_menu_keyboard()
             )
         
         # Зберігаємо ID нового повідомлення меню
@@ -663,11 +682,23 @@ class UpgradeStudioBot:
                 parse_mode='Markdown',
                 reply_markup=get_support_keyboard()
             )
+            # Відправляємо головне меню окремим повідомленням
+            await self.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=".",
+                reply_markup=get_main_menu_keyboard()
+            )
         else:
             sent_message = await update.message.reply_text(
                 support_text,
                 parse_mode='Markdown',
                 reply_markup=get_support_keyboard()
+            )
+            # Для текстових повідомлень додаємо головне меню
+            await self.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=".",
+                reply_markup=get_main_menu_keyboard()
             )
         
         # Зберігаємо ID нового повідомлення меню
