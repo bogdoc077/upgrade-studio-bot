@@ -249,15 +249,6 @@ class UpgradeStudioBot:
         except Exception:
             pass
         
-        # Окреме повідомлення про збереження з текстом відповіді
-        await self.bot.send_message(
-            chat_id=query.from_user.id,
-            text=f"✅ Відповідь '{full_goal}' збережено"
-        )
-        
-        # Затримка перед наступним питанням
-        await asyncio.sleep(0.5)
-        
         # Наступне питання
         await self.bot.send_message(
             chat_id=query.from_user.id,
@@ -285,15 +276,6 @@ class UpgradeStudioBot:
             except Exception:
                 pass
             
-            # Окреме повідомлення про збереження
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text="✅ Відповідь 'Так' збережено"
-            )
-            
-            # Затримка перед наступним питанням
-            await asyncio.sleep(0.5)
-            
             # Запит деталей
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -310,15 +292,6 @@ class UpgradeStudioBot:
                 await query.message.delete()
             except Exception:
                 pass
-            
-            # Окреме повідомлення про збереження
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text="✅ Відповідь 'Ні' збережено"
-            )
-            
-            # Затримка
-            await asyncio.sleep(0.5)
             
             # Фінальне повідомлення про завершення опитування
             await self.bot.send_message(
@@ -688,17 +661,6 @@ class UpgradeStudioBot:
             # Зберігаємо опис травми
             DatabaseManager.save_survey_data(update.effective_user.id, injuries=f"Травма: {user_text}")
             DatabaseManager.update_user_state(update.effective_user.id, UserState.SUBSCRIPTION_OFFER)
-            
-            # Скорочуємо текст відповіді для відображення (максимум 100 символів)
-            short_text = user_text[:100] + '...' if len(user_text) > 100 else user_text
-            
-            # Окреме повідомлення про збереження з текстом відповіді
-            await update.message.reply_text(
-                f"✅ Відповідь '{short_text}' збережено"
-            )
-            
-            # Затримка
-            await asyncio.sleep(0.5)
             
             # Фінальне повідомлення
             await update.message.reply_text(
