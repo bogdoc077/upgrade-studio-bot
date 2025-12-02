@@ -813,13 +813,14 @@ class UpgradeStudioBot:
             return
         
         if user.state == UserState.SURVEY_INJURIES_CUSTOM:
-            # Зберігаємо опис травми
-            DatabaseManager.save_survey_data(update.effective_user.id, injuries=f"Травма: {user_text}")
+            # Зберігаємо опис травми (будь-який текст)
+            injuries_text = f"Травма: {user_text}"
+            DatabaseManager.save_survey_data(update.effective_user.id, injuries=injuries_text)
             DatabaseManager.update_user_state(update.effective_user.id, UserState.SUBSCRIPTION_OFFER)
             
             # Фінальне повідомлення
             await update.message.reply_text(
-                f"🎉 Дякую! Всі відповіді збережено.\nЦе буде враховано при складанні програми тренувань.",
+                "🎉 Дякую! Всі відповіді збережено.\nЦе буде враховано при складанні програми тренувань.",
                 parse_mode='Markdown'
             )
             
@@ -828,6 +829,7 @@ class UpgradeStudioBot:
             
             # Показуємо пропозицію підписки
             await self.show_subscription_offer(update.effective_user.id)
+            return
     
     async def show_subscription_offer(self, telegram_id: int, query=None):
         """Показати пропозицію підписки після завершення опитування"""
