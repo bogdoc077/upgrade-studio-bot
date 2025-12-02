@@ -501,10 +501,11 @@ class UpgradeStudioBot:
         """Показати дашборд користувача"""
         # Видаляємо попереднє повідомлення з кнопками
         if update.callback_query:
+            await update.callback_query.answer()
             try:
                 await update.callback_query.message.delete()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Не вдалося видалити повідомлення: {e}")
         
         user_id = update.effective_user.id
         user = DatabaseManager.get_user_by_telegram_id(user_id)
@@ -515,7 +516,6 @@ class UpgradeStudioBot:
         if not user:
             error_text = "Користувача не знайдено"
             if is_callback:
-                await update.callback_query.answer()
                 await self.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=error_text
@@ -538,7 +538,6 @@ class UpgradeStudioBot:
             )
             
             if is_callback:
-                await update.callback_query.answer()
                 await self.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=dashboard_text,
@@ -565,7 +564,6 @@ class UpgradeStudioBot:
 Продовжуйте тренуватися! """
         
         if is_callback:
-            await update.callback_query.answer("Статистика оновлена!")
             await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=dashboard_text,
