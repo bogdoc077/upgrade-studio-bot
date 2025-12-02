@@ -628,6 +628,18 @@ class UpgradeStudioBot:
     
     async def handle_support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати контакти підтримки"""
+        user_id = update.effective_user.id
+        
+        # Видаляємо попереднє повідомлення меню
+        if user_id in self.last_menu_messages:
+            try:
+                await self.bot.delete_message(
+                    chat_id=update.effective_chat.id,
+                    message_id=self.last_menu_messages[user_id]
+                )
+            except Exception:
+                pass
+        
         # Видаляємо попереднє повідомлення з кнопками
         if update.callback_query:
             await update.callback_query.answer()
@@ -637,26 +649,29 @@ class UpgradeStudioBot:
                 pass
         
         support_text = """
- **Підтримка**
+⁉️ **Підтримка**
 
 Якщо у вас виникли питання або потрібна допомога, зв'яжіться з нашою командою підтримки.
 
-Ми завжди готові допомогти! 
+Ми завжди готові допомогти! 🙂
 """
         
         if update.callback_query:
-            await self.bot.send_message(
+            sent_message = await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=support_text,
                 parse_mode='Markdown',
                 reply_markup=get_support_keyboard()
             )
         else:
-            await update.message.reply_text(
+            sent_message = await update.message.reply_text(
                 support_text,
                 parse_mode='Markdown',
                 reply_markup=get_support_keyboard()
             )
+        
+        # Зберігаємо ID нового повідомлення меню
+        self.last_menu_messages[user_id] = sent_message.message_id
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Загальний обробник callback запитів"""
