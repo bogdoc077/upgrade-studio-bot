@@ -329,11 +329,13 @@ class UpgradeStudioBot:
 
     async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати головне меню"""
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
-        
         if update.callback_query:
             await update.callback_query.answer()
+            # Видаляємо попереднє повідомлення з кнопками
+            try:
+                await update.callback_query.message.delete()
+            except Exception:
+                pass
             await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="Головне меню",
@@ -347,8 +349,12 @@ class UpgradeStudioBot:
     
     async def handle_subscription_management(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Керування підпискою"""
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
+        # Видаляємо попереднє повідомлення з кнопками
+        if update.callback_query:
+            try:
+                await update.callback_query.message.delete()
+            except Exception:
+                pass
         
         user_id = update.effective_user.id
         user = DatabaseManager.get_user_by_telegram_id(user_id)
@@ -492,9 +498,6 @@ class UpgradeStudioBot:
     
     async def handle_dashboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати дашборд користувача"""
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
-        
         user_id = update.effective_user.id
         user = DatabaseManager.get_user_by_telegram_id(user_id)
         
@@ -566,8 +569,12 @@ class UpgradeStudioBot:
     
     async def handle_support(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати контакти підтримки"""
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
+        # Видаляємо попереднє повідомлення з кнопками
+        if update.callback_query:
+            try:
+                await update.callback_query.message.delete()
+            except Exception:
+                pass
         
         support_text = """
  **Підтримка**
@@ -1974,8 +1981,11 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         
         user_id = query.from_user.id
         
-        # Очищаємо попередні повідомлення та видаляємо поточне
-        await self.cleanup_previous_messages(update, delete_current=True)
+        # Видаляємо повідомлення з кнопкою
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
         
         # Скасовуємо нагадування про приєднання до каналу
         DatabaseManager.cancel_user_reminders(user_id, "join_channel")
@@ -2046,8 +2056,11 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         
         user_id = query.from_user.id
         
-        # Очищаємо попередні повідомлення та видаляємо поточне
-        await self.cleanup_previous_messages(update, delete_current=True)
+        # Видаляємо повідомлення з кнопкою
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
         
         # Скасовуємо всі залишкові нагадування про приєднання
         DatabaseManager.cancel_user_reminders(user_id, "join_channel")
@@ -2084,8 +2097,11 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         query = update.callback_query
         await query.answer()
         
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
+        # Видаляємо повідомлення з кнопкою
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
         
         # Отримуємо посилання на канал з бази
         invite_links = DatabaseManager.get_active_invite_links()
@@ -2133,8 +2149,11 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         query = update.callback_query
         await query.answer()
         
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
+        # Видаляємо повідомлення з кнопкою
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
         
         # Отримуємо посилання на чат з бази
         invite_links = DatabaseManager.get_active_invite_links()
