@@ -108,31 +108,19 @@ class UpgradeStudioBot:
             elif update.message:
                 current_message_id = update.message.message_id
             
-            # Спробуємо очистити останні 15 повідомлень
-            for i in range(1, 16):
+            # Спробуємо очистити останні 20 повідомлень (збільшено для захоплення помилок)
+            for i in range(1, 21):
                 try:
                     if current_message_id:
                         message_id_to_process = current_message_id - i
                         if message_id_to_process > 0:
-                            # Спочатку пробуємо видалити повідомлення
+                            # Пробуємо видалити повідомлення (бот може видаляти свої власні повідомлення)
                             try:
-                                # Отримуємо інформацію про повідомлення щоб перевірити тип
-                                chat_member = await self.bot.get_chat_member(chat_id, self.bot.id)
-                                if chat_member.status in ['administrator', 'creator']:
-                                    # Якщо бот має права адміна, може видаляти повідомлення
-                                    await self.bot.delete_message(
-                                        chat_id=chat_id,
-                                        message_id=message_id_to_process
-                                    )
-                                    logger.debug(f"Видалено повідомлення {message_id_to_process}")
-                                else:
-                                    # Якщо немає прав - тільки очищаємо кнопки
-                                    await self.bot.edit_message_reply_markup(
-                                        chat_id=chat_id,
-                                        message_id=message_id_to_process,
-                                        reply_markup=None
-                                    )
-                                    logger.debug(f"Очищено кнопки повідомлення {message_id_to_process}")
+                                await self.bot.delete_message(
+                                    chat_id=chat_id,
+                                    message_id=message_id_to_process
+                                )
+                                logger.debug(f"Видалено повідомлення {message_id_to_process}")
                             except Exception:
                                 # Якщо не вдалося видалити - пробуємо очистити кнопки
                                 try:
