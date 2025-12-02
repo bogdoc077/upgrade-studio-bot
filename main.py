@@ -498,6 +498,13 @@ class UpgradeStudioBot:
     
     async def handle_dashboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати дашборд користувача"""
+        # Видаляємо попереднє повідомлення з кнопками
+        if update.callback_query:
+            try:
+                await update.callback_query.message.delete()
+            except Exception:
+                pass
+        
         user_id = update.effective_user.id
         user = DatabaseManager.get_user_by_telegram_id(user_id)
         
@@ -508,7 +515,10 @@ class UpgradeStudioBot:
             error_text = "Користувача не знайдено"
             if is_callback:
                 await update.callback_query.answer()
-                await update.callback_query.edit_message_text(error_text)
+                await self.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=error_text
+                )
             else:
                 await update.message.reply_text(error_text)
             return
@@ -528,7 +538,11 @@ class UpgradeStudioBot:
             
             if is_callback:
                 await update.callback_query.answer()
-                await update.callback_query.edit_message_text(dashboard_text, parse_mode='Markdown')
+                await self.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=dashboard_text,
+                    parse_mode='Markdown'
+                )
             else:
                 await update.message.reply_text(dashboard_text, parse_mode='Markdown')
             return
@@ -551,15 +565,12 @@ class UpgradeStudioBot:
         
         if is_callback:
             await update.callback_query.answer("Статистика оновлена!")
-            try:
-                await update.callback_query.edit_message_text(
-                    dashboard_text,
-                    parse_mode='Markdown',
-                    reply_markup=get_dashboard_keyboard()
-                )
-            except Exception as e:
-                # Якщо не вдалося відредагувати (наприклад, контент ідентичний), просто відповідаємо
-                logger.warning(f"Не вдалося відредагувати повідомлення дашборду: {e}")
+            await self.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=dashboard_text,
+                parse_mode='Markdown',
+                reply_markup=get_dashboard_keyboard()
+            )
         else:
             await update.message.reply_text(
                 dashboard_text,
@@ -1759,17 +1770,8 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                         db.commit()
                         logger.info(f"Оновлено joined_channel=True для користувача {user_id}")
                         
-                        # Надсилаємо повідомлення про успішне приєднання до каналу
-                        await self.bot.send_message(
-                            chat_id=user_id,
-                            text="✅ **Вітаю! Ви приєдналися до каналу!**\n\n"
-                                 "Тепер у вас є доступ до всіх матеріалів та тренувань.\n\n"
-                                 "Переходимо до наступного кроку... 📱",
-                            parse_mode='Markdown'
-                        )
-                        
                         # Тепер надсилаємо посилання на групу
-                        await asyncio.sleep(2)  # Невелика затримка для читабельності
+                        await asyncio.sleep(1)  # Невелика затримка
                         
                         # Шукаємо посилання на групу
                         invite_links = DatabaseManager.get_active_invite_links()
