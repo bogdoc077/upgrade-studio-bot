@@ -804,9 +804,6 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         query = update.callback_query
         await query.answer()
         
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update)
-        
         user_id = query.from_user.id
         user = DatabaseManager.get_user_by_telegram_id(user_id)
         
@@ -865,9 +862,6 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         """Призупинити підписку"""
         query = update.callback_query
         await query.answer()
-        
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
         
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
         if not user or not user.stripe_subscription_id:
@@ -967,9 +961,6 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         query = update.callback_query
         await query.answer()
         
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
-        
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
         if not user or not user.stripe_subscription_id:
             await self.bot.send_message(
@@ -1047,9 +1038,6 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         """Скасувати підписку"""
         query = update.callback_query
         await query.answer()
-        
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update, delete_current=True)
         
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
         if not user or not user.stripe_subscription_id:
@@ -2193,9 +2181,6 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         """Показати додаткову інформацію про підписку"""
         query = update.callback_query
         await query.answer()
-        
-        # Очищаємо попередні повідомлення
-        await self.cleanup_previous_messages(update)
         
         info_text = f"""**Детальна інформація про UPGRADE21 STUDIO:**
 
