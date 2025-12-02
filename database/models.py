@@ -3,7 +3,7 @@
 """
 from datetime import datetime, timedelta
 from typing import Optional, List
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, BigInteger, String, DateTime, Boolean, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from config import settings
@@ -15,7 +15,7 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, nullable=False)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
     username = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
@@ -826,7 +826,7 @@ class BroadcastQueue(Base):
     id = Column(Integer, primary_key=True)
     broadcast_id = Column(Integer, ForeignKey('broadcasts.id'), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    telegram_id = Column(Integer, nullable=False)
+    telegram_id = Column(BigInteger, nullable=False)
     
     status = Column(String(20), default='pending')  # 'pending', 'sent', 'failed'
     error_message = Column(Text, nullable=True)
