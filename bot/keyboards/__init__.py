@@ -43,7 +43,7 @@ def get_subscription_offer_keyboard() -> InlineKeyboardMarkup:
     """Клавіатура пропозиції підписки"""
     keyboard = [
         [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-        [InlineKeyboardButton("Дізнатися більше", callback_data="more_info")]
+        [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
