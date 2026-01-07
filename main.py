@@ -187,7 +187,7 @@ class UpgradeStudioBot:
             # Користувач з активною підпискою - показуємо головне меню
             await self.show_main_menu(update, context)
         elif telegram_user.goals or telegram_user.injuries:
-            # Користувач пройшов опитування, але немає підписки - показуємо фінальне повідомлення перед оплатою
+            # Користувач пройшов опитування, але немає підписки - одразу створюємо платіжну сесію
             price_formatted = f"{settings.subscription_price:.0f}"
             currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
             
@@ -210,10 +210,33 @@ class UpgradeStudioBot:
 
 Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
             
-            await update.message.reply_text(
-                text=subscription_text,
-                reply_markup=get_subscription_offer_keyboard()
+            # Створюємо платіжну сесію одразу
+            bot_username = "upgrade21studio_bot"
+            success_url = f"https://t.me/{bot_username}"
+            cancel_url = f"https://t.me/{bot_username}?start=payment_cancelled"
+            
+            checkout_data = await StripeManager.create_checkout_session(
+                telegram_id=user.id,
+                success_url=success_url,
+                cancel_url=cancel_url
             )
+            
+            if checkout_data:
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                payment_keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Оплатити", url=checkout_data['url'])],
+                    [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+                ])
+                
+                await update.message.reply_text(
+                    text=subscription_text,
+                    reply_markup=payment_keyboard
+                )
+            else:
+                await update.message.reply_text(
+                    text=subscription_text + "\n\n⚠️ Виникла помилка при створенні платежу. Спробуйте пізніше.",
+                    reply_markup=get_subscription_offer_keyboard()
+                )
         else:
             # Новий користувач або користувач без завершеного опитування - показуємо привітання
             await self.send_welcome_intro(update, context)
