@@ -216,10 +216,9 @@ def main():
     else:
         print("Upgrade Studio Bot - Webhook Server з ngrok")
         print("=" * 50)
-    
-    # Перевіряємо залежності
-    if not check_dependencies():
-        return 1
+        # Перевіряємо залежності тільки в режимі розробки
+        if not check_dependencies():
+            return 1
     
     ngrok_process = None
     webhook_process = None
