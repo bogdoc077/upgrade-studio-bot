@@ -101,20 +101,20 @@ if [ -d "${SCRIPT_DIR}/admin-panel" ]; then
   
   # Запуск Next.js
   echo "→ Запуск Admin Panel..."
-  nohup npm start >"${SCRIPT_DIR}/logs/admin_panel.log" 2>&1 &
+  PORT=3000 HOST=0.0.0.0 nohup npm start >"${SCRIPT_DIR}/logs/admin_panel.log" 2>&1 &
   pid=$!
   echo $pid >"${SCRIPT_DIR}/.pids_admin_panel"
   
   # Очікування запуску (Next.js довше стартує)
   echo "  Очікування запуску Next.js..."
-  sleep 5
+  sleep 8
   
-  if kill -0 $pid 2>/dev/null; then
-    echo "✓ Admin Panel запущено (PID: $pid)"
+  if lsof -i:3000 >/dev/null 2>&1; then
+    echo "✓ Admin Panel запущено"
     echo "  URL: http://localhost:3000"
     echo "  Лог: ${SCRIPT_DIR}/logs/admin_panel.log"
   else
-    echo "✗ Admin Panel не вдалося запустити"
+    echo "✗ Admin Panel не вдалося запустити (перевірте лог)"
   fi
   
   cd "$SCRIPT_DIR"
