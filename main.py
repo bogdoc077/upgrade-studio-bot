@@ -12,6 +12,7 @@ from telegram.ext import (
     filters, ContextTypes, ConversationHandler
 )
 from telegram.error import TelegramError
+from telegram.request import HTTPXRequest
 
 from config import settings, UserState, Messages, Buttons
 from database import DatabaseManager, User, create_tables
@@ -2541,8 +2542,16 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         # Створюємо таблиці бази даних
         create_tables()
         
-        # Створюємо додаток
-        self.application = Application.builder().token(settings.telegram_bot_token).build()
+        # Створюємо request з налаштованими timeout
+        request = HTTPXRequest(
+            connect_timeout=10.0,
+            read_timeout=30.0,
+            write_timeout=30.0,
+            pool_timeout=10.0
+        )
+        
+        # Створюємо додаток з налаштованим request
+        self.application = Application.builder().token(settings.telegram_bot_token).request(request).build()
         self.bot = self.application.bot
         
         # Ініціалізуємо планувальник задач
@@ -2552,8 +2561,16 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         self.setup_handlers()
         
         logger.info("Бот ініціалізовано")
-    
-
+    request з налаштованими timeout
+        request = HTTPXRequest(
+            connect_timeout=10.0,
+            read_timeout=30.0,
+            write_timeout=30.0,
+            pool_timeout=10.0
+        )
+        
+        # Створюємо додаток з налаштованим request
+        self.application = Application.builder().token(settings.telegram_bot_token).request(request
     
     async def initialize(self):
         """Ініціалізація бота"""
