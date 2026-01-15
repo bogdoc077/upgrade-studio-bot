@@ -1354,16 +1354,27 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             if not user:
                 return
             
-            # Видаляємо попереднє повідомлення з кнопкою оплати (якщо є)
+            # Видаляємо кнопки з попереднього повідомлення з оплатою (якщо є)
             if telegram_id in self.payment_message_ids:
                 try:
-                    await self.bot.delete_message(
+                    # Спочатку пробуємо видалити кнопки (м'якіший варіант)
+                    await self.bot.edit_message_reply_markup(
                         chat_id=telegram_id,
-                        message_id=self.payment_message_ids[telegram_id]
+                        message_id=self.payment_message_ids[telegram_id],
+                        reply_markup=None
                     )
-                    logger.info(f"Видалено повідомлення оплати для користувача {telegram_id}")
+                    logger.info(f"Видалено кнопки оплати для користувача {telegram_id}")
                 except Exception as e:
-                    logger.warning(f"Не вдалося видалити повідомлення оплати: {e}")
+                    logger.debug(f"Не вдалося видалити кнопки, спробуємо видалити все повідомлення: {e}")
+                    try:
+                        # Якщо не вдалося видалити кнопки - видаляємо все повідомлення
+                        await self.bot.delete_message(
+                            chat_id=telegram_id,
+                            message_id=self.payment_message_ids[telegram_id]
+                        )
+                        logger.info(f"Видалено повідомлення оплати для користувача {telegram_id}")
+                    except Exception as e2:
+                        logger.warning(f"Не вдалося видалити повідомлення оплати: {e2}")
                 finally:
                     # Видаляємо зі словника незалежно від результату
                     del self.payment_message_ids[telegram_id]
