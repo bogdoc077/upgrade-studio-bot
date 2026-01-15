@@ -2561,7 +2561,13 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         self.setup_handlers()
         
         logger.info("Бот ініціалізовано")
-    request з налаштованими timeout
+    
+    async def initialize(self):
+        """Ініціалізація бота"""
+        # Створюємо таблиці бази даних
+        create_tables()
+        
+        # Створюємо request з налаштованими timeout
         request = HTTPXRequest(
             connect_timeout=10.0,
             read_timeout=30.0,
@@ -2570,15 +2576,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         )
         
         # Створюємо додаток з налаштованим request
-        self.application = Application.builder().token(settings.telegram_bot_token).request(request
-    
-    async def initialize(self):
-        """Ініціалізація бота"""
-        # Створюємо таблиці бази даних
-        create_tables()
-        
-        # Створюємо додаток
-        self.application = Application.builder().token(settings.telegram_bot_token).build()
+        self.application = Application.builder().token(settings.telegram_bot_token).request(request).build()
         self.bot = self.application.bot
         
         # Ініціалізуємо application
