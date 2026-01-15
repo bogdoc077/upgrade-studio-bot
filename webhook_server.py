@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from telegram import Bot, Update
 from telegram.error import TelegramError
+from telegram.request import HTTPXRequest
 from stripe.error import StripeError
 
 from config import settings
@@ -26,8 +27,14 @@ logger = logging.getLogger(__name__)
 # Налаштування Stripe
 stripe.api_key = settings.stripe_secret_key
 
-# Ініціалізуємо Telegram бота для відправки повідомлень
-telegram_bot = Bot(token=settings.telegram_bot_token)
+# Ініціалізуємо Telegram бота для відправки повідомлень з налаштованим timeout
+request = HTTPXRequest(
+    connect_timeout=10.0,  # Timeout на з'єднання
+    read_timeout=30.0,     # Timeout на читання відповіді
+    write_timeout=30.0,    # Timeout на запис
+    pool_timeout=10.0      # Timeout на отримання з'єднання з пулу
+)
+telegram_bot = Bot(token=settings.telegram_bot_token, request=request)
 
 # Імпортуємо бот для обробки Telegram updates
 try:
