@@ -251,8 +251,16 @@ class SystemSettings(Base):
         return f"<SystemSettings(key={self.key}, category={self.category}, sensitive={self.is_sensitive})>"
 
 
-# Створення підключення до бази даних
-engine = create_engine(settings.database_url, echo=True if settings.log_level == "DEBUG" else False)
+# Створення підключення до бази даних з connection pooling
+# ВАЖЛИВО: echo=False завжди! echo=True створює ВЕЛИЧЕЗНИЙ трафік (логує всі SQL запити)
+engine = create_engine(
+    settings.database_url, 
+    echo=False,  # Завжди False для production, інакше генерує ~90GB трафіку/день!
+    pool_size=5,  # Базовий розмір пулу з'єднань
+    max_overflow=10,  # Максимальна кількість додаткових з'єднань
+    pool_pre_ping=True,  # Перевірка з'єднань перед використанням
+    pool_recycle=3600,  # Переробляти з'єднання кожну годину
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -400,6 +408,27 @@ class DatabaseManager:
                 Reminder.scheduled_at <= now,
                 Reminder.attempts < Reminder.max_attempts
             ).all()
+            
+            # Відключаємо об'єкти від сесії
+            for reminder in reminders:
+                db.expunge(reminder)
+                # Також відключаємо пов'язаного користувача
+                if reminder.user:
+                    db.expunge(reminder.user)
+            
+            return reminders
+    
+    @staticmethod
+    def get_pending_reminders_limited(limit: int = 10) -> List[Reminder]:
+        """Отримати обмежену кількість нагадувань для надсилання"""
+        with DatabaseManager() as db:
+            now = datetime.utcnow()
+            reminders = db.query(Reminder).filter(
+                Reminder.is_active == True,
+                Reminder.sent_at.is_(None),
+                Reminder.scheduled_at <= now,
+                Reminder.attempts < Reminder.max_attempts
+            ).limit(limit).all()
             
             # Відключаємо об'єкти від сесії
             for reminder in reminders:

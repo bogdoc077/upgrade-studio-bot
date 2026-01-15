@@ -59,20 +59,27 @@ class TaskScheduler:
             id='check_expired_subscriptions'
         )
         
-        # Планувальник обробки подій оплат кожні 10 секунд
+        # Планувальник обробки подій оплат кожні 2 хвилини (замість 10 секунд)
         self.scheduler.add_job(
             self.process_payment_events,
             'interval',
-            seconds=10,
+            minutes=2,
             id='process_payment_events'
         )
         
-        # Планувальник обробки розсилок кожні 30 секунд
+        # Планувальник обробки розсилок кожні 5 хвилин (замість 30 секунд)
         self.scheduler.add_job(
             self.process_broadcasts,
             'interval',
-            seconds=30,
+            minutes=5,
             id='process_broadcasts'
+        )
+        
+        # Планувальник очищення старих подій оплат кожен день о 03:00
+        self.scheduler.add_job(
+            self.cleanup_old_payment_events,
+            CronTrigger(hour=3, minute=0),
+            id='cleanup_payment_events'
         )
         
         self.scheduler.start()
@@ -92,7 +99,8 @@ class TaskScheduler:
     async def process_reminders(self):
         """Обробити всі нагадування"""
         try:
-            reminders = DatabaseManager.get_pending_reminders()
+            # Отримуємо тільки перші 10 нагадувань для економії пам'яті
+            reminders = DatabaseManager.get_pending_reminders_limited(limit=10)
             
             for reminder in reminders:
                 await self.send_reminder(reminder)
@@ -470,16 +478,25 @@ class TaskScheduler:
     
     async def check_expired_subscriptions(self):
         """Перевірити та оновити статуси закінчених підписок"""
+        start_time = datetime.utcnow()
         try:
-            now = datetime.utcnow()
+            DatabaseManager.create_system_log(
+                task_type='check_expired_subscriptions',
+                status='started',
+                message='Розпочато перевірку закінчених підписок'
+            )
             
-            # Знаходимо користувачів з закінченими підписками
+            now = datetime.utcnow()
+            expired_count = 0
+            paused_reminded_count = 0
+            
+            # Знаходимо користувачів з закінченими підписками (обробляємо по 50 за раз)
             with DatabaseManager() as db:
                 expired_users = db.query(User).filter(
                     User.subscription_end_date.isnot(None),
                     User.subscription_end_date <= now,
                     User.subscription_active == True
-                ).all()
+                ).limit(50).all()
                 
                 for user in expired_users:
                     # Видаляємо з каналів/чатів
@@ -490,26 +507,28 @@ class TaskScheduler:
                     user.subscription_active = False
                     user.joined_channel = False
                     user.joined_chat = False
+                    expired_count += 1
                     
                     logger.info(f"Скинуто статуси для користувача {user.telegram_id} - підписка закінчена {user.subscription_end_date}")
                 
                 if expired_users:
                     db.commit()
-                    logger.info(f"Оброблено {len(expired_users)} закінчених підписок")
+                    logger.info(f"Оброблено {expired_count} закінчених підписок")
                 
                 # Перевіряємо призупинені підписки - НЕ деактивуємо, тільки нагадуємо про end_date
-                # Призупинені підписки мають subscription_active=True до end_date
+                # Обробляємо тільки перших 20 для зменшення навантаження
                 paused_users = db.query(User).filter(
                     User.subscription_paused == True,
                     User.subscription_active == True,
                     User.auto_payment_enabled == False,
                     User.subscription_end_date.isnot(None)
-                ).all()
+                ).limit(20).all()
                 
                 for user in paused_users:
                     days_left = (user.subscription_end_date - now).days
                     if 0 <= days_left <= 3:
                         # Нагадуємо користувачу про закінчення через 3 дні або менше
+                        paused_reminded_count += 1
                         logger.info(f"Призупинена підписка користувача {user.telegram_id} закінчується через {days_left} днів")
                         
                         try:
@@ -538,8 +557,8 @@ class TaskScheduler:
                 status='completed',
                 message=f'Перевірку закінчених підписок завершено',
                 details={
-                    'expired_count': len(expired_users) if 'expired_users' in locals() else 0,
-                    'paused_reminded': len([u for u in paused_users if 0 <= (u.subscription_end_date - now).days <= 3]) if 'paused_users' in locals() else 0
+                    'expired_count': expired_count,
+                    'paused_reminded': paused_reminded_count
                 },
                 duration_ms=duration
             )
@@ -595,3 +614,37 @@ class TaskScheduler:
             
         except Exception as e:
             logger.error(f"Помилка при обробці розсилок: {e}")
+    
+    async def cleanup_old_payment_events(self):
+        """Очистити старі оброблені події оплат"""
+        start_time = datetime.utcnow()
+        try:
+            DatabaseManager.create_system_log(
+                task_type='cleanup_payment_events',
+                status='started',
+                message='Розпочато очищення старих подій оплат'
+            )
+            
+            from payment_events import cleanup_old_events
+            deleted_count = cleanup_old_events(days=7)
+            
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='cleanup_payment_events',
+                status='completed',
+                message=f'Видалено {deleted_count} старих подій оплат',
+                details={'deleted_count': deleted_count},
+                duration_ms=duration
+            )
+            
+            logger.info(f"Видалено {deleted_count} старих подій оплат")
+            
+        except Exception as e:
+            logger.error(f"Помилка при очищенні подій оплат: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='cleanup_payment_events',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )

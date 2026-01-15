@@ -7,10 +7,13 @@ from database.models import get_database
 
 def create_payment_success_event(telegram_id: int):
     """Створити подію про успішну оплату"""
-    db = get_database()
-    cursor = db.cursor()
-    
+    db = None
+    cursor = None
     try:
+        db = get_database()
+        cursor = db.cursor()
+        
+        # Перевіряємо чи існує таблиця (тільки якщо потрібно)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS payment_events (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -22,7 +25,6 @@ def create_payment_success_event(telegram_id: int):
                 INDEX idx_processed (processed, created_at)
             )
         """)
-        db.commit()
         
         cursor.execute("""
             INSERT INTO payment_events (telegram_id, event_type)
@@ -33,23 +35,29 @@ def create_payment_success_event(telegram_id: int):
         return True
     except Exception as e:
         print(f"Error creating payment event: {e}")
+        if db:
+            db.rollback()
         return False
     finally:
-        cursor.close()
-        db.close()
+        if cursor:
+            cursor.close()
+        if db:
+            db.close()
 
 def get_pending_payment_events():
     """Отримати необроблені події оплат"""
-    db = get_database()
-    cursor = db.cursor(dictionary=True)
-    
+    db = None
+    cursor = None
     try:
+        db = get_database()
+        cursor = db.cursor(dictionary=True)
+        
         cursor.execute("""
             SELECT id, telegram_id, event_type, created_at
             FROM payment_events
             WHERE processed = FALSE
             ORDER BY created_at ASC
-            LIMIT 10
+            LIMIT 5
         """)
         
         events = cursor.fetchall()
@@ -58,15 +66,19 @@ def get_pending_payment_events():
         print(f"Error getting payment events: {e}")
         return []
     finally:
-        cursor.close()
-        db.close()
+        if cursor:
+            cursor.close()
+        if db:
+            db.close()
 
 def mark_event_processed(event_id: int):
     """Позначити подію як оброблену"""
-    db = get_database()
-    cursor = db.cursor()
-    
+    db = None
+    cursor = None
     try:
+        db = get_database()
+        cursor = db.cursor()
+        
         cursor.execute("""
             UPDATE payment_events
             SET processed = TRUE, processed_at = NOW()
@@ -76,7 +88,44 @@ def mark_event_processed(event_id: int):
         return True
     except Exception as e:
         print(f"Error marking event as processed: {e}")
+        if db:
+            db.rollback()
         return False
     finally:
-        cursor.close()
-        db.close()
+        if cursor:
+            cursor.close()
+        if db:
+            db.close()
+
+
+def cleanup_old_events(days: int = 7):
+    """Видалити старі оброблені події"""
+    from datetime import datetime, timedelta
+    db = None
+    cursor = None
+    try:
+        db = get_database()
+        cursor = db.cursor()
+        
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        cursor.execute("""
+            DELETE FROM payment_events
+            WHERE processed = TRUE
+            AND processed_at < %s
+        """, (cutoff_date,))
+        
+        deleted_count = cursor.rowcount
+        db.commit()
+        
+        return deleted_count
+    except Exception as e:
+        print(f"Error cleaning up old events: {e}")
+        if db:
+            db.rollback()
+        return 0
+    finally:
+        if cursor:
+            cursor.close()
+        if db:
+            db.close()
