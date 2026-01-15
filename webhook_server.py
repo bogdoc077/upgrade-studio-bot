@@ -1,5 +1,5 @@
 """
-Веб-сервер для обробки Stripe webhooks
+Веб-сервер для обробки Stripe та Telegram webhooks
 """
 import json
 import stripe
@@ -8,23 +8,36 @@ import asyncio
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
-from telegram import Bot
+from telegram import Bot, Update
+from telegram.error import TelegramError
+from stripe.error import StripeError
 
 from config import settings
 from payments import StripeManager
-from database import DatabaseManager, User
-
-# Налаштування логування
-logger = logging.getLogger(__name__)
+from database import DatabaseManager, User, Subscription, PaymentEvent
 
 # Створюємо FastAPI додаток
 app = FastAPI(title="Upgrade Studio Bot Webhooks")
+
+# Налаштування логування
+logging.basicConfig(level=getattr(logging, settings.log_level or "INFO"))
+logger = logging.getLogger(__name__)
 
 # Налаштування Stripe
 stripe.api_key = settings.stripe_secret_key
 
 # Ініціалізуємо Telegram бота для відправки повідомлень
 telegram_bot = Bot(token=settings.telegram_bot_token)
+
+# Імпортуємо бот для обробки Telegram updates
+try:
+    from main import bot_instance
+    TELEGRAM_BOT_AVAILABLE = True
+    logger.info("Telegram bot instance завантажено для webhook обробки")
+except ImportError as e:
+    TELEGRAM_BOT_AVAILABLE = False
+    logger.warning(f"Не вдалося завантажити telegram bot instance: {e}")
+
 
 async def send_telegram_notification(telegram_id: int, message: str):
     """Надіслати повідомлення користувачу через Telegram"""
@@ -566,10 +579,58 @@ async def health_check():
     return {"status": "healthy", "service": "upgrade-studio-bot-webhooks"}
 
 
+@app.post("/telegram-webhook")
+async def telegram_webhook(request: Request):
+    """Обробник Telegram webhooks"""
+    if not TELEGRAM_BOT_AVAILABLE:
+        logger.error("Telegram bot не ініціалізовано")
+        return JSONResponse(content={"status": "error", "message": "Bot not available"}, status_code=503)
+    
+    try:
+        # Отримуємо update від Telegram
+        update_data = await request.json()
+        logger.info(f"Отримано Telegram update: {update_data.get('update_id', 'unknown')}")
+        
+        # Створюємо Update об'єкт
+        update = Update.de_json(update_data, bot_instance.bot)
+        
+        # Обробляємо update через application
+        if bot_instance.application:
+            await bot_instance.application.process_update(update)
+            return JSONResponse(content={"status": "ok"}, status_code=200)
+        else:
+            logger.error("Bot application не ініціалізовано")
+            return JSONResponse(content={"status": "error", "message": "App not initialized"}, status_code=503)
+            
+    except Exception as e:
+        logger.error(f"Помилка обробки Telegram webhook: {e}", exc_info=True)
+        return JSONResponse(content={"status": "error", "message": str(e)}, status_code=500)
+
+
 @app.get("/")
 async def root():
     """Головна сторінка"""
     return {"message": "Upgrade Studio Bot Webhook Server", "version": "2.0"}
+
+
+async def startup_event():
+    """Ініціалізація при запуску сервера"""
+    if TELEGRAM_BOT_AVAILABLE and bot_instance.application is None:
+        logger.info("Ініціалізація Telegram bot application...")
+        await bot_instance.initialize()
+        logger.info("Telegram bot application ініціалізовано")
+
+
+async def shutdown_event():
+    """Очищення при зупинці сервера"""
+    if TELEGRAM_BOT_AVAILABLE and bot_instance.application:
+        logger.info("Зупинка Telegram bot application...")
+        await bot_instance.application.stop()
+        await bot_instance.application.shutdown()
+
+
+app.add_event_handler("startup", startup_event)
+app.add_event_handler("shutdown", shutdown_event)
 
 
 if __name__ == "__main__":
