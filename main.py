@@ -2564,6 +2564,9 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         self.application = Application.builder().token(settings.telegram_bot_token).build()
         self.bot = self.application.bot
         
+        # Ініціалізуємо application
+        await self.application.initialize()
+        
         # Ініціалізуємо планувальник задач з посиланням на bot_instance
         self.task_scheduler = TaskScheduler(self.bot, bot_instance=self)
         
