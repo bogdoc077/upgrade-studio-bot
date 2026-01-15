@@ -31,10 +31,12 @@ class TaskScheduler:
         
     async def start(self):
         """Запустити планувальник"""
-        # Планувальник перевірки нагадувань кожну хвилину
+        # Планувальник перевірки нагадувань кожну годину (замість кожної хвилини)
+        # При масштабуванні: нагадування створюються з точним часом,
+        # а цей job тільки перевіряє та надсилає їх партіями
         self.scheduler.add_job(
             self.process_reminders,
-            CronTrigger(minute='*'),
+            CronTrigger(minute=0),  # Кожну годину
             id='process_reminders'
         )
         
@@ -52,28 +54,19 @@ class TaskScheduler:
             id='cleanup_reminders'
         )
         
-        # Планувальник перевірки закінчених підписок кожен день о 01:00
+        # Планувальник перевірки закінчених підписок кожен день о 07:00 (з чергою)
         self.scheduler.add_job(
             self.check_expired_subscriptions,
-            CronTrigger(hour=1, minute=0),
+            CronTrigger(hour=7, minute=0),
             id='check_expired_subscriptions'
         )
         
-        # Планувальник обробки подій оплат кожні 2 хвилини (замість 10 секунд)
-        self.scheduler.add_job(
-            self.process_payment_events,
-            'interval',
-            minutes=2,
-            id='process_payment_events'
-        )
+        # ❌ ВИДАЛЕНО process_payment_events - використовуємо Stripe webhooks!
+        # Stripe надсилає події payment.succeeded напряму в webhook_server.py
+        # Це економить ~200 запитів/годину та усуває затримки
         
-        # Планувальник обробки розсилок кожні 5 хвилин (замість 30 секунд)
-        self.scheduler.add_job(
-            self.process_broadcasts,
-            'interval',
-            minutes=5,
-            id='process_broadcasts'
-        )
+        # ❌ ВИДАЛЕНО process_broadcasts polling
+        # Broadcasts обробляються через чергу при створенні (event-driven)
         
         # Планувальник очищення старих подій оплат кожен день о 03:00
         self.scheduler.add_job(
@@ -477,64 +470,96 @@ class TaskScheduler:
             logger.error(f"Помилка при видаленні користувача {telegram_id} з чатів: {e}")
     
     async def check_expired_subscriptions(self):
-        """Перевірити та оновити статуси закінчених підписок"""
+        """Перевірити та оновити статуси закінчених підписок
+        
+        ВАЖЛИВО: Виконується 1 раз на добу о 07:00
+        Обробляє користувачів ПАКЕТАМИ для масштабованості
+        """
         start_time = datetime.utcnow()
         try:
             DatabaseManager.create_system_log(
                 task_type='check_expired_subscriptions',
                 status='started',
-                message='Розпочато перевірку закінчених підписок'
+                message='Розпочато перевірку закінчених підписок о 07:00'
             )
             
             now = datetime.utcnow()
             expired_count = 0
             paused_reminded_count = 0
             
-            # Знаходимо користувачів з закінченими підписками (обробляємо по 50 за раз)
-            with DatabaseManager() as db:
-                expired_users = db.query(User).filter(
-                    User.subscription_end_date.isnot(None),
-                    User.subscription_end_date <= now,
-                    User.subscription_active == True
-                ).limit(50).all()
-                
-                for user in expired_users:
-                    # Видаляємо з каналів/чатів
-                    if user.joined_channel or user.joined_chat:
-                        await self._remove_user_from_chats(user.telegram_id)
+            # ЧЕРГА 1: Обробка закінчених підписок
+            # Обробляємо пакетами по 100 користувачів для масштабованості
+            batch_size = 100
+            offset = 0
+            
+            while True:
+                with DatabaseManager() as db:
+                    expired_batch = db.query(User).filter(
+                        User.subscription_end_date.isnot(None),
+                        User.subscription_end_date <= now,
+                        User.subscription_active == True
+                    ).limit(batch_size).offset(offset).all()
                     
-                    # Скидаємо статуси доступу
-                    user.subscription_active = False
-                    user.joined_channel = False
-                    user.joined_chat = False
-                    expired_count += 1
+                    if not expired_batch:
+                        break  # Немає більше користувачів
                     
-                    logger.info(f"Скинуто статуси для користувача {user.telegram_id} - підписка закінчена {user.subscription_end_date}")
-                
-                if expired_users:
-                    db.commit()
-                    logger.info(f"Оброблено {expired_count} закінчених підписок")
-                
-                # Перевіряємо призупинені підписки - НЕ деактивуємо, тільки нагадуємо про end_date
-                # Обробляємо тільки перших 20 для зменшення навантаження
-                paused_users = db.query(User).filter(
-                    User.subscription_paused == True,
-                    User.subscription_active == True,
-                    User.auto_payment_enabled == False,
-                    User.subscription_end_date.isnot(None)
-                ).limit(20).all()
-                
-                for user in paused_users:
-                    days_left = (user.subscription_end_date - now).days
-                    if 0 <= days_left <= 3:
-                        # Нагадуємо користувачу про закінчення через 3 дні або менше
-                        paused_reminded_count += 1
-                        logger.info(f"Призупинена підписка користувача {user.telegram_id} закінчується через {days_left} днів")
-                        
+                    for user in expired_batch:
                         try:
-                            await self.bot.send_message(
-                                chat_id=user.telegram_id,
-                                text=f"""⚠️ **Нагадування про підписку**
+                            # Видаляємо з каналів/чатів
+                            if user.joined_channel or user.joined_chat:
+                                await self._remove_user_from_chats(user.telegram_id)
+                            
+                            # Скидаємо статуси доступу
+                            user.subscription_active = False
+                            user.joined_channel = False
+                            user.joined_chat = False
+                            expired_count += 1
+                            
+                            logger.info(f"Скинуто статуси для користувача {user.telegram_id}")
+                            
+                            # Невелика затримка між користувачами (50ms)
+                            await asyncio.sleep(0.05)
+                            
+                        except Exception as e:
+                            logger.error(f"Помилка обробки користувача {user.telegram_id}: {e}")
+                            continue
+                    
+                    db.commit()
+                    logger.info(f"Оброблено пакет з {len(expired_batch)} закінчених підписок (offset: {offset})")
+                    
+                    offset += batch_size
+                    
+                    # Затримка між пакетами (100ms)
+                    await asyncio.sleep(0.1)
+            
+            # ЧЕРГА 2: Нагадування про призупинені підписки
+            # Обробляємо також пакетами
+            offset = 0
+            
+            while True:
+                with DatabaseManager() as db:
+                    paused_batch = db.query(User).filter(
+                        User.subscription_paused == True,
+                        User.subscription_active == True,
+                        User.auto_payment_enabled == False,
+                        User.subscription_end_date.isnot(None)
+                    ).limit(batch_size).offset(offset).all()
+                    
+                    if not paused_batch:
+                        break
+                    
+                    for user in paused_batch:
+                        try:
+                            days_left = (user.subscription_end_date - now).days
+                            if 0 <= days_left <= 3:
+                                # Нагадуємо тільки якщо залишилось 0-3 дні
+                                paused_reminded_count += 1
+                                logger.info(f"Призупинена підписка користувача {user.telegram_id} закінчується через {days_left} днів")
+                                
+                                try:
+                                    await self.bot.send_message(
+                                        chat_id=user.telegram_id,
+                                        text=f"""⚠️ **Нагадування про підписку**
 
 Ваша підписка закінчується через **{days_left} {'день' if days_left == 1 else 'дні'}** ({user.subscription_end_date.strftime('%d.%m.%Y')}).
 
@@ -545,23 +570,40 @@ class TaskScheduler:
 2. Або зв'яжіться з підтримкою
 
 📞 Підтримка: @{settings.support_username if hasattr(settings, 'support_username') else 'support'}""",
-                                parse_mode='Markdown'
-                            )
+                                        parse_mode='Markdown'
+                                    )
+                                    
+                                    # Затримка між повідомленнями (100ms) - 10 msg/sec
+                                    await asyncio.sleep(0.1)
+                                    
+                                except Exception as e:
+                                    logger.error(f"Помилка надсилання нагадування користувачу {user.telegram_id}: {e}")
+                                    continue
                         except Exception as e:
-                            logger.error(f"Помилка надсилання нагадування користувачу {user.telegram_id}: {e}")
+                            logger.error(f"Помилка обробки призупиненого користувача {user.telegram_id}: {e}")
+                            continue
+                    
+                    offset += batch_size
+                    logger.info(f"Оброблено пакет призупинених підписок (offset: {offset})")
+                    
+                    # Затримка між пакетами
+                    await asyncio.sleep(0.1)
             
             # Логуємо успішне виконання
             duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             DatabaseManager.create_system_log(
                 task_type='check_expired_subscriptions',
                 status='completed',
-                message=f'Перевірку закінчених підписок завершено',
+                message=f'Перевірку закінчених підписок завершено о 07:00',
                 details={
                     'expired_count': expired_count,
-                    'paused_reminded': paused_reminded_count
+                    'paused_reminded': paused_reminded_count,
+                    'execution_time_ms': duration
                 },
                 duration_ms=duration
             )
+            
+            logger.info(f"✅ Закінчено перевірку підписок: expired={expired_count}, reminded={paused_reminded_count}, time={duration}ms")
                     
         except Exception as e:
             logger.error(f"Помилка при перевірці закінчених підписок: {e}")
@@ -573,47 +615,13 @@ class TaskScheduler:
                 duration_ms=duration
             )
     
-    async def process_payment_events(self):
-        """Обробити події успішних оплат"""
-        try:
-            from payment_events import get_pending_payment_events, mark_event_processed
-            
-            events = get_pending_payment_events()
-            
-            if not events:
-                return  # Немає подій для обробки
-                
-            if not self.bot_instance:
-                logger.error("bot_instance не передано в TaskScheduler - не можу обробити події оплат")
-                return
-            
-            for event in events:
-                try:
-                    logger.info(f"Обробка події оплати для користувача {event['telegram_id']}")
-                    
-                    # Викликаємо обробник успішної оплати
-                    await self.bot_instance.handle_successful_payment(event['telegram_id'])
-                    
-                    # Позначаємо подію як оброблену
-                    mark_event_processed(event['id'])
-                    logger.info(f"Подія оплати {event['id']} оброблена успішно")
-                    
-                except Exception as e:
-                    logger.error(f"Помилка обробки події оплати {event['id']}: {e}")
-                    # Не позначаємо як оброблену, щоб спробувати знову
-                    
-        except Exception as e:
-            logger.error(f"Помилка при обробці подій оплат: {e}")    
-    async def process_broadcasts(self):
-        """Обробити pending розсилки"""
-        try:
-            from bot.broadcast_handler import BroadcastHandler
-            
-            handler = BroadcastHandler(self.bot)
-            await handler.process_pending_broadcasts()
-            
-        except Exception as e:
-            logger.error(f"Помилка при обробці розсилок: {e}")
+    # ❌ ВИДАЛЕНО process_payment_events
+    # Замість polling використовуємо Stripe webhooks напряму
+    # Події обробляються в webhook_server.py при отриманні payment.succeeded
+    
+    # ❌ ВИДАЛЕНО process_broadcasts  
+    # Broadcasts обробляються event-driven через чергу при створенні
+    # Використовуйте BroadcastHandler безпосередньо при створенні розсилки
     
     async def cleanup_old_payment_events(self):
         """Очистити старі оброблені події оплат"""

@@ -48,12 +48,18 @@ iftop
 
 ## Що змінилось:
 
+### Критичні виправлення:
 ✅ **echo=False** - вимкнено SQL логування (було 5-7 ГБ/день!)  
+✅ **Webhooks замість polling** - payment events тепер event-driven  
+✅ **Subscription check 1x/день** - о 07:00 з чергою замість кожної години  
+✅ **Reminders 1x/годину** - замість кожної хвилини  
+✅ **Broadcasts event-driven** - обробка при створенні, не polling
+
+### Оптимізації:
 ✅ **Connection pooling** - економія 60% пам'яті на БД  
-✅ **Крони**: 10 сек → 2 хв, 30 сек → 5 хв  
-✅ **Виправлено витоки** в payment_events  
-✅ **Обмеження БД запитів** - по 10-50 за раз  
-✅ **Автоочищення** старих подій (щодня о 03:00)  
+✅ **Видалено polling** - process_payment_events, process_broadcasts  
+✅ **Обмеження БД запитів** - по 100 за раз з чергою  
+✅ **Автоочищення** - старих подій (щодня о 03:00)  
 ✅ **Systemd обмеження**: RAM 256-512MB, CPU 30-50%  
 ✅ **LOG_LEVEL=INFO** - вимкнено DEBUG логування
 
@@ -63,8 +69,9 @@ iftop
 |---------|------|-------|
 | **RAM** | 90-100% | 40-60% |
 | **Трафік/день** | ~90 ГБ | ~500 МБ |
-| **БД з'єднання** | Необмежено | 5-15 (пул) |
-| **Крони/годину** | 240+ | 42 |
+| **Cron запусків/день** | 2,472 | 25 |
+| **БД запитів/день** | ~12,000 | ~500 |
+| **Delay оплат** | 0-2 хв | 0 сек |
 | **SQL логи** | 5-7 ГБ/день | 0 |  
 
 ## Моніторинг:
@@ -86,10 +93,15 @@ journalctl -u upgrade-bot -f
 1. Перевірити логи: `journalctl -u upgrade-bot -n 100`
 2. Перезапустити: `sudo systemctl restart upgrade-bot`
 3. Статистика БД: `python optimize_memory.py`
+4. Webhooks: `journalctl -u upgrade-webhook -f`
 
 ---
+**Архітектура**: EVENT_DRIVEN_ARCHITECTURE.md  
 **Дата**: 15.01.2026  
 **Файли**: 
 - RAM_OPTIMIZATION.md - повна документація
+- TRAFFIC_ISSUE_FIX.md - аналіз проблеми трафіку
+- EVENT_DRIVEN_ARCHITECTURE.md - нова архітектура
 - apply_ram_optimization.sh - скрипт застосування
+- fix_all_issues.sh - комплексне виправлення
 - optimize_memory.py - очищення і статистика
