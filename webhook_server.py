@@ -14,7 +14,7 @@ from stripe.error import StripeError
 
 from config import settings
 from payments import StripeManager
-from database import DatabaseManager, User, Subscription, PaymentEvent
+from database import DatabaseManager, User
 
 # Створюємо FastAPI додаток
 app = FastAPI(title="Upgrade Studio Bot Webhooks")
