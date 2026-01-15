@@ -244,14 +244,9 @@ async def handle_checkout_session_completed(session):
                 # Видаляємо повідомлення про оплату, якщо можливо
                 await delete_payment_message(telegram_id)
                 
-                # Створюємо подію для обробки ботом
-                from payment_events import create_payment_success_event
-                if create_payment_success_event(telegram_id):
-                    logger.info(f"Створено подію payment_success для користувача {telegram_id}")
-                else:
-                    logger.error(f"Не вдалося створити подію payment_success для користувача {telegram_id}")
-                    # Fallback - надсилаємо просте повідомлення
-                    await send_payment_success_notification(telegram_id)
+                # Надсилаємо повідомлення про успішну оплату одразу (event-driven)
+                logger.info(f"Надсилаю повідомлення про успішну оплату користувачу {telegram_id}")
+                await send_payment_success_notification(telegram_id)
                 
                 logger.info(f"Підписка активована для користувача {telegram_id}, платіж збережено")
                 return True
