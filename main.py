@@ -1354,6 +1354,10 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             if not user:
                 return
             
+            # Логуємо стан payment_message_ids
+            logger.info(f"Payment message IDs словник: {self.payment_message_ids}")
+            logger.info(f"Перевірка наявності ID для користувача {telegram_id}: {telegram_id in self.payment_message_ids}")
+            
             # Видаляємо кнопки з попереднього повідомлення з оплатою (якщо є)
             if telegram_id in self.payment_message_ids:
                 try:
@@ -1378,6 +1382,8 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 finally:
                     # Видаляємо зі словника незалежно від результату
                     del self.payment_message_ids[telegram_id]
+            else:
+                logger.warning(f"ID повідомлення оплати для користувача {telegram_id} не знайдено в словнику")
             
             # Оновлюємо статус підписки - активуємо та скидаємо всі негативні статуси
             with DatabaseManager() as db:

@@ -635,6 +635,20 @@ async def startup_event():
         logger.info("Ініціалізація Telegram bot application...")
         await bot_instance.initialize()
         logger.info("Telegram bot application ініціалізовано")
+        
+        # Встановлюємо Telegram webhook
+        try:
+            webhook_url = f"{settings.webhook_url.rstrip('/')}/telegram-webhook" if settings.webhook_url else None
+            if webhook_url and 'ngrok' not in webhook_url.lower():
+                await bot_instance.bot.set_webhook(
+                    url=webhook_url,
+                    allowed_updates=["message", "callback_query", "chat_join_request"]
+                )
+                logger.info(f"Telegram webhook встановлено на {webhook_url}")
+            else:
+                logger.warning(f"Telegram webhook НЕ встановлено (URL: {webhook_url})")
+        except Exception as e:
+            logger.error(f"Помилка встановлення Telegram webhook: {e}")
 
 
 async def shutdown_event():
