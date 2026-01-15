@@ -587,6 +587,12 @@ async def telegram_webhook(request: Request):
         return JSONResponse(content={"status": "error", "message": "Bot not available"}, status_code=503)
     
     try:
+        # Ініціалізуємо bot application якщо ще не зроблено
+        if bot_instance.application is None:
+            logger.info("Ініціалізація bot application при першому запиті...")
+            await bot_instance.initialize()
+            logger.info("Bot application ініціалізовано")
+        
         # Отримуємо update від Telegram
         update_data = await request.json()
         logger.info(f"Отримано Telegram update: {update_data.get('update_id', 'unknown')}")
@@ -650,5 +656,5 @@ if __name__ == "__main__":
         "webhook_server:app",
         host=settings.webhook_host or "0.0.0.0",
         port=settings.webhook_port or 8000,
-        reload=True
+        reload=False  # Вимкнено reload для production
     )
