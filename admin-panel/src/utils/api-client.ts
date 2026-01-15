@@ -1,5 +1,6 @@
 // API client для з'єднання з FastAPI сервером
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+// Використовуємо /api для проксі через nginx, або абсолютний URL якщо вказаний
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export interface ApiResponse<T = any> {
   success?: boolean;
