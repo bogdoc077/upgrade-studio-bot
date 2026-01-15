@@ -248,12 +248,20 @@ async def handle_checkout_session_completed(session):
                 # Скасовуємо нагадування про підписку
                 DatabaseManager.cancel_subscription_reminders_if_active(telegram_id)
                 
-                # Видаляємо повідомлення про оплату, якщо можливо
-                await delete_payment_message(telegram_id)
-                
-                # Надсилаємо повідомлення про успішну оплату одразу (event-driven)
+                # Надсилаємо повідомлення про успішну оплату через bot_instance
+                # який має всю логіку автоматичного схвалення join requests
                 logger.info(f"Надсилаю повідомлення про успішну оплату користувачу {telegram_id}")
-                await send_payment_success_notification(telegram_id)
+                if TELEGRAM_BOT_AVAILABLE and bot_instance:
+                    try:
+                        await bot_instance.handle_successful_payment(telegram_id)
+                        logger.info(f"Викликано handle_successful_payment для користувача {telegram_id}")
+                    except Exception as e:
+                        logger.error(f"Помилка виклику handle_successful_payment: {e}")
+                        # Fallback - надсилаємо просте повідомлення
+                        await send_payment_success_notification(telegram_id)
+                else:
+                    logger.warning("bot_instance недоступний, використовуємо fallback")
+                    await send_payment_success_notification(telegram_id)
                 
                 logger.info(f"Підписка активована для користувача {telegram_id}, платіж збережено")
                 return True
