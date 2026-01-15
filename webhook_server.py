@@ -638,7 +638,14 @@ async def startup_event():
         
         # Встановлюємо Telegram webhook
         try:
-            webhook_url = f"{settings.webhook_url.rstrip('/')}/telegram-webhook" if settings.webhook_url else None
+            # Правильний URL без подвійного /webhook
+            base_url = settings.webhook_url.rstrip('/') if settings.webhook_url else None
+            # Видаляємо /webhook якщо він вже є в base_url
+            if base_url and base_url.endswith('/webhook'):
+                base_url = base_url[:-8]  # Видаляємо останні 8 символів '/webhook'
+            
+            webhook_url = f"{base_url}/telegram-webhook" if base_url else None
+            
             if webhook_url and 'ngrok' not in webhook_url.lower():
                 await bot_instance.bot.set_webhook(
                     url=webhook_url,
