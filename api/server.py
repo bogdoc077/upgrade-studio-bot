@@ -1574,10 +1574,24 @@ async def delete_broadcast_file(
             raise HTTPException(status_code=400, detail="Invalid file URL")
         
         filename = file_url.split('/')[-1]
+        
+        # SECURITY: Перевірка що filename не містить path traversal символів
+        if '..' in filename or '/' in filename or '\\' in filename or filename.startswith('.'):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
         file_path = BROADCASTS_DIR / filename
         
+        # SECURITY: Переконуємося що file_path в межах BROADCASTS_DIR
+        try:
+            file_path_resolved = file_path.resolve()
+            broadcasts_dir_resolved = BROADCASTS_DIR.resolve()
+            if not str(file_path_resolved).startswith(str(broadcasts_dir_resolved)):
+                raise HTTPException(status_code=400, detail="Path traversal attempt detected")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid file path")
+        
         # Видаляємо файл якщо він існує
-        if file_path.exists():
+        if file_path.exists() and file_path.is_file():
             os.remove(file_path)
             return {"success": True, "message": "File deleted"}
         else:
