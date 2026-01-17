@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     private_channel_id: str = Field(..., env="PRIVATE_CHANNEL_ID")
     private_chat_id: str = Field(..., env="PRIVATE_CHAT_ID")
     admin_chat_id: str = Field(..., env="ADMIN_CHAT_ID")
+    tech_notifications_chat_id: str = Field(default="-5123404747", env="TECH_NOTIFICATIONS_CHAT_ID")
     database_url: str = Field(default="sqlite:///./upgrade_studio_bot.db", env="DATABASE_URL")
     webhook_host: str = Field(default="0.0.0.0", env="WEBHOOK_HOST")
     webhook_port: int = Field(default=8000, env="WEBHOOK_PORT")

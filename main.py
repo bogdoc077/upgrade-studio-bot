@@ -64,6 +64,18 @@ class UpgradeStudioBot:
         except Exception as e:
             logger.error(f"Помилка відправки повідомлення адміну: {e}")
     
+    async def send_tech_notification(self, message: str):
+        """Відправити повідомлення в Tech групу"""
+        try:
+            await self.bot.send_message(
+                chat_id=settings.tech_notifications_chat_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            logger.info(f"Повідомлення в Tech групу надіслано: {message[:50]}...")
+        except Exception as e:
+            logger.error(f"Помилка відправки повідомлення в Tech групу: {e}")
+    
     async def clear_previous_inline_keyboards(self, chat_id: int, exclude_message_id: int = None):
         """Очистити inline кнопки з попередніх повідомлень"""
         try:
@@ -1156,9 +1168,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 parse_mode='Markdown'
             )
             
-            # Відправляємо повідомлення адміну
+            # Відправляємо повідомлення в Tech групу
             user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
-            await self.send_admin_notification(
+            await self.send_tech_notification(
                 f"⏸ **Підписка призупинена**\n\n"
                 f"Користувач: {user_info}\n"
                 f"ID: `{query.from_user.id}`\n"
@@ -1242,6 +1254,16 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Підписка поновлена"
+            )
+            
+            # Відправляємо повідомлення в Tech групу
+            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
+            await self.send_tech_notification(
+                f"▶️ **Підписка поновлена**\n\n"
+                f"Користувач: {user_info}\n"
+                f"ID: `{query.from_user.id}`\n"
+                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
+                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
             
             # Автоматично відкриваємо меню керування підпискою
@@ -1328,9 +1350,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 parse_mode='Markdown'
             )
             
-            # Відправляємо повідомлення адміну
+            # Відправляємо повідомлення в Tech групу
             user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
-            await self.send_admin_notification(
+            await self.send_tech_notification(
                 f"🔴 **Підписка скасована**\n\n"
                 f"Користувач: {user_info}\n"
                 f"ID: `{query.from_user.id}`\n"

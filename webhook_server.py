@@ -263,6 +263,25 @@ async def handle_checkout_session_completed(session):
                     logger.warning("bot_instance недоступний, використовуємо fallback")
                     await send_payment_success_notification(telegram_id)
                 
+                # Надсилаємо повідомлення в Tech групу про успішну оплату
+                try:
+                    user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {telegram_id}"
+                    amount = session.get('amount_total', 0) / 100  # конвертуємо центи в євро
+                    currency = session.get('currency', 'eur').upper()
+                    await telegram_bot.send_message(
+                        chat_id=settings.tech_notifications_chat_id,
+                        text=f"✅ **Успішна оплата**\n\n"
+                             f"Користувач: {user_info}\n"
+                             f"ID: `{telegram_id}`\n"
+                             f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                             f"Сума: {amount:.2f} {currency}\n"
+                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                        parse_mode='Markdown'
+                    )
+                    logger.info(f"Повідомлення про оплату надіслано в Tech групу")
+                except Exception as e:
+                    logger.error(f"Помилка відправки повідомлення в Tech групу: {e}")
+                
                 logger.info(f"Підписка активована для користувача {telegram_id}, платіж збережено")
                 return True
         
@@ -405,6 +424,25 @@ async def handle_invoice_payment_failed(invoice):
             "Щоб оновити дані оплати, зверніться до підтримки: @upgrade_studio_support"
         )
         
+        # Відправляємо повідомлення в Tech групу
+        try:
+            user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
+            amount = invoice.get('amount_due', 0) / 100
+            currency = invoice.get('currency', 'eur').upper()
+            await telegram_bot.send_message(
+                chat_id=settings.tech_notifications_chat_id,
+                text=f"❌ **Невдала оплата**\n\n"
+                     f"Користувач: {user_info}\n"
+                     f"ID: `{user.telegram_id}`\n"
+                     f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                     f"Сума: {amount:.2f} {currency}\n"
+                     f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                parse_mode='Markdown'
+            )
+            logger.info(f"Повідомлення про невдалу оплату надіслано в Tech групу")
+        except Exception as e:
+            logger.error(f"Помилка відправки повідомлення в Tech групу: {e}")
+        
         logger.info(f"Повідомлення про невдалу оплату надіслано користувачу {user.telegram_id}")
         return True
         
@@ -505,6 +543,25 @@ async def handle_invoice_payment_succeeded(invoice):
                     f"Ваша підписка успішно продовжена.\n"
                     f"Дякуємо за довіру! 🎉"
                 )
+                
+                # Відправляємо повідомлення в Tech групу
+                try:
+                    user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
+                    amount = invoice.get('amount_paid', 0) / 100
+                    currency = invoice.get('currency', 'eur').upper()
+                    await telegram_bot.send_message(
+                        chat_id=settings.tech_notifications_chat_id,
+                        text=f"🔄 **Підписка продовжена**\n\n"
+                             f"Користувач: {user_info}\n"
+                             f"ID: `{user.telegram_id}`\n"
+                             f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                             f"Сума: {amount:.2f} {currency}\n"
+                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                        parse_mode='Markdown'
+                    )
+                    logger.info(f"Повідомлення про продовження підписки надіслано в Tech групу")
+                except Exception as e:
+                    logger.error(f"Помилка відправки повідомлення в Tech групу: {e}")
                 
                 logger.info(f"Оброблено успішну оплату для користувача {user.telegram_id}")
                 return True
