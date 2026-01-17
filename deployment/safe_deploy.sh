@@ -56,32 +56,12 @@ apt install -y \
     net-tools
 
 # ==========================================
-# 3. БЕЗПЕЧНЕ НАЛАШТУВАННЯ FIREWALL
+# 3. ПРОПУСК FIREWALL (налаштовуйте вручну якщо потрібно)
 # ==========================================
-print_step "3. БЕЗПЕЧНЕ налаштування firewall..."
-print_warning "Застосовуємо правила firewall з захистом від самоблокування..."
-
-# КРИТИЧНО: Спочатку дозволяємо SSH!
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-
-# Тільки тепер блокуємо інші порти
-ufw default deny incoming
-ufw default allow outgoing
-
-# Активуємо firewall
-ufw --force enable
-
-# Перевіряємо що SSH дозволено
-if ! ufw status | grep -q "22/tcp.*ALLOW"; then
-    print_error "КРИТИЧНА ПОМИЛКА: SSH не дозволено в firewall!"
-    print_warning "Вимикаю firewall для безпеки..."
-    ufw disable
-    exit 1
-fi
-
-print_warning "✓ Firewall налаштовано БЕЗ блокування SSH"
+print_step "3. Пропуск налаштування firewall..."
+print_warning "⚠️  Firewall НЕ налаштовується автоматично"
+print_warning "⚠️  Налаштуйте його вручну після розгортання якщо потрібно"
+echo ""
 
 # ==========================================
 # 4. ВСТАНОВЛЕННЯ NODE.JS
