@@ -1559,6 +1559,66 @@ async def upload_broadcast_file(
             # Зберігаємо файл як є (відео, документи)
             with open(file_path, 'wb') as f:
                 f.write(file_content)
+            
+            # Оптимізуємо відео якщо це відео
+            if file.content_type.startswith('video/'):
+                try:
+                    import subprocess
+                    import tempfile
+                    
+                    # Створюємо тимчасовий файл для оптимізованого відео
+                    optimized_path = file_path.with_suffix('.optimized' + file_path.suffix)
+                    
+                    # FFmpeg команда для оптимізації відео
+                    # -c:v libx264 - кодек H.264 для стиснення
+                    # -crf 23 - якість (18-28, де 23 - баланс якості/розміру)
+                    # -preset fast - швидкість кодування
+                    # -movflags +faststart - оптимізація для streaming
+                    # -vf "scale='min(1920,iw)':'min(1080,ih)':force_original_aspect_ratio=decrease" - обмеження роздільної здатності до 1080p зберігаючи пропорції
+                    # -c:a aac -b:a 128k - аудіо кодек AAC з бітрейтом 128k
+                    cmd = [
+                        'ffmpeg',
+                        '-i', str(file_path),  # вхідний файл
+                        '-c:v', 'libx264',  # відео кодек
+                        '-crf', '23',  # якість
+                        '-preset', 'fast',  # швидкість обробки
+                        '-movflags', '+faststart',  # оптимізація для streaming
+                        '-vf', "scale='min(1920,iw)':'min(1080,ih)':force_original_aspect_ratio=decrease",  # обмеження роздільної здатності
+                        '-c:a', 'aac',  # аудіо кодек
+                        '-b:a', '128k',  # бітрейт аудіо
+                        '-y',  # перезаписати якщо існує
+                        str(optimized_path)
+                    ]
+                    
+                    # Запускаємо ffmpeg
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=300  # 5 хвилин максимум
+                    )
+                    
+                    # Якщо оптимізація успішна і файл менший
+                    if result.returncode == 0 and optimized_path.exists():
+                        optimized_size = optimized_path.stat().st_size
+                        original_size = file_path.stat().st_size
+                        
+                        # Використовуємо оптимізований тільки якщо він менший
+                        if optimized_size < original_size:
+                            os.remove(file_path)  # Видаляємо оригінал
+                            os.rename(optimized_path, file_path)  # Перейменовуємо оптимізований
+                            logger.info(f"Video optimized: {original_size} -> {optimized_size} bytes ({100 * optimized_size / original_size:.1f}%)")
+                        else:
+                            os.remove(optimized_path)  # Видаляємо оптимізований якщо він більший
+                            logger.info(f"Video optimization skipped - optimized file is larger")
+                    else:
+                        logger.warning(f"Video optimization failed: {result.stderr}")
+                        if optimized_path.exists():
+                            os.remove(optimized_path)
+                            
+                except Exception as e:
+                    logger.error(f"Video optimization error: {e}")
+                    # Продовжуємо з оригінальним файлом при помилці оптимізації
         
         # Визначаємо тип вкладення
         attachment_type = None
