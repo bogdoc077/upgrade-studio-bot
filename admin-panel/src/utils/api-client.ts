@@ -222,7 +222,10 @@ export async function makeApiCall(endpoint: string, options: RequestInit = {}): 
     return headers;
   };
   
-  const url = `${API_BASE_URL}${endpoint}`;
+  // Якщо endpoint вже починається з /api, не додаємо базовий URL
+  const url = endpoint.startsWith('/api') && API_BASE_URL === '/api'
+    ? endpoint
+    : `${API_BASE_URL}${endpoint}`;
   
   const response = await fetch(url, {
     headers: {
