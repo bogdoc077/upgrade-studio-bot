@@ -41,7 +41,7 @@ async def process_broadcast_async(broadcast_id: int):
         from bot.broadcast_handler import BroadcastHandler
         
         # Створюємо Bot instance
-        bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
+        bot = Bot(token=settings.telegram_bot_token)
         handler = BroadcastHandler(bot)
         
         # Обробляємо тільки цю розсилку
