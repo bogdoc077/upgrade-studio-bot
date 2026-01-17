@@ -224,7 +224,8 @@ class BroadcastHandler:
                             video=video_file,
                             caption=message_text,
                             reply_markup=reply_markup,
-                            parse_mode='Markdown' if message_text else None
+                            parse_mode='Markdown' if message_text else None,
+                            supports_streaming=True
                         )
                 else:
                     await self.bot.send_video(
@@ -232,7 +233,8 @@ class BroadcastHandler:
                         video=attachment_url,
                         caption=message_text,
                         reply_markup=reply_markup,
-                        parse_mode='Markdown' if message_text else None
+                        parse_mode='Markdown' if message_text else None,
+                        supports_streaming=True
                     )
                     
             elif attachment_type in ('file', 'document') and attachment_url:
@@ -414,7 +416,8 @@ class BroadcastHandler:
                             video=video_file,
                             caption=text,
                             reply_markup=reply_markup,
-                            parse_mode='Markdown' if text else None
+                            parse_mode='Markdown' if text else None,
+                            supports_streaming=True
                         )
                 else:
                     await self.bot.send_video(
@@ -422,7 +425,8 @@ class BroadcastHandler:
                         video=media_url,
                         caption=text,
                         reply_markup=reply_markup,
-                        parse_mode='Markdown' if text else None
+                        parse_mode='Markdown' if text else None,
+                        supports_streaming=True
                     )
                     
             elif media_type in ('file', 'document') and media_url:
