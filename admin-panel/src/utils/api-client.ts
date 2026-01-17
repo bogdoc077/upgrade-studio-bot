@@ -75,7 +75,7 @@ class ApiClient {
 
   // Dashboard
   async getDashboard(): Promise<ApiResponse> {
-    return this.makeRequest('/api/dashboard');
+    return this.makeRequest('/dashboard');
   }
 
   // Users
@@ -90,17 +90,17 @@ class ApiClient {
     if (params.search) queryParams.append('search', params.search);
     
     const query = queryParams.toString();
-    return this.makeRequest(`/api/users${query ? `?${query}` : ''}`);
+    return this.makeRequest(`/users${query ? `?${query}` : ''}`);
   }
 
   async deleteUser(userId: number): Promise<ApiResponse> {
-    return this.makeRequest(`/api/users/${userId}`, {
+    return this.makeRequest(`/users/${userId}`, {
       method: 'DELETE',
     });
   }
 
   async updateUserSubscription(userId: number, action: string): Promise<ApiResponse> {
-    return this.makeRequest(`/api/users/${userId}/subscription?action=${action}`, {
+    return this.makeRequest(`/users/${userId}/subscription?action=${action}`, {
       method: 'POST',
     });
   }
@@ -115,19 +115,19 @@ class ApiClient {
     if (params.limit) queryParams.append('limit', params.limit.toString());
     
     const query = queryParams.toString();
-    return this.makeRequest(`/api/payments${query ? `?${query}` : ''}`);
+    return this.makeRequest(`/payments${query ? `?${query}` : ''}`);
   }
 
   // Auth
   async login(username: string, password: string): Promise<ApiResponse> {
-    return this.makeRequest('/api/auth/login', {
+    return this.makeRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
   }
 
   async getCurrentUser(token: string): Promise<ApiResponse> {
-    return this.makeRequest('/api/auth/me', {
+    return this.makeRequest('/auth/me', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -136,7 +136,7 @@ class ApiClient {
 
   // Admins
   async getAdmins(token: string): Promise<ApiResponse> {
-    return this.makeRequest('/api/admins', {
+    return this.makeRequest('/admins', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -144,7 +144,7 @@ class ApiClient {
   }
 
   async createAdmin(adminData: any, token: string): Promise<ApiResponse> {
-    return this.makeRequest('/api/admins', {
+    return this.makeRequest('/admins', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -154,7 +154,7 @@ class ApiClient {
   }
 
   async updateAdmin(adminId: number, adminData: any, token: string): Promise<ApiResponse> {
-    return this.makeRequest(`/api/admins/${adminId}`, {
+    return this.makeRequest(`/admins/${adminId}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -164,7 +164,7 @@ class ApiClient {
   }
 
   async deleteAdmin(adminId: number, token: string): Promise<ApiResponse> {
-    return this.makeRequest(`/api/admins/${adminId}`, {
+    return this.makeRequest(`/admins/${adminId}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -174,11 +174,11 @@ class ApiClient {
 
   // Settings
   async getSettings(): Promise<ApiResponse> {
-    return this.makeRequest('/api/settings');
+    return this.makeRequest('/settings');
   }
 
   async getAllSettings(token: string): Promise<ApiResponse> {
-    return this.makeRequest('/api/settings/all', {
+    return this.makeRequest('/settings/all', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -186,7 +186,7 @@ class ApiClient {
   }
 
   async updateSetting(key: string, settingData: any, token: string): Promise<ApiResponse> {
-    return this.makeRequest(`/api/settings/${key}`, {
+    return this.makeRequest(`/settings/${key}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
