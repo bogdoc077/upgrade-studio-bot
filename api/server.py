@@ -19,6 +19,11 @@ from PIL import Image
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
+import asyncio
+import logging
+
+# Логер для цього модуля
+logger = logging.getLogger(__name__)
 
 # Додаємо шлях до проєкту
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -27,6 +32,28 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from database.models import get_database
 from database.encryption import settings_manager
 from config import settings
+
+# Асинхронна функція для обробки розсилки
+async def process_broadcast_async(broadcast_id: int):
+    """Обробити розсилку в фоновому режимі"""
+    try:
+        from telegram import Bot
+        from bot.broadcast_handler import BroadcastHandler
+        
+        # Створюємо Bot instance
+        bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
+        handler = BroadcastHandler(bot)
+        
+        # Обробляємо тільки цю розсилку
+        from database.models import DatabaseManager, Broadcast
+        with DatabaseManager() as db:
+            broadcast = db.query(Broadcast).filter(Broadcast.id == broadcast_id).first()
+            if broadcast and broadcast.status == 'pending':
+                await handler._process_broadcast(broadcast)
+                logger.info(f"Broadcast {broadcast_id} processing started")
+            
+    except Exception as e:
+        logger.error(f"Error processing broadcast {broadcast_id}: {e}")
 
 # Pydantic моделі
 class LoginRequest(BaseModel):
@@ -1672,11 +1699,17 @@ async def create_broadcast(
             broadcast.total_recipients = len(users)
             db.commit()
             
-            return {
-                "success": True,
-                "broadcast_id": broadcast.id,
-                "total_recipients": len(users)
-            }
+            # Запускаємо обробку розсилки в фоновому режимі
+            broadcast_id_to_process = broadcast.id
+            
+        # Запускаємо обробку після commit (поза контекстом db)
+        asyncio.create_task(process_broadcast_async(broadcast_id_to_process))
+            
+        return {
+            "success": True,
+            "broadcast_id": broadcast_id_to_process,
+            "total_recipients": len(users)
+        }
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating broadcast: {str(e)}")

@@ -65,8 +65,12 @@ class TaskScheduler:
         # Stripe надсилає події payment.succeeded напряму в webhook_server.py
         # Це економить ~200 запитів/годину та усуває затримки
         
-        # ❌ ВИДАЛЕНО process_broadcasts polling
-        # Broadcasts обробляються через чергу при створенні (event-driven)
+        # ✅ Планувальник обробки розсилок кожні 5 хвилин
+        self.scheduler.add_job(
+            self.process_broadcasts,
+            CronTrigger(minute='*/5'),  # Кожні 5 хвилин
+            id='process_broadcasts'
+        )
         
         # Планувальник очищення старих подій оплат кожен день о 03:00
         self.scheduler.add_job(
@@ -619,9 +623,41 @@ class TaskScheduler:
     # Замість polling використовуємо Stripe webhooks напряму
     # Події обробляються в webhook_server.py при отриманні payment.succeeded
     
-    # ❌ ВИДАЛЕНО process_broadcasts  
-    # Broadcasts обробляються event-driven через чергу при створенні
-    # Використовуйте BroadcastHandler безпосередньо при створенні розсилки
+    async def process_broadcasts(self):
+        """Обробити pending розсилки"""
+        start_time = datetime.utcnow()
+        try:
+            DatabaseManager.create_system_log(
+                task_type='process_broadcasts',
+                status='started',
+                message='Розпочато обробку розсилок'
+            )
+            
+            # Імпорт тут щоб уникнути circular imports
+            from bot.broadcast_handler import BroadcastHandler
+            
+            handler = BroadcastHandler(self.bot)
+            await handler.process_pending_broadcasts()
+            
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='process_broadcasts',
+                status='completed',
+                message='Обробку розсилок завершено',
+                duration_ms=duration
+            )
+            
+            logger.info(f"✅ Broadcasts processed, time={duration}ms")
+            
+        except Exception as e:
+            logger.error(f"Помилка при обробці розсилок: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='process_broadcasts',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )
     
     async def cleanup_old_payment_events(self):
         """Очистити старі оброблені події оплат"""
