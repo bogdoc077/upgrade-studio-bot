@@ -1120,6 +1120,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db.commit()
                     logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
             
+            # Видаляємо попереднє повідомлення з кнопками
+            try:
+                await query.message.delete()
+            except Exception as e:
+                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+            
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text=f"⏸ **Підписка призупинена** (тестовий режим адміна)\n\n"
@@ -1159,6 +1165,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
                 else:
                     logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
+            
+            # Видаляємо попереднє повідомлення з кнопками
+            try:
+                await query.message.delete()
+            except Exception as e:
+                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -1214,6 +1226,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db.commit()
                     logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True, next_billing={db_user.next_billing_date}")
             
+            # Видаляємо попереднє повідомлення з кнопками
+            try:
+                await query.message.delete()
+            except Exception as e:
+                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+            
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="**Підписка поновлена** (тестовий режим адміна)\n\n"
@@ -1250,6 +1268,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     
                     db.commit()
                     logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True, next_billing={db_user.next_billing_date}")
+            
+            # Видаляємо попереднє повідомлення з кнопками
+            try:
+                await query.message.delete()
+            except Exception as e:
+                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -1304,6 +1328,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db.commit()
                     logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date}")
             
+            # Видаляємо попереднє повідомлення з кнопками
+            try:
+                await query.message.delete()
+            except Exception as e:
+                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+            
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text=f"**Підписка скасована** (тестовий режим адміна)\n\n"
@@ -1340,6 +1370,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date}")
                 else:
                     logger.error(f"Користувач {query.from_user.id} не знайдений в базі при скасуванні підписки")
+            
+            # Видаляємо попереднє повідомлення з кнопками
+            try:
+                await query.message.delete()
+            except Exception as e:
+                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
             await self.bot.send_message(
                 chat_id=query.from_user.id,
