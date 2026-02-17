@@ -71,7 +71,7 @@ class UpgradeStudioBot:
             await self.bot.send_message(
                 chat_id=settings.tech_notifications_chat_id,
                 text=message,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             logger.info(f"Повідомлення в Tech групу надіслано: {message[:50]}...")
         except Exception as e:
