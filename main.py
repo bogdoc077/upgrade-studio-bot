@@ -699,14 +699,6 @@ class UpgradeStudioBot:
             parse_mode='HTML'
         )
         
-        # Відновлюємо ReplyKeyboard (відправляємо і одразу видаляємо)
-        temp_msg = await self.bot.send_message(
-            chat_id=user_id,
-            text="⚡",
-            reply_markup=get_main_menu_keyboard()
-        )
-        await self.bot.delete_message(chat_id=user_id, message_id=temp_msg.message_id)
-        
         # Зберігаємо ID нового повідомлення меню
         self.last_menu_messages[user_id] = sent_message.message_id
     

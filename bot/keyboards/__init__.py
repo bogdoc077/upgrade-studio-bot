@@ -9,7 +9,8 @@ def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
     """Головне меню бота для користувачів з активною підпискою"""
     keyboard = [
         [KeyboardButton(Buttons.MANAGE_SUBSCRIPTION)],
-        [KeyboardButton(Buttons.GO_TO_STUDIO), KeyboardButton(Buttons.GO_TO_COMMUNITY)],
+        [KeyboardButton(Buttons.GO_TO_STUDIO)],
+        [KeyboardButton(Buttons.GO_TO_COMMUNITY)],
         [KeyboardButton(Buttons.ASK_QUESTION)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
