@@ -104,58 +104,65 @@ class TaskScheduler:
         """Обробити всі нагадування"""
         try:
             # Отримуємо тільки перші 10 нагадувань для економії пам'яті
-            reminders = DatabaseManager.get_pending_reminders_limited(limit=10)
+            # Тепер це список словників, а не об'єктів Reminder
+            reminder_data_list = DatabaseManager.get_pending_reminders_limited(limit=10)
             
-            for reminder in reminders:
-                await self.send_reminder(reminder)
+            for reminder_data in reminder_data_list:
+                await self.send_reminder(reminder_data)
                 
         except Exception as e:
             logger.error(f"Помилка при обробці нагадувань: {e}")
     
-    async def send_reminder(self, reminder: Reminder):
+    async def send_reminder(self, reminder_data: dict):
         """Надіслати нагадування користувачу"""
         try:
-            # Отримуємо користувача заново через telegram_id
-            user = DatabaseManager.get_user_by_telegram_id(reminder.user.telegram_id)
-            if not user:
-                logger.error(f"Користувача для нагадування {reminder.id} не знайдено")
-                return
+            # Отримуємо користувача через user_id з даних нагадування
+            with DatabaseManager() as db:
+                user = db.query(User).filter(User.id == reminder_data['user_id']).first()
+                if not user:
+                    logger.error(f"Користувача для нагадування {reminder_data['id']} не знайдено")
+                    return
+                
+                telegram_id = user.telegram_id
             
             message_text = ""
             reply_markup = None
             
-            if reminder.reminder_type == "join_channel":
-                message_text, reply_markup = await self._get_join_channel_reminder(reminder, user)
-            elif reminder.reminder_type == "subscription_renewal":
-                message_text = await self._get_subscription_renewal_reminder(reminder, user)
-            elif reminder.reminder_type == "subscription_expiration":
-                message_text = await self._get_subscription_expiration_reminder(reminder, user)
-            elif reminder.reminder_type == "payment_retry":
-                message_text = await self._get_payment_retry_reminder(reminder, user)
+            if reminder_data['reminder_type'] == "join_channel":
+                message_text, reply_markup = await self._get_join_channel_reminder(reminder_data, telegram_id)
+            elif reminder_data['reminder_type'] == "subscription_renewal":
+                message_text = await self._get_subscription_renewal_reminder(reminder_data, telegram_id)
+            elif reminder_data['reminder_type'] == "subscription_expiration":
+                message_text = await self._get_subscription_expiration_reminder(reminder_data, telegram_id)
+            elif reminder_data['reminder_type'] == "payment_retry":
+                message_text = await self._get_payment_retry_reminder(reminder_data, telegram_id)
             
             if message_text:
                 await self.bot.send_message(
-                    chat_id=user.telegram_id,
+                    chat_id=telegram_id,
                     text=message_text,
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
                 
                 # Позначаємо нагадування як надіслане
-                DatabaseManager.mark_reminder_sent(reminder.id)
-                logger.info(f"Нагадування {reminder.id} надіслано користувачу {user.telegram_id}")
+                DatabaseManager.mark_reminder_sent(reminder_data['id'])
+                logger.info(f"Нагадування {reminder_data['id']} надіслано користувачу {telegram_id}")
                 
                 # Якщо це останнє нагадування про приєднання до каналу
-                if (reminder.reminder_type == "join_channel" and 
-                    reminder.attempts >= reminder.max_attempts - 1):
-                    await self._notify_admin_about_user(user)
+                if (reminder_data['reminder_type'] == "join_channel" and 
+                    reminder_data['attempts'] >= reminder_data['max_attempts'] - 1):
+                    # Отримуємо користувача для повідомлення адміну
+                    user = DatabaseManager.get_user_by_id(reminder_data['user_id'])
+                    if user:
+                        await self._notify_admin_about_user(user)
                 
         except TelegramError as e:
-            logger.error(f"Помилка Telegram при надсиланні нагадування {reminder.id}: {e}")
+            logger.error(f"Помилка Telegram при надсиланні нагадування {reminder_data['id']}: {e}")
         except Exception as e:
-            logger.error(f"Помилка при надсиланні нагадування {reminder.id}: {e}")
+            logger.error(f"Помилка при надсиланні нагадування {reminder_data['id']}: {e}")
     
-    async def _get_join_channel_reminder(self, reminder: Reminder, user: User) -> Tuple[str, Any]:
+    async def _get_join_channel_reminder(self, reminder_data: dict, telegram_id: int) -> Tuple[str, Any]:
         """Отримати текст нагадування про приєднання до каналу та клавіатуру"""
         # Отримуємо активні посилання з бази
         from database.models import DatabaseManager
@@ -200,9 +207,11 @@ class TaskScheduler:
         
         return text, reply_markup
     
-    async def _get_subscription_renewal_reminder(self, reminder: Reminder, user: User) -> str:
+    async def _get_subscription_renewal_reminder(self, reminder_data: dict, telegram_id: int) -> str:
         """Отримати текст нагадування про продовження підписки"""
-        if user.subscription_end_date:
+        # Отримуємо користувача для інформації про підписку
+        user = DatabaseManager.get_user_by_telegram_id(telegram_id)
+        if user and user.subscription_end_date:
             days_left = (user.subscription_end_date - datetime.utcnow()).days
             return f"""🔔 **Нагадування про підписку**
 
@@ -217,9 +226,11 @@ class TaskScheduler:
 Якщо у вас виникли питання, зв'яжіться з підтримкою"""
         return Messages.SUBSCRIPTION_REMINDER
     
-    async def _get_subscription_expiration_reminder(self, reminder: Reminder, user: User) -> str:
+    async def _get_subscription_expiration_reminder(self, reminder_data: dict, telegram_id: int) -> str:
         """Отримати текст нагадування про закінчення підписки (без автоплатежу)"""
-        if user.subscription_end_date:
+        # Отримуємо користувача для інформації про підписку
+        user = DatabaseManager.get_user_by_telegram_id(telegram_id)
+        if user and user.subscription_end_date:
             # Якщо підписка вже закінчилась
             if user.subscription_end_date < datetime.utcnow():
                 return f"""⚠️ **Ваша підписка закінчилась**
@@ -249,7 +260,7 @@ class TaskScheduler:
 📞 Зв'яжіться з підтримкою для допомоги"""
         return "Ваша підписка закінчується. Зверніться до підтримки."
     
-    async def _get_payment_retry_reminder(self, reminder: Reminder, user: User) -> str:
+    async def _get_payment_retry_reminder(self, reminder_data: dict, telegram_id: int) -> str:
         """Отримати текст нагадування про повторну оплату"""
         return Messages.PAYMENT_FAILED
     

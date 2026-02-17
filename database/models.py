@@ -430,14 +430,20 @@ class DatabaseManager:
                 Reminder.attempts < Reminder.max_attempts
             ).limit(limit).all()
             
-            # Відключаємо об'єкти від сесії
+            # Створюємо список кортежів (reminder_id, user_id, reminder_type, attempts, max_attempts)
+            # замість відключення об'єктів від сесії
+            reminder_data = []
             for reminder in reminders:
-                db.expunge(reminder)
-                # Також відключаємо пов'язаного користувача
-                if reminder.user:
-                    db.expunge(reminder.user)
+                reminder_data.append({
+                    'id': reminder.id,
+                    'user_id': reminder.user_id,
+                    'reminder_type': reminder.reminder_type,
+                    'attempts': reminder.attempts,
+                    'max_attempts': reminder.max_attempts,
+                    'metadata': reminder.metadata
+                })
             
-            return reminders
+            return reminder_data
     
     @staticmethod
     def mark_reminder_sent(reminder_id: int):

@@ -14,8 +14,9 @@ import Pagination from '@/components/Pagination';
 
 interface BroadcastStats {
   active: number;
-  inactive: number;
-  no_payment: number;
+  paused: number;
+  cancelled: number;
+  no_subscription: number;
 }
 
 interface Broadcast {
@@ -242,9 +243,10 @@ export default function BroadcastsPage() {
 
   const getTargetGroupName = (group: string) => {
     const names: Record<string, string> = {
-      active: 'Активні підписники',
-      inactive: 'Неактивні користувачі',
-      no_payment: 'Не оплатили'
+      active: 'Активні підписки',
+      paused: 'Призупинені',
+      cancelled: 'Скасовані',
+      no_subscription: 'Без підписки'
     };
     return names[group] || group;
   };
@@ -271,7 +273,7 @@ export default function BroadcastsPage() {
         <div className="admin-stats">
           <div className="admin-stats__card">
             <div className="admin-stats__header">
-              <span className="admin-stats__title">Активні підписники</span>
+              <span className="admin-stats__title">Активні підписки</span>
             </div>
             <div className="admin-stats__content">
               <div className="admin-stats__value">{stats.active}</div>
@@ -279,18 +281,26 @@ export default function BroadcastsPage() {
           </div>
           <div className="admin-stats__card">
             <div className="admin-stats__header">
-              <span className="admin-stats__title">Неактивні користувачі</span>
+              <span className="admin-stats__title">Призупинені</span>
             </div>
             <div className="admin-stats__content">
-              <div className="admin-stats__value">{stats.inactive}</div>
+              <div className="admin-stats__value">{stats.paused}</div>
             </div>
           </div>
           <div className="admin-stats__card">
             <div className="admin-stats__header">
-              <span className="admin-stats__title">Не оплатили</span>
+              <span className="admin-stats__title">Скасовані</span>
             </div>
             <div className="admin-stats__content">
-              <div className="admin-stats__value">{stats.no_payment}</div>
+              <div className="admin-stats__value">{stats.cancelled}</div>
+            </div>
+          </div>
+          <div className="admin-stats__card">
+            <div className="admin-stats__header">
+              <span className="admin-stats__title">Без підписки</span>
+            </div>
+            <div className="admin-stats__content">
+              <div className="admin-stats__value">{stats.no_subscription}</div>
             </div>
           </div>
         </div>
@@ -428,9 +438,10 @@ export default function BroadcastsPage() {
                       onChange={(e) => setTargetGroup(e.target.value)}
                       required
                     >
-                      <option value="active">Активні підписники ({stats?.active || 0})</option>
-                      <option value="inactive">Неактивні користувачі ({stats?.inactive || 0})</option>
-                      <option value="no_payment">Не оплатили ({stats?.no_payment || 0})</option>
+                      <option value="active">Активні підписки ({stats?.active || 0})</option>
+                      <option value="paused">Призупинені ({stats?.paused || 0})</option>
+                      <option value="cancelled">Скасовані ({stats?.cancelled || 0})</option>
+                      <option value="no_subscription">Без підписки ({stats?.no_subscription || 0})</option>
                     </select>
                   </div>
 

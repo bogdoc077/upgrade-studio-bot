@@ -21,7 +21,7 @@ interface Stats {
   active: number;
   paused: number;
   cancelled: number;
-  inactive: number;
+  no_subscription: number;
 }
 
 export default function UsersPage() {
@@ -34,7 +34,7 @@ export default function UsersPage() {
     active: 0,
     paused: 0,
     cancelled: 0,
-    inactive: 0
+    no_subscription: 0
   });
   
   // Filter states
@@ -101,7 +101,7 @@ export default function UsersPage() {
           active: 0,
           paused: 0,
           cancelled: 0,
-          inactive: 0
+          no_subscription: 0
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -297,6 +297,18 @@ export default function UsersPage() {
             </div>
           </div>
         </div>
+
+        <div className="admin-stats__card">
+          <div className="admin-stats__header">
+            <span className="admin-stats__title">Без підписки</span>
+            <UsersIcon className="admin-stats__icon" style={{ color: 'var(--text-tertiary)' }} />
+          </div>
+          <div className="admin-stats__content">
+            <div className="admin-stats__value" style={{ color: 'var(--text-tertiary)' }}>
+              {stats.no_subscription.toLocaleString()}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Users Table */}
@@ -369,9 +381,9 @@ export default function UsersPage() {
                 onFocus={(e) => e.target.style.borderColor = '#6366f1'}
                 onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               >
-                <option value="">Всі</option>
+                <option value="Всі">Всі</option>
                 <option value="active">Активна</option>
-                <option value="inactive">Неактивна</option>
+                <option value="no_subscription">Без підписки</option>
                 <option value="paused">Призупинена</option>
                 <option value="cancelled">Скасована</option>
               </select>
