@@ -481,12 +481,18 @@ async def handle_payment_method_attached(payment_method):
             logger.info(f"Пропускаємо оновлення тестової підписки адміна {user.telegram_id}")
             return True
         
+        # Перевіряємо чи користувач вже має активну підписку
+        # Якщо підписка НЕ активна - це перша оплата, не відправляємо повідомлення про зміну методу
+        if not user.subscription_active:
+            logger.info(f"Пропускаємо повідомлення про зміну платіжного методу - це перша оплата для користувача {user.telegram_id}")
+            return True
+        
         # Отримуємо дату наступного списання
         next_billing_str = "кінця поточного періоду"
         if user.next_billing_date:
             next_billing_str = user.next_billing_date.strftime('%d.%m')
         
-        # Надсилаємо повідомлення про успішну зміну платіжного методу
+        # Надсилаємо повідомлення про успішну зміну платіжного методу (тільки якщо підписка вже активна)
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         
         keyboard = InlineKeyboardMarkup([
