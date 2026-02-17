@@ -218,7 +218,7 @@ async def handle_checkout_session_completed(session):
                         
                         if subscription_obj and subscription_obj.current_period_end:
                             # Встановлюємо дати на основі інформації з Stripe
-                            end_date = datetime.fromtimestamp(subscription_obj.current_period_end)
+                            end_date = datetime.utcfromtimestamp(subscription_obj.current_period_end)
                             user.next_billing_date = end_date
                             user.subscription_end_date = end_date
                             date_set = True
@@ -354,7 +354,7 @@ async def handle_customer_subscription_updated(subscription):
                 
                 # Оновлюємо дати
                 if 'current_period_end' in subscription:
-                    period_end = datetime.fromtimestamp(subscription['current_period_end'])
+                    period_end = datetime.utcfromtimestamp(subscription['current_period_end'])
                     if status == 'active' and not cancel_at_period_end:
                         # Для активних підписок встановлюємо обидві дати
                         db_user.next_billing_date = period_end
@@ -554,7 +554,7 @@ async def handle_invoice_payment_failed(invoice):
         next_attempt_str = "найближчим часом"
         
         if next_payment_attempt:
-            next_attempt_date = datetime.fromtimestamp(next_payment_attempt)
+            next_attempt_date = datetime.utcfromtimestamp(next_payment_attempt)
             next_attempt_str = next_attempt_date.strftime('%d.%m')
             
             # Оновлюємо дату наступного платежу в базі
@@ -654,7 +654,7 @@ async def handle_invoice_payment_succeeded(invoice):
                 try:
                     subscription_obj = stripe.Subscription.retrieve(subscription_id)
                     if subscription_obj and subscription_obj.current_period_end:
-                        end_date = datetime.fromtimestamp(subscription_obj.current_period_end)
+                        end_date = datetime.utcfromtimestamp(subscription_obj.current_period_end)
                         db_user.next_billing_date = end_date
                         db_user.subscription_end_date = end_date
                         db_user.subscription_active = True
