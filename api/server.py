@@ -396,13 +396,17 @@ async def get_users(
         # Фільтр по статусу підписки
         if subscription_status:
             if subscription_status == "active":
-                where_conditions.append("subscription_active = 1 AND subscription_paused = 0")
-            elif subscription_status == "inactive":
-                where_conditions.append("subscription_active = 0")
-            elif subscription_status == "paused":
-                where_conditions.append("subscription_paused = 1")
+                # Активна - активна підписка (включає тих у кого йдуть спроби оплати)
+                where_conditions.append("subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0")
             elif subscription_status == "cancelled":
+                # Скасована - автоматично або сам скасував
                 where_conditions.append("subscription_cancelled = 1")
+            elif subscription_status == "paused":
+                # Призупинена
+                where_conditions.append("subscription_paused = 1")
+            elif subscription_status == "no_subscription":
+                # Без підписки - авторизувався, але ніколи не купив
+                where_conditions.append("subscription_active = 0 AND subscription_cancelled = 0 AND subscription_paused = 0")
         
         # Фільтр по даті реєстрації
         if date_from:
@@ -426,10 +430,10 @@ async def get_users(
         stats_sql = """
             SELECT 
                 COUNT(*) as total,
-                SUM(CASE WHEN subscription_active = 1 AND subscription_paused = 0 THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0 THEN 1 ELSE 0 END) as active,
                 SUM(CASE WHEN subscription_paused = 1 THEN 1 ELSE 0 END) as paused,
                 SUM(CASE WHEN subscription_cancelled = 1 THEN 1 ELSE 0 END) as cancelled,
-                SUM(CASE WHEN subscription_active = 0 AND subscription_paused = 0 AND subscription_cancelled = 0 THEN 1 ELSE 0 END) as inactive
+                SUM(CASE WHEN subscription_active = 0 AND subscription_cancelled = 0 AND subscription_paused = 0 THEN 1 ELSE 0 END) as no_subscription
             FROM users
         """
         cursor.execute(stats_sql)
@@ -441,7 +445,7 @@ async def get_users(
             "active": int(stats.get('active', 0)) if stats.get('active') is not None else 0,
             "paused": int(stats.get('paused', 0)) if stats.get('paused') is not None else 0,
             "cancelled": int(stats.get('cancelled', 0)) if stats.get('cancelled') is not None else 0,
-            "inactive": int(stats.get('inactive', 0)) if stats.get('inactive') is not None else 0
+            "no_subscription": int(stats.get('no_subscription', 0)) if stats.get('no_subscription') is not None else 0
         }
         
         # Отримуємо користувачів
@@ -1450,37 +1454,54 @@ async def get_broadcast_stats(admin: Dict = Depends(get_current_admin_flexible))
         db = get_database()
         cursor = db.cursor(dictionary=True)
         
-        # Активні підписники
-        cursor.execute("SELECT COUNT(*) as count FROM users WHERE subscription_active = 1")
+        # Активні підписники (включає тих у кого йдуть спроби оплати)
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM users 
+            WHERE subscription_active = 1 
+            AND subscription_cancelled = 0 
+            AND subscription_paused = 0
+        """)
         result = cursor.fetchone()
         active_count = result["count"] if result else 0
         
-        # Неактивні (були активні, але більше ні)
+        # Скасовані (автоматично + самі скасували)
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM users 
+            WHERE subscription_cancelled = 1
+        """)
+        result = cursor.fetchone()
+        cancelled_count = result["count"] if result else 0
+        
+        # Призупинені
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM users 
+            WHERE subscription_paused = 1
+        """)
+        result = cursor.fetchone()
+        paused_count = result["count"] if result else 0
+        
+        # Без підписки (авторизувалися, але ніколи не купили)
         cursor.execute("""
             SELECT COUNT(*) as count 
             FROM users 
             WHERE subscription_active = 0 
-            AND stripe_subscription_id IS NOT NULL
+            AND subscription_cancelled = 0 
+            AND subscription_paused = 0
         """)
         result = cursor.fetchone()
-        inactive_count = result["count"] if result else 0
-        
-        # Не оплатили (запустили бота, але немає subscription_id)
-        cursor.execute("""
-            SELECT COUNT(*) as count 
-            FROM users 
-            WHERE stripe_subscription_id IS NULL
-        """)
-        result = cursor.fetchone()
-        no_payment_count = result["count"] if result else 0
+        no_subscription_count = result["count"] if result else 0
         
         cursor.close()
         db.close()
         
         return {
             "active": active_count,
-            "inactive": inactive_count,
-            "no_payment": no_payment_count
+            "cancelled": cancelled_count,
+            "paused": paused_count,
+            "no_subscription": no_subscription_count
         }
         
     except Exception as e:
@@ -1736,14 +1757,25 @@ async def create_broadcast(
             
             # Вибираємо користувачів за групою
             if broadcast_data.target_group == 'active':
-                users = db.query(User).filter(User.subscription_active == True).all()
-            elif broadcast_data.target_group == 'inactive':
+                # Активна - активна підписка (включає тих у кого йдуть спроби оплати)
+                users = db.query(User).filter(
+                    User.subscription_active == True,
+                    User.subscription_cancelled == False,
+                    User.subscription_paused == False
+                ).all()
+            elif broadcast_data.target_group == 'cancelled':
+                # Скасовані (автоматично + самі скасували)
+                users = db.query(User).filter(User.subscription_cancelled == True).all()
+            elif broadcast_data.target_group == 'paused':
+                # Призупинені
+                users = db.query(User).filter(User.subscription_paused == True).all()
+            elif broadcast_data.target_group == 'no_subscription':
+                # Без підписки (авторизувалися, але ніколи не купили)
                 users = db.query(User).filter(
                     User.subscription_active == False,
-                    User.stripe_subscription_id.isnot(None)
+                    User.subscription_cancelled == False,
+                    User.subscription_paused == False
                 ).all()
-            elif broadcast_data.target_group == 'no_payment':
-                users = db.query(User).filter(User.stripe_subscription_id.is_(None)).all()
             else:
                 raise HTTPException(status_code=400, detail="Invalid target group")
             

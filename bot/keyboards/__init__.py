@@ -6,10 +6,11 @@ from config import Buttons, SurveyOptions
 
 
 def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
-    """Головне меню бота"""
+    """Головне меню бота для користувачів з активною підпискою"""
     keyboard = [
         [KeyboardButton(Buttons.MANAGE_SUBSCRIPTION)],
-        [KeyboardButton(Buttons.DASHBOARD), KeyboardButton(Buttons.SUPPORT)]
+        [KeyboardButton(Buttons.GO_TO_STUDIO), KeyboardButton(Buttons.GO_TO_COMMUNITY)],
+        [KeyboardButton(Buttons.ASK_QUESTION)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -54,66 +55,14 @@ def get_subscription_management_keyboard(subscription_active: bool = True,
                                        joined_channel: bool = False,
                                        joined_chat: bool = False) -> InlineKeyboardMarkup:
     """Клавіатура керування підпискою"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
     keyboard = []
     
-    # Отримуємо посилання з бази даних
-    from database import DatabaseManager
-    invite_links = DatabaseManager.get_active_invite_links()
-    
-    channel_link = None
-    chat_link = None
-    
-    for link in invite_links:
-        if link.link_type == "channel":
-            channel_link = link.invite_link
-        elif link.link_type == "chat":
-            chat_link = link.invite_link
-    
-    # Логування для діагностики
-    logger.info(f"get_subscription_management_keyboard: joined_channel={joined_channel}, "
-               f"joined_chat={joined_chat}, channel_link={channel_link}, chat_link={chat_link}")
-    
-    # Fallback якщо немає посилань у БД
-    if not channel_link:
-        from config import settings
-        channel_id_clean = settings.private_channel_id.lstrip('-')
-        if channel_id_clean.startswith('100'):
-            channel_id_clean = channel_id_clean[3:]
-        channel_link = f"https://t.me/c/{channel_id_clean}"
-    
-    if not chat_link:
-        from config import settings
-        chat_id_clean = settings.private_chat_id.lstrip('-')
-        if chat_id_clean.startswith('100'):
-            chat_id_clean = chat_id_clean[3:]
-        chat_link = f"https://t.me/c/{chat_id_clean}"
-    
     if subscription_active:
-        # Додаємо кнопки доступу до каналів для активних підписників (по одній вниз)
-        # Якщо підписка скасована але ще активна - показуємо кнопки "Перейти"
-        if subscription_cancelled or subscription_paused:
-            # Користувач має доступ але підписка призупинена/скасована
-            keyboard.append([InlineKeyboardButton("📣 Перейти в канал", url=channel_link)])
-            keyboard.append([InlineKeyboardButton("💬 Перейти в чат", url=chat_link)])
-        else:
-            # Звичайний режим - показуємо статус приєднання
-            if not joined_channel:
-                keyboard.append([InlineKeyboardButton("📣 Приєднатися до каналу", callback_data="join_channel_access")])
-            else:
-                keyboard.append([InlineKeyboardButton("📣 Перейти в канал", url=channel_link)])
-                
-            if not joined_chat:
-                keyboard.append([InlineKeyboardButton("💬 Приєднатися до чату", callback_data="join_chat_access")])
-            else:
-                keyboard.append([InlineKeyboardButton("💬 Перейти в чат", url=chat_link)])
-        
-        # Управління підпискою - не показуємо якщо підписка вже призупинена/скасована
+        # Управління підпискою
         if not subscription_paused and not subscription_cancelled:
             keyboard.append([InlineKeyboardButton(Buttons.PAUSE_SUBSCRIPTION, callback_data="pause_subscription")])
             keyboard.append([InlineKeyboardButton(Buttons.CANCEL_SUBSCRIPTION, callback_data="cancel_subscription")])
+            keyboard.append([InlineKeyboardButton(Buttons.CHANGE_PAYMENT_METHOD, callback_data="change_payment_method")])
         elif subscription_paused and not subscription_cancelled:
             keyboard.append([InlineKeyboardButton(Buttons.RESUME_SUBSCRIPTION, callback_data="resume_subscription")])
     else:

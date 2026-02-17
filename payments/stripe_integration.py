@@ -112,7 +112,8 @@ class StripeManager:
                 'status': subscription.status,
                 'current_period_start': subscription.current_period_start,  # Повертаємо timestamp
                 'current_period_end': subscription.current_period_end,      # Повертаємо timestamp
-                'customer_id': subscription.customer
+                'customer_id': subscription.customer,
+                'cancel_at_period_end': subscription.cancel_at_period_end   # Чи скасовано на кінець періоду
             }
         except Exception as e:
             logger.error(f"Помилка при отриманні підписки {subscription_id}: {e}")
@@ -158,6 +159,20 @@ class StripeManager:
         except Exception as e:
             logger.error(f"Помилка при скасуванні підписки {subscription_id}: {e}")
             return False
+    
+    @staticmethod
+    async def create_billing_portal_session(customer_id: str, return_url: str) -> Optional[str]:
+        """Створити сесію Stripe Customer Portal для зміни платіжного методу"""
+        try:
+            session = stripe.billing_portal.Session.create(
+                customer=customer_id,
+                return_url=return_url,
+            )
+            logger.info(f"Створено Billing Portal сесію для customer {customer_id}")
+            return session.url
+        except Exception as e:
+            logger.error(f"Помилка при створенні Billing Portal сесії: {e}")
+            return None
     
     @staticmethod
     async def handle_webhook_event(event_type: str, data: Dict[str, Any]) -> bool:

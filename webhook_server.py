@@ -266,16 +266,32 @@ async def handle_checkout_session_completed(session):
                 # Надсилаємо повідомлення в Tech групу про успішну оплату
                 try:
                     user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {telegram_id}"
-                    amount = session.get('amount_total', 0) / 100  # конвертуємо центи в євро
-                    currency = session.get('currency', 'eur').upper()
+                    
+                    # Підраховуємо кількість успішних оплат
+                    from database.models import Payment
+                    with DatabaseManager() as db:
+                        payment_count = db.query(Payment).filter(
+                            Payment.user_id == user.id,
+                            Payment.status.in_(["succeeded", "completed"])
+                        ).count()
+                    
+                    # Формуємо повідомлення
+                    message_text = (
+                        f"✅ **Нова підписка**\n\n"
+                        f"Користувач: {user_info}\n"
+                        f"ID: `{telegram_id}`\n"
+                        f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                        f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+                        f"Успішних оплат: {payment_count}"
+                    )
+                    
+                    # Додаємо травми якщо є
+                    if user.injuries and user.injuries.strip() and "Немає" not in user.injuries:
+                        message_text += f"\nТравми: \"{user.injuries}\""
+                    
                     await telegram_bot.send_message(
                         chat_id=settings.tech_notifications_chat_id,
-                        text=f"✅ **Успішна оплата**\n\n"
-                             f"Користувач: {user_info}\n"
-                             f"ID: `{telegram_id}`\n"
-                             f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                             f"Сума: {amount:.2f} {currency}\n"
-                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                        text=message_text,
                         parse_mode='Markdown'
                     )
                     logger.info(f"Повідомлення про оплату надіслано в Tech групу")
@@ -355,8 +371,52 @@ async def handle_customer_subscription_updated(subscription):
                 db_user.updated_at = datetime.utcnow()
                 db.commit()
                 
+                # Перевіряємо чи скасування відбулося через невдалу оплату
+                cancellation_details = subscription.get('cancellation_details', {})
+                cancellation_reason = cancellation_details.get('reason') if cancellation_details else None
+                
                 # Надсилаємо повідомлення користувачу тільки для певних випадків
-                if cancel_at_period_end:
+                if status in ['canceled', 'cancelled'] and cancellation_reason == 'payment_failed':
+                    # Скасування через невдалу оплату
+                    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🩵 Оформити підписку", callback_data="create_subscription")],
+                        [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+                    ])
+                    
+                    await telegram_bot.send_message(
+                        chat_id=user.telegram_id,
+                        text="Підписку було скасовано ❌\n\n"
+                             "На жаль, підписку було скасовано, оскільки не вдалося здійснити списання коштів.\n\n"
+                             "Якщо у тебе виникли будь-які питання, напиши мені.\n\n"
+                             "Щоб створити нову підписку, натисни кнопку нижче.",
+                        reply_markup=keyboard,
+                        parse_mode='Markdown'
+                    )
+                    
+                    # Відправляємо в Tech групу
+                    user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
+                    
+                    # Підраховуємо кількість успішних оплат
+                    from database.models import Payment
+                    with DatabaseManager() as db_temp:
+                        payment_count = db_temp.query(Payment).filter(
+                            Payment.user_id == db_user.id,
+                            Payment.status.in_(["succeeded", "completed"])
+                        ).count()
+                    
+                    await telegram_bot.send_message(
+                        chat_id=settings.tech_notifications_chat_id,
+                        text=f"❌ **Скасована автоматично**\n\n"
+                             f"Користувач: {user_info}\n"
+                             f"ID: `{user.telegram_id}`\n"
+                             f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+                             f"Успішних оплат: {payment_count}",
+                        parse_mode='Markdown'
+                    )
+                elif cancel_at_period_end:
                     await send_telegram_notification(
                         user.telegram_id,
                         f"⚠️ **Підписка скасована**\n\n"
@@ -401,6 +461,69 @@ async def handle_customer_subscription_updated(subscription):
         logger.error(f"Помилка обробки customer.subscription.updated: {e}")
         return False
 
+async def handle_payment_method_attached(payment_method):
+    """Обробити прив'язку нового платіжного методу"""
+    try:
+        logger.info(f"Обробка payment_method.attached: {payment_method['id']}")
+        
+        customer_id = payment_method.get('customer')
+        if not customer_id:
+            logger.warning("Немає customer_id в payment_method")
+            return False
+        
+        user = DatabaseManager.get_user_by_stripe_customer_id(customer_id)
+        if not user:
+            logger.warning(f"Користувач з customer_id {customer_id} не знайдений")
+            return False
+        
+        # Перевіряємо чи це не тестова підписка адміна
+        if user.stripe_subscription_id and user.stripe_subscription_id.startswith("sub_test_"):
+            logger.info(f"Пропускаємо оновлення тестової підписки адміна {user.telegram_id}")
+            return True
+        
+        # Отримуємо дату наступного списання
+        next_billing_str = "кінця поточного періоду"
+        if user.next_billing_date:
+            next_billing_str = user.next_billing_date.strftime('%d.%m')
+        
+        # Надсилаємо повідомлення про успішну зміну платіжного методу
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu_after_cancel")]
+        ])
+        
+        await telegram_bot.send_message(
+            chat_id=user.telegram_id,
+            text=f"✅ Платіжний метод успішно оновлено.\n\n"
+                 f"Наступне списання відбудеться {next_billing_str}",
+            reply_markup=keyboard,
+            parse_mode='Markdown'
+        )
+        
+        # Відправляємо повідомлення в Tech групу
+        try:
+            user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
+            await telegram_bot.send_message(
+                chat_id=settings.tech_notifications_chat_id,
+                text=f"💳 **Платіжний метод оновлено**\n\n"
+                     f"Користувач: {user_info}\n"
+                     f"ID: `{user.telegram_id}`\n"
+                     f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                     f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                parse_mode='Markdown'
+            )
+            logger.info(f"Повідомлення про зміну платіжного методу надіслано в Tech групу")
+        except Exception as e:
+            logger.error(f"Помилка відправки повідомлення в Tech групу: {e}")
+        
+        logger.info(f"Платіжний метод оновлено для користувача {user.telegram_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Помилка обробки payment_method.attached: {e}")
+        return False
+
 async def handle_invoice_payment_failed(invoice):
     """Обробити невдалу оплату"""
     try:
@@ -415,13 +538,42 @@ async def handle_invoice_payment_failed(invoice):
             logger.warning(f"Користувач з subscription_id {subscription_id} не знайдений")
             return False
         
-        # Надсилаємо повідомлення про невдалу оплату
-        await send_telegram_notification(
-            user.telegram_id,
-            "⚠️ **Помилка оплати**\n\n"
-            "Не вдалося списати кошти за підписку.\n"
-            "Перевірте дані вашої картки або оновіть спосіб оплати.\n\n"
-            "Щоб оновити дані оплати, зверніться до підтримки: @upgrade_studio_support"
+        # Перевіряємо чи це не тестова підписка адміна
+        if user.stripe_subscription_id and user.stripe_subscription_id.startswith("sub_test_"):
+            logger.info(f"Пропускаємо повідомлення для тестової підписки адміна {user.telegram_id}")
+            return True
+        
+        # Отримуємо дату наступної спроби оплати
+        next_payment_attempt = invoice.get('next_payment_attempt')
+        next_attempt_str = "найближчим часом"
+        
+        if next_payment_attempt:
+            next_attempt_date = datetime.fromtimestamp(next_payment_attempt)
+            next_attempt_str = next_attempt_date.strftime('%d.%m')
+            
+            # Оновлюємо дату наступного платежу в базі
+            with DatabaseManager() as db:
+                db_user = db.query(User).filter(User.telegram_id == user.telegram_id).first()
+                if db_user:
+                    db_user.next_billing_date = next_attempt_date
+                    db.commit()
+                    logger.info(f"Оновлено next_billing_date для {user.telegram_id} на {next_attempt_str}")
+        
+        # Надсилаємо повідомлення про невдалу оплату з кнопками
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✨ Керувати підпискою", callback_data="manage_subscription")],
+            [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")],
+            [InlineKeyboardButton("↩️ Назад", callback_data="back_to_main_menu")]
+        ])
+        
+        await telegram_bot.send_message(
+            chat_id=user.telegram_id,
+            text=f"💳 Виникла помилка при спробі списання оплати за підписку.\n\n"
+                 f"Наступна спроба: {next_attempt_str}",
+            reply_markup=keyboard,
+            parse_mode='Markdown'
         )
         
         # Відправляємо повідомлення в Tech групу
@@ -429,6 +581,8 @@ async def handle_invoice_payment_failed(invoice):
             user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
             amount = invoice.get('amount_due', 0) / 100
             currency = invoice.get('currency', 'eur').upper()
+            attempt_count = invoice.get('attempt_count', 1)
+            
             await telegram_bot.send_message(
                 chat_id=settings.tech_notifications_chat_id,
                 text=f"❌ **Невдала оплата**\n\n"
@@ -436,6 +590,8 @@ async def handle_invoice_payment_failed(invoice):
                      f"ID: `{user.telegram_id}`\n"
                      f"Ім'я: {user.first_name} {user.last_name or ''}\n"
                      f"Сума: {amount:.2f} {currency}\n"
+                     f"Спроба: {attempt_count}\n"
+                     f"Наступна спроба: {next_attempt_str}\n"
                      f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
                 parse_mode='Markdown'
             )
@@ -547,16 +703,21 @@ async def handle_invoice_payment_succeeded(invoice):
                 # Відправляємо повідомлення в Tech групу
                 try:
                     user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
-                    amount = invoice.get('amount_paid', 0) / 100
-                    currency = invoice.get('currency', 'eur').upper()
+                    
+                    # Підраховуємо кількість успішних оплат
+                    payment_count = db.query(Payment).filter(
+                        Payment.user_id == db_user.id,
+                        Payment.status.in_(["succeeded", "completed"])
+                    ).count()
+                    
                     await telegram_bot.send_message(
                         chat_id=settings.tech_notifications_chat_id,
-                        text=f"🔄 **Підписка продовжена**\n\n"
+                        text=f"✅ **Автоматично продовжена**\n\n"
                              f"Користувач: {user_info}\n"
                              f"ID: `{user.telegram_id}`\n"
                              f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                             f"Сума: {amount:.2f} {currency}\n"
-                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+                             f"Успішних оплат: {payment_count}",
                         parse_mode='Markdown'
                     )
                     logger.info(f"Повідомлення про продовження підписки надіслано в Tech групу")
@@ -626,6 +787,8 @@ async def stripe_webhook(request: Request):
             success = await handle_invoice_payment_succeeded(event_data)
         elif event_type == 'invoice.payment_failed':
             success = await handle_invoice_payment_failed(event_data)
+        elif event_type == 'payment_method.attached':
+            success = await handle_payment_method_attached(event_data)
         else:
             logger.info(f"Тип події {event_type} не обробляється")
             success = True  # Не вважаємо це помилкою

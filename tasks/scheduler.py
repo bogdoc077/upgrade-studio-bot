@@ -61,6 +61,13 @@ class TaskScheduler:
             id='check_expired_subscriptions'
         )
         
+        # Планувальник нагадувань про наближення оплати (7 днів) кожен день о 10:00
+        self.scheduler.add_job(
+            self.check_upcoming_payments,
+            CronTrigger(hour=10, minute=0),
+            id='check_upcoming_payments'
+        )
+        
         # ❌ ВИДАЛЕНО process_payment_events - використовуємо Stripe webhooks!
         # Stripe надсилає події payment.succeeded напряму в webhook_server.py
         # Це економить ~200 запитів/годину та усуває затримки
@@ -614,6 +621,107 @@ class TaskScheduler:
             duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
             DatabaseManager.create_system_log(
                 task_type='check_expired_subscriptions',
+                status='failed',
+                message=f'Помилка: {str(e)}',
+                duration_ms=duration
+            )
+    
+    async def check_upcoming_payments(self):
+        """Перевірити підписки з наближенням оплати (7 днів)
+        
+        Виконується щодня о 10:00
+        Відправляє нагадування про автоматичне продовження підписки
+        """
+        start_time = datetime.utcnow()
+        try:
+            DatabaseManager.create_system_log(
+                task_type='check_upcoming_payments',
+                status='started',
+                message='Розпочато перевірку наближення оплат о 10:00'
+            )
+            
+            now = datetime.utcnow()
+            target_date = now + timedelta(days=7)
+            # Діапазон: від target_date до target_date + 1 день
+            date_from = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            date_to = date_from + timedelta(days=1)
+            
+            notified_count = 0
+            batch_size = 100
+            offset = 0
+            
+            while True:
+                with DatabaseManager() as db:
+                    users_batch = db.query(User).filter(
+                        User.subscription_active == True,
+                        User.subscription_cancelled == False,
+                        User.subscription_paused == False,
+                        User.auto_payment_enabled == True,
+                        User.next_billing_date.isnot(None),
+                        User.next_billing_date >= date_from,
+                        User.next_billing_date < date_to
+                    ).limit(batch_size).offset(offset).all()
+                    
+                    if not users_batch:
+                        break
+                    
+                    for user in users_batch:
+                        try:
+                            # Перевіряємо чи це не тестова підписка адміна
+                            if user.stripe_subscription_id and user.stripe_subscription_id.startswith("sub_test_"):
+                                logger.info(f"Пропускаємо повідомлення для тестової підписки адміна {user.telegram_id}")
+                                continue
+                            
+                            # Відправляємо нагадування
+                            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                            
+                            keyboard = InlineKeyboardMarkup([
+                                [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu_after_cancel")]
+                            ])
+                            
+                            await self.bot.send_message(
+                                chat_id=user.telegram_id,
+                                text="🩵 Підписка буде автоматично продовжена через 7 днів.",
+                                reply_markup=keyboard,
+                                parse_mode='Markdown'
+                            )
+                            
+                            notified_count += 1
+                            logger.info(f"Надіслано нагадування про оплату користувачу {user.telegram_id}")
+                            
+                            # Затримка між повідомленнями (100ms)
+                            await asyncio.sleep(0.1)
+                            
+                        except Exception as e:
+                            logger.error(f"Помилка відправки нагадування користувачу {user.telegram_id}: {e}")
+                            continue
+                    
+                    offset += batch_size
+                    logger.info(f"Оброблено пакет наближень оплат (offset: {offset})")
+                    
+                    # Затримка між пакетами
+                    await asyncio.sleep(0.1)
+            
+            # Логуємо успішне виконання
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='check_upcoming_payments',
+                status='completed',
+                message=f'Перевірку наближення оплат завершено о 10:00',
+                details={
+                    'notified_count': notified_count,
+                    'execution_time_ms': duration
+                },
+                duration_ms=duration
+            )
+            
+            logger.info(f"✅ Перевірка наближення оплат: notified={notified_count}, time={duration}ms")
+            
+        except Exception as e:
+            logger.error(f"Помилка при перевірці наближення оплат: {e}")
+            duration = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            DatabaseManager.create_system_log(
+                task_type='check_upcoming_payments',
                 status='failed',
                 message=f'Помилка: {str(e)}',
                 duration_ms=duration

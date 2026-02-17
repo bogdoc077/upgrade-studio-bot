@@ -3,6 +3,7 @@
 """
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -168,12 +169,47 @@ class UpgradeStudioBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обробник команди /start"""
         user = update.effective_user
+        
+        # Перевіряємо чи це новий користувач
+        existing_user = DatabaseManager.get_user_by_telegram_id(user.id)
+        is_new_user = existing_user is None
+        
         telegram_user = DatabaseManager.get_or_create_user(
             telegram_id=user.id,
             username=user.username,
             first_name=user.first_name,
             last_name=user.last_name
         )
+        
+        # Якщо новий користувач - відправляємо повідомлення в Tech групу
+        if is_new_user:
+            user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.id}"
+            await self.send_tech_notification(
+                f"👤 **Авторизація в боті**\n\n"
+                f"Користувач: {user_info}\n"
+                f"ID: `{user.id}`\n"
+                f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            )
+        
+        # Перевірка на застарілий запит фідбеку (7 днів)
+        if telegram_user.state == UserState.WAITING_CANCEL_FEEDBACK:
+            # Перевіряємо чи минуло 7 днів
+            feedback_requested_at = None
+            if 'cancel_feedback_requested_at' in context.user_data:
+                try:
+                    feedback_requested_at = datetime.fromisoformat(context.user_data['cancel_feedback_requested_at'])
+                except:
+                    pass
+            
+            # Якщо минуло 7+ днів або немає збереженого часу, скидаємо стан
+            if not feedback_requested_at or (datetime.now() - feedback_requested_at).days >= 7:
+                # Скидаємо стан на SUBSCRIPTION_OFFER для показу пропозиції підписки
+                DatabaseManager.update_user_state(user.id, UserState.SUBSCRIPTION_OFFER)
+                if 'cancel_feedback_requested_at' in context.user_data:
+                    del context.user_data['cancel_feedback_requested_at']
+                # Оновлюємо локальний об'єкт
+                telegram_user.state = UserState.SUBSCRIPTION_OFFER
         
         # Перевіряємо параметри start команди
         if context.args:
@@ -197,29 +233,29 @@ class UpgradeStudioBot:
         
         # Логіка для існуючих користувачів
         if telegram_user.subscription_active:
-            # Користувач з активною підпискою - показуємо головне меню
-            await self.show_main_menu(update, context)
+            # Користувач з активною підпискою - показуємо базове меню
+            await self.show_active_subscription_menu(user.id)
         elif telegram_user.goals or telegram_user.injuries:
             # Користувач пройшов опитування, але немає підписки - одразу створюємо платіжну сесію
             price_formatted = f"{settings.subscription_price:.0f}"
             currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
             
-            subscription_text = f"""Що тебе чекає у студії 🩵
+            subscription_text = f"""**Що тебе чекає у студії 🩵**
 
 • 3 тренування на тиждень які ніколи не повторюються
 • Доступ до тренувань поточного та попереднього місяця
 • Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
 • Тривалість 30–45 хв
 
-Додатково: 3 руханки та лекції від нутриціолога.
+**Додатково:** 3 руханки та лекції від нутриціолога.
 
-Ком'юніті неймовірних дівчат
+**Ком'юніті неймовірних дівчат**
 • підтримка в чаті та натхнення
 • практика з нутріціологом
 
 Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
 
-Вартість: {price_formatted}{currency_symbol}/місяць 🎀
+**Вартість:** {price_formatted}{currency_symbol}/місяць 🎀
 
 Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
             
@@ -320,40 +356,40 @@ class UpgradeStudioBot:
         if goal_data == "Підтягнути тіло":
             response_text = """🩵 Дякую за відповідь. Підтягнуте тіло — це і естетика, і здоров'я.
 
-Починай із занять рівня Pilates — вони закладуть надійну базу та допоможуть краще відчути тіло.
-Потім додавай Power Pilates — саме цей рівень допоможе сформувати м'язи, покращити рельєф та загальний тонус.
+Починай із занять рівня **Pilates** — вони закладуть надійну базу та допоможуть краще відчути тіло.
+Потім додавай **Power Pilates** — саме цей рівень допоможе сформувати м'язи, покращити рельєф та загальний тонус.
 
 Працюй у своєму темпі, прислухайся до себе — це найважливіше.🕊️
 
-Чи є у тебе травми про які мені варто знати?"""
+**Чи є у тебе травми про які мені варто знати?**"""
         
         elif goal_data == "Зменшити стрес":
             response_text = """🩵 Дякую за відповідь. Хронічний стрес справді впливає і на самопочуття, і на тіло, тому м'які тренування тут особливо цінні.
 
-Усі типи занять мають свою мету й працюють у комплексі, але для зниження стресу найкраще підійдуть рівень Pilates та Stretching — вони допомагають заспокоїти нервову систему, зняти напругу та повернути внутрішній спокій.🕊️
+Усі типи занять мають свою мету й працюють у комплексі, але для зниження стресу найкраще підійдуть рівень **Pilates** та **Stretching** — вони допомагають заспокоїти нервову систему, зняти напругу та повернути внутрішній спокій.🕊️
 
-Чи є у тебе травми про які мені варто знати?"""
+**Чи є у тебе травми про які мені варто знати?**"""
         
         elif goal_data == "Здоров'я спини":
             response_text = """🩵 Дякую за відповідь. Здоров'я спини це справді фундамент щоденного комфорту.
 
-Починай із рівня Pilates — він м'яко активує глибокі м'язи та формує правильні патерни руху, щоб тіло вчилося правильно рухатись у звичайному житті. Далі поступово додавай Power Pilates, щоб зміцнити м'язи й підвищити витривалість. Працюй у своєму темпі — це головне.🕊️
+Починай із рівня **Pilates** — він м'яко активує глибокі м'язи та формує правильні патерни руху, щоб тіло вчилося правильно рухатись у звичайному житті. Далі поступово додавай **Power Pilates**, щоб зміцнити м'язи й підвищити витривалість. Працюй у своєму темпі — це головне.🕊️
 
-Чи є у тебе травми про які мені варто знати?"""
+**Чи є у тебе травми про які мені варто знати?**"""
         
         elif goal_data == "Жіноче здоров'я":
             response_text = """🩵 Дякую за відповідь. Підтримка жіночого здоров'я це важлива частина щоденного комфорту.
 
-Для твоєї цілі раджу робити акцент на тренуваннях рівня Pilates — вони м'яко зміцнюють м'язи тазового дна, формують тонус та стабільність.🕊️
+Для твоєї цілі раджу робити акцент на тренуваннях рівня **Pilates** — вони м'яко зміцнюють м'язи тазового дна, формують тонус та стабільність.🕊️
 
-Чи є у тебе травми про які мені варто знати?"""
+**Чи є у тебе травми про які мені варто знати?**"""
         
         elif goal_data == "Всі пункти":
             response_text = """🩵 Дякую за відповідь. Комплексна робота з тілом це найефективніший підхід.
 
-Починай із Pilates — він закладе базу та допоможе увімкнути тіло. Потім додавай Power Pilates, щоб зміцнити м'язи й покращити витривалість. А Stretching включай для розслаблення та гнучкості 🕊️
+Починай із **Pilates** — він закладе базу та допоможе увімкнути тіло. Потім додавай **Power Pilates**, щоб зміцнити м'язи й покращити витривалість. А **Stretching** включай для розслаблення та гнучкості 🕊️
 
-Чи є у тебе травми про які мені варто знати?"""
+**Чи є у тебе травми про які мені варто знати?**"""
         
         # Оновлюємо стан
         DatabaseManager.update_user_state(query.from_user.id, UserState.SURVEY_INJURIES)
@@ -426,6 +462,41 @@ class UpgradeStudioBot:
             if key.lower() in injury.lower():
                 return injury
         return key
+
+    async def show_active_subscription_menu(self, user_id: int):
+        """Показати базове меню для користувачів з активною підпискою"""
+        user = DatabaseManager.get_user_by_telegram_id(user_id)
+        if not user:
+            return
+        
+        # Рахуємо дні членства
+        days_member = (datetime.utcnow() - user.member_since).days
+        
+        # Перевіряємо статус підписки
+        if user.subscription_paused:
+            # Підписка призупинена
+            subscription_end_date = user.subscription_end_date
+            if subscription_end_date:
+                menu_text = f"**Підписка призупинена** ⏸️\n\nДоступ до студії та спільноти залишається до **{subscription_end_date.strftime('%d.%m')}**"
+            else:
+                menu_text = f"**Підписка призупинена** ⏸️"
+        elif user.subscription_cancelled:
+            # Підписка скасована
+            subscription_end_date = user.subscription_end_date
+            if subscription_end_date:
+                menu_text = f"**Підписка скасована** ❌\n\nДоступ до студії та спільноти залишається до **{subscription_end_date.strftime('%d.%m')}**"
+            else:
+                menu_text = f"**Підписка скасована** ❌"
+        else:
+            # Підписка активна
+            menu_text = f"**Підписка активна** ✅\n\nТи зі мною вже: **{days_member} днів**"
+        
+        await self.bot.send_message(
+            chat_id=user_id,
+            text=menu_text,
+            parse_mode='Markdown',
+            reply_markup=get_main_menu_keyboard()
+        )
 
     async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати головне меню"""
@@ -563,56 +634,58 @@ class UpgradeStudioBot:
         
         # Формуємо текст з інформацією про підписку
         if user.subscription_active:
-            # Використовуємо дані з бази даних
+            # Отримуємо актуальну інформацію зі Stripe
             subscription_end_date = user.subscription_end_date
             next_billing_date = user.next_billing_date
+            subscription_price = settings.subscription_price
+            currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
             
             if user.is_admin() and (user.stripe_subscription_id or "").startswith("sub_test_"):
-                # Для тестових підписок адміна
+                # Для тестових підписок адміна - використовуємо дані з БД
                 if user.subscription_paused:
-                    text = "**Ваша підписка призупинена** (тестовий режим)\n\n"
+                    text = "**Підписка призупинена**\n\n"
                     if subscription_end_date:
-                        text += f"Дія до: {subscription_end_date.strftime('%d.%m.%Y')}\n"
-                    text += "Автоплатіж: неактивний"
-                elif user.subscription_cancelled:
-                    text = f"**Підписка скасована** (тестовий режим)\n\n"
-                    if subscription_end_date:
-                        text += f"Закінчення підписки: {subscription_end_date.strftime('%d.%m.%Y')}\n"
-                    text += "Автоплатіж: неактивний"
-                else:
-                    text = f"**Ваша підписка активна** (тестовий режим)\n\n"
-                    if next_billing_date:
-                        text += f"Наступне поновлення: {next_billing_date.strftime('%d.%m.%Y')}\n"
-                    text += "Автоплатіж: активний"
-            else:
-                # Для реальних підписок
-                autopay_status = "неактивний"
-                
-                # Перевіряємо статус автоплатежу через Stripe (якщо потрібно)
-                if user.stripe_subscription_id and not user.subscription_cancelled and not user.subscription_paused:
-                    try:
-                        subscription_info = await StripeManager.get_subscription(user.stripe_subscription_id)
-                        if subscription_info and not subscription_info.get('cancel_at_period_end', False):
-                            autopay_status = "активний"
-                    except Exception as e:
-                        logger.warning(f"Не вдалося отримати статус автоплатежу: {e}")
-                        autopay_status = "активний" # Припускаємо активний, якщо не скасований
-                
-                if user.subscription_paused:
-                    text = f"**Ваша підписка призупинена**\n\n"
-                    if subscription_end_date:
-                        text += f"Дія до: {subscription_end_date.strftime('%d.%m.%Y')}\n"
-                    text += "Автоплатіж: неактивний"
+                        text += f"Дія до: {subscription_end_date.strftime('%d.%m')}\n"
+                    text += f"Сума оплати: {subscription_price:.0f}{currency_symbol}"
                 elif user.subscription_cancelled:
                     text = f"**Підписка скасована**\n\n"
                     if subscription_end_date:
-                        text += f"Закінчення підписки: {subscription_end_date.strftime('%d.%m.%Y')}\n"
-                    text += "Автоплатіж: неактивний"
+                        text += f"Закінчення підписки: {subscription_end_date.strftime('%d.%m')}\n"
+                    text += f"Сума оплати: {subscription_price:.0f}{currency_symbol}"
                 else:
-                    text = f"**Ваша підписка активна**\n\n"
+                    text = f"**Підписка активна** ✅\n\n"
                     if next_billing_date:
-                        text += f"Наступне поновлення: {next_billing_date.strftime('%d.%m.%Y')}\n"
-                    text += f"Автоплатіж: {autopay_status}"
+                        text += f"Наступний платіж: {next_billing_date.strftime('%d.%m')}\n"
+                    text += f"Сума оплати: {subscription_price:.0f}{currency_symbol}"
+            else:
+                # Для реальних підписок - завжди отримуємо актуальні дані зі Stripe
+                if user.stripe_subscription_id:
+                    try:
+                        subscription_info = await StripeManager.get_subscription(user.stripe_subscription_id)
+                        if subscription_info:
+                            # Отримуємо актуальну дату наступного платежу зі Stripe
+                            next_billing_date = datetime.fromtimestamp(subscription_info['current_period_end'])
+                            subscription_end_date = next_billing_date
+                            
+                            logger.info(f"Отримано актуальні дані зі Stripe для користувача {user_id}: next_billing={next_billing_date.strftime('%d.%m.%Y')}")
+                    except Exception as e:
+                        logger.warning(f"Не вдалося отримати дані зі Stripe для користувача {user_id}: {e}")
+                
+                if user.subscription_paused:
+                    text = f"**Підписка призупинена** ⏸️\n\n"
+                    if subscription_end_date:
+                        text += f"Доступ до: {subscription_end_date.strftime('%d.%m')}\n"
+                    text += f"Сума оплати: {subscription_price:.0f}{currency_symbol}"
+                elif user.subscription_cancelled:
+                    text = f"**Підписка скасована** ❌\n\n"
+                    if subscription_end_date:
+                        text += f"Закінчення підписки: {subscription_end_date.strftime('%d.%m')}\n"
+                    text += f"Сума оплати: {subscription_price:.0f}{currency_symbol}"
+                else:
+                    text = f"**Підписка активна** ✅\n\n"
+                    if next_billing_date:
+                        text += f"Наступний платіж: {next_billing_date.strftime('%d.%m')}\n"
+                    text += f"Сума оплати: {subscription_price:.0f}{currency_symbol}"
         else:
             text = "У вас немає активної підписки"
         
@@ -783,6 +856,57 @@ class UpgradeStudioBot:
         # Зберігаємо ID нового повідомлення меню
         self.last_menu_messages[user_id] = sent_message.message_id
     
+    async def handle_go_to_studio(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Перейти в студію (канал)"""
+        user_id = update.effective_user.id
+        
+        # Отримуємо посилання на канал
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = [[InlineKeyboardButton(
+            text="🩵 Перейти в студію",
+            url=f"https://t.me/c/{settings.private_channel_id.replace('-100', '')}"
+        )]]
+        
+        await update.message.reply_text(
+            "Натисни кнопку нижче, щоб перейти в студію 🎀",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    
+    async def handle_go_to_community(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Перейти в спільноту (чат)"""
+        user_id = update.effective_user.id
+        
+        # Отримуємо посилання на чат
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = [[InlineKeyboardButton(
+            text="💬 Перейти в спільноту",
+            url=f"https://t.me/c/{settings.private_chat_id.replace('-100', '')}"
+        )]]
+        
+        await update.message.reply_text(
+            "Натисни кнопку нижче, щоб перейти в спільноту 🎀",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    
+    async def handle_ask_question(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Задати питання"""
+        user_id = update.effective_user.id
+        
+        # Надсилаємо контакт для питань
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = [[InlineKeyboardButton(
+            text="Написати Альоні",
+            url="https://t.me/alionakovaliova"
+        )]]
+        
+        await update.message.reply_text(
+            "Якщо у тебе виникли питання, напиши мені — з радістю допоможу! ✨",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Загальний обробник callback запитів"""
         query = update.callback_query
@@ -801,12 +925,51 @@ class UpgradeStudioBot:
             await self.show_more_info(update, context)
         elif data == "main_menu":
             await self.show_main_menu(update, context)
+        elif data == "main_menu_after_cancel":
+            # Після фідбеку показуємо базове меню
+            await query.answer()
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            await self.show_active_subscription_menu(query.from_user.id)
         elif data == "pause_subscription":
             await self.pause_subscription(update, context)
+        elif data == "confirm_pause_subscription":
+            await self.confirm_pause_subscription(update, context)
+        elif data == "back_to_subscription_menu":
+            await query.answer()
+            # Видаляємо попереднє повідомлення
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            # Повертаємось до меню керування підпискою
+            await self.handle_subscription_management_from_callback(query.from_user.id)
         elif data == "resume_subscription":
             await self.resume_subscription(update, context)
         elif data == "cancel_subscription":
             await self.cancel_subscription(update, context)
+        elif data == "confirm_cancel_subscription":
+            await self.confirm_cancel_subscription(update, context)
+        elif data == "change_payment_method":
+            await self.change_payment_method(update, context)
+        elif data == "back_to_main_menu":
+            # Кнопка "Назад" - повертає в головне меню
+            await query.answer()
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            await self.show_active_subscription_menu(query.from_user.id)
+        elif data == "manage_subscription":
+            # Кнопка "Керувати підпискою"
+            await query.answer()
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            await self.handle_subscription_management_from_callback(query.from_user.id)
         elif data == "refresh_dashboard":
             await self.handle_dashboard(update, context)
         elif data == "join_channel_access":
@@ -846,6 +1009,9 @@ class UpgradeStudioBot:
         # Ігноруємо повідомлення з кнопок меню - вони обробляються окремими handlers
         menu_buttons = [
             Buttons.MANAGE_SUBSCRIPTION,
+            Buttons.GO_TO_STUDIO,
+            Buttons.GO_TO_COMMUNITY,
+            Buttons.ASK_QUESTION,
             Buttons.DASHBOARD,
             Buttons.SUPPORT,
             Buttons.MAIN_MENU,
@@ -862,15 +1028,6 @@ class UpgradeStudioBot:
             except Exception:
                 pass
             
-            # Показуємо попередження та зберігаємо ID
-            warning_msg = await self.bot.send_message(
-                chat_id=update.effective_user.id,
-                text="Оберіть один з наведених варіантів"
-            )
-            
-            # Затримка
-            await asyncio.sleep(0.5)
-            
             # Повторно показуємо питання з варіантами та зберігаємо ID
             question_msg = await self.bot.send_message(
                 chat_id=update.effective_user.id,
@@ -878,8 +1035,8 @@ class UpgradeStudioBot:
                 reply_markup=get_survey_goals_keyboard()
             )
             
-            # Зберігаємо ID обох повідомлень
-            self.survey_error_messages[update.effective_user.id] = [warning_msg.message_id, question_msg.message_id]
+            # Зберігаємо ID повідомлення
+            self.survey_error_messages[update.effective_user.id] = [question_msg.message_id]
             return
         
         # Якщо користувач у стані вибору травм - очікуємо тільки callback з кнопок
@@ -890,15 +1047,6 @@ class UpgradeStudioBot:
             except Exception:
                 pass
             
-            # Показуємо попередження та зберігаємо ID
-            warning_msg = await self.bot.send_message(
-                chat_id=update.effective_user.id,
-                text="Оберіть один з наведених варіантів"
-            )
-            
-            # Затримка
-            await asyncio.sleep(0.5)
-            
             # Повторно показуємо питання з варіантами та зберігаємо ID
             question_msg = await self.bot.send_message(
                 chat_id=update.effective_user.id,
@@ -906,8 +1054,8 @@ class UpgradeStudioBot:
                 reply_markup=get_survey_injuries_keyboard()
             )
             
-            # Зберігаємо ID обох повідомлень
-            self.survey_error_messages[update.effective_user.id] = [warning_msg.message_id, question_msg.message_id]
+            # Зберігаємо ID повідомлення
+            self.survey_error_messages[update.effective_user.id] = [question_msg.message_id]
             return
         
         # Якщо користувач вводить свою ціль
@@ -917,15 +1065,9 @@ class UpgradeStudioBot:
             DatabaseManager.save_survey_data(update.effective_user.id, goals=custom_goal)
             DatabaseManager.update_user_state(update.effective_user.id, UserState.SURVEY_INJURIES)
             
-            # Подяка
-            await update.message.reply_text("Дякую за відповідь 🩵")
-            
-            await asyncio.sleep(0.5)
-            
-            # Наступне питання про травми
-            await self.bot.send_message(
-                chat_id=update.effective_user.id,
-                text="Чи є у тебе травми про які мені варто знати?",
+            # Об'єднане повідомлення з подякою та питанням про травми
+            await update.message.reply_text(
+                text="Дякую за відповідь 🩵\n\nЧи є у тебе травми про які мені варто знати?",
                 reply_markup=get_survey_injuries_keyboard()
             )
             return
@@ -942,6 +1084,68 @@ class UpgradeStudioBot:
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")
                 ]])
+            )
+            return
+        
+        # Обробка фідбеку після скасування підписки
+        if user.state == UserState.WAITING_CANCEL_FEEDBACK:
+            # Зберігаємо фідбек (відправимо в Tech групу)
+            feedback_text = user_text
+            
+            # Підраховуємо кількість успішних оплат
+            from database.models import Payment
+            with DatabaseManager() as db:
+                payment_count = db.query(Payment).filter(
+                    Payment.user_id == user.id,
+                    Payment.status.in_(["succeeded", "completed"])
+                ).count()
+            
+            # Отримуємо дату скасування з контексту
+            cancel_date_str = datetime.now().strftime('%d.%m.%Y %H:%M')
+            if 'cancel_date' in context.user_data:
+                try:
+                    cancel_date = datetime.fromisoformat(context.user_data['cancel_date'])
+                    cancel_date_str = cancel_date.strftime('%d.%m.%Y %H:%M')
+                except:
+                    pass
+            
+            # Відправляємо повідомлення в Tech групу з фідбеком
+            user_info = f"@{update.effective_user.username}" if update.effective_user.username else update.effective_user.full_name
+            await self.send_tech_notification(
+                f"❌ **Скасована клієнтом**\n\n"
+                f"Користувач: {user_info}\n"
+                f"ID: `{update.effective_user.id}`\n"
+                f"Ім'я: {update.effective_user.first_name} {update.effective_user.last_name or ''}\n"
+                f"Дата: {cancel_date_str}\n"
+                f"Успішних оплат: {payment_count}\n"
+                f"Побажання: {feedback_text}"
+            )
+            
+            # Оновлюємо стан
+            DatabaseManager.update_user_state(update.effective_user.id, UserState.SUBSCRIPTION_CANCELLED)
+            
+            # Очищуємо збережений час запиту фідбеку
+            if 'cancel_feedback_requested_at' in context.user_data:
+                del context.user_data['cancel_feedback_requested_at']
+            
+            # Отримуємо дату закінчення підписки
+            subscription_end_date = user.subscription_end_date
+            if subscription_end_date:
+                end_date_str = subscription_end_date.strftime('%d.%m')
+            else:
+                end_date_str = "кінця поточного періоду"
+            
+            # Відправляємо подяку з кнопкою головного меню
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✨ Головне меню", callback_data="main_menu_after_cancel")
+            ]])
+            
+            await update.message.reply_text(
+                f"🩵 Щиро дякую.\n\n"
+                f"Доступ до студії та спільноти залишатиметься до {end_date_str}, а нові списання не відбуватимуться.\n\n"
+                f"Якщо захочеш поновити підписку, ти завжди зможеш зробити це в цьому боті.",
+                reply_markup=keyboard,
+                parse_mode='Markdown'
             )
             return
     
@@ -1051,22 +1255,22 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             price_formatted = f"{settings.subscription_price:.0f}"
             currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
             
-            subscription_text = f"""Що тебе чекає у студії 🩵
+            subscription_text = f"""**Що тебе чекає у студії 🩵**
 
 • 3 тренування на тиждень які ніколи не повторюються
 • Доступ до тренувань поточного та попереднього місяця
 • Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
 • Тривалість 30–45 хв
 
-Додатково: 3 руханки та лекції від нутриціолога.
+**Додатково:** 3 руханки та лекції від нутриціолога.
 
-Ком'юніті неймовірних дівчат
+**Ком'юніті неймовірних дівчат**
 • підтримка в чаті та натхнення
 • практика з нутріціологом
 
 Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
 
-Вартість: {price_formatted}{currency_symbol}/місяць 🎀
+**Вартість:** {price_formatted}{currency_symbol}/місяць 🎀
 
 Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
             
@@ -1089,7 +1293,48 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             )
     
     async def pause_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Призупинити підписку"""
+        """Показати підтвердження призупинення підписки"""
+        query = update.callback_query
+        await query.answer()
+        
+        user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
+        if not user or not user.stripe_subscription_id:
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="Активна підписка не знайдена"
+            )
+            return
+        
+        # Отримуємо дату закінчення доступу
+        subscription_end_date = user.subscription_end_date or user.next_billing_date
+        if not subscription_end_date:
+            subscription_end_date = datetime.utcnow() + timedelta(days=30)
+        
+        # Видаляємо попереднє повідомлення
+        try:
+            await query.message.delete()
+        except Exception as e:
+            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Показуємо підтвердження
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        confirmation_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏸️ Призупинити підписку", callback_data="confirm_pause_subscription")],
+            [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")],
+            [InlineKeyboardButton("↩️ Назад", callback_data="back_to_subscription_menu")]
+        ])
+        
+        await self.bot.send_message(
+            chat_id=query.from_user.id,
+            text=f"Після призупинення підписки доступ до студії та спільноти буде активним до {subscription_end_date.strftime('%d.%m')}. "
+                 f"Оплата більше не списуватиметься. Ти зможеш поновити підписку в будь-який момент.\n\n"
+                 f"Якщо у тебе виникли будь-які питання, напиши мені.",
+            reply_markup=confirmation_keyboard
+        )
+    
+    async def confirm_pause_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Підтвердити призупинення підписки"""
         query = update.callback_query
         await query.answer()
         
@@ -1126,20 +1371,12 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             except Exception as e:
                 logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text=f"⏸ **Підписка призупинена** (тестовий режим адміна)\n\n"
-                     f"Автоплатіж деактивовано. Доступ до приватних каналів зберігається до {subscription_end_date.strftime('%d.%m.%Y')}.\n\n"
-                     f"Ви можете поновити автоплатіж в будь-який час.",
-                parse_mode='Markdown'
-            )
-            
-            # Автоматично відкриваємо меню керування підпискою
-            await self.handle_subscription_management_from_callback(query.from_user.id)
+            # Показуємо базове меню з новим статусом
+            await self.show_active_subscription_menu(query.from_user.id)
             return
         
         # Звичайна обробка для реальних користувачів
-        logger.info(f"Спроба призупинити підписку для користувача {query.from_user.id}, stripe_sub_id={user.stripe_subscription_id}")
+        logger.info(f"Підтвердження призупинення підписки для користувача {query.from_user.id}, stripe_sub_id={user.stripe_subscription_id}")
         
         # Отримуємо поточну дату закінчення підписки (до якої оплачено)
         subscription_end_date = user.subscription_end_date or user.next_billing_date
@@ -1172,26 +1409,18 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             except Exception as e:
                 logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text=f"⏸ **Підписка призупинена**\n\n"
-                     f"Автоплатіж деактивовано. Доступ до приватних каналів зберігається до {subscription_end_date.strftime('%d.%m.%Y') if isinstance(subscription_end_date, datetime) else subscription_end_date}.\n\n"
-                     f"Ви можете поновити автоплатіж в будь-який час.",
-                parse_mode='Markdown'
-            )
-            
             # Відправляємо повідомлення в Tech групу
             user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
             await self.send_tech_notification(
-                f"⏸ **Підписка призупинена**\n\n"
+                f"⏸️ **Підписка призупинена**\n\n"
                 f"Користувач: {user_info}\n"
                 f"ID: `{query.from_user.id}`\n"
                 f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
                 f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
             
-            # Автоматично відкриваємо меню керування підпискою
-            await self.handle_subscription_management_from_callback(query.from_user.id)
+            # Показуємо базове меню з новим статусом
+            await self.show_active_subscription_menu(query.from_user.id)
         else:
             await self.bot.send_message(
                 chat_id=query.from_user.id,
@@ -1299,7 +1528,48 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             )
     
     async def cancel_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Скасувати підписку"""
+        """Показати підтвердження скасування підписки"""
+        query = update.callback_query
+        await query.answer()
+        
+        user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
+        if not user or not user.stripe_subscription_id:
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="Активна підписка не знайдена"
+            )
+            return
+        
+        # Отримуємо дату закінчення доступу
+        subscription_end_date = user.subscription_end_date or user.next_billing_date
+        if not subscription_end_date:
+            subscription_end_date = datetime.utcnow() + timedelta(days=30)
+        
+        # Видаляємо попереднє повідомлення
+        try:
+            await query.message.delete()
+        except Exception as e:
+            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Показуємо підтвердження
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        confirmation_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ Скасувати підписку", callback_data="confirm_cancel_subscription")],
+            [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")],
+            [InlineKeyboardButton("↩️ Назад", callback_data="back_to_subscription_menu")]
+        ])
+        
+        await self.bot.send_message(
+            chat_id=query.from_user.id,
+            text=f"Після скасування підписки доступ до студії та спільноти буде активним до {subscription_end_date.strftime('%d.%m')}. "
+                 f"Оплата більше не списуватиметься. Щоб знову отримати доступ, потрібно буде оформити нову підписку.\n\n"
+                 f"Якщо у тебе виникли будь-які питання, напиши мені.",
+            reply_markup=confirmation_keyboard
+        )
+    
+    async def confirm_cancel_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Підтвердити скасування підписки"""
         query = update.callback_query
         await query.answer()
         
@@ -1334,17 +1604,8 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             except Exception as e:
                 logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text=f"**Підписка скасована** (тестовий режим адміна)\n\n"
-                     f"Ваша підписка скасована, але доступ залишається до {subscription_end_date.strftime('%d.%m.%Y')}.\n\n"
-                     f"Після цієї дати доступ до приватних каналів буде заблокований.\n\n"
-                     f"Ви можете оформити нову підписку в будь-який час через /start",
-                parse_mode='Markdown'
-            )
-            
-            # Автоматично відкриваємо меню керування підпискою
-            await self.handle_subscription_management_from_callback(query.from_user.id)
+            # Показуємо базове меню з новим статусом
+            await self.show_active_subscription_menu(query.from_user.id)
             return
         
         # Звичайна обробка для реальних користувачів
@@ -1377,33 +1638,89 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             except Exception as e:
                 logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
+            # Зберігаємо дані для відправки в Tech групу після отримання фідбеку
+            context.user_data['cancel_subscription_date'] = subscription_end_date.isoformat()
+            context.user_data['cancel_date'] = datetime.now().isoformat()
+            
+            # Встановлюємо стан очікування фідбеку
+            DatabaseManager.update_user_state(query.from_user.id, UserState.WAITING_CANCEL_FEEDBACK)
+            
+            # Зберігаємо час запиту фідбеку в контексті користувача
+            context.user_data['cancel_feedback_requested_at'] = datetime.now().isoformat()
+            
+            # Відправляємо повідомлення з проханням фідбеку
             await self.bot.send_message(
                 chat_id=query.from_user.id,
-                text=f"**Підписка скасована**\n\n"
-                     f"Ваша підписка скасована, але доступ залишається до {subscription_end_date.strftime('%d.%m.%Y')}.\n\n"
-                     f"Після цієї дати доступ до приватних каналів буде заблокований.\n\n"
-                     f"Дякуємо, що були з нами! Ви можете оформити нову підписку в будь-який час через /start",
+                text="Підписку скасовано ❌\n\n"
+                     "Дякую, що була зі мною 🕊️\n\n"
+                     "Буду вдячна, якщо поділишся, що тобі сподобалося в студії та що можна покращити.",
                 parse_mode='Markdown'
             )
-            
-            # Відправляємо повідомлення в Tech групу
-            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
-            await self.send_tech_notification(
-                f"🔴 **Підписка скасована**\n\n"
-                f"Користувач: {user_info}\n"
-                f"ID: `{query.from_user.id}`\n"
-                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
-                f"Доступ до: {subscription_end_date.strftime('%d.%m.%Y')}\n"
-                f"Дата скасування: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-            )
-            
-            # Автоматично відкриваємо меню керування підпискою
-            await self.handle_subscription_management_from_callback(query.from_user.id)
         else:
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Помилка при скасуванні підписки"
             )
+    
+    async def change_payment_method(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Змінити платіжний метод через Stripe Billing Portal"""
+        query = update.callback_query
+        await query.answer()
+        
+        user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
+        if not user or not user.stripe_customer_id:
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="Активна підписка не знайдена"
+            )
+            return
+        
+        # Видаляємо попереднє повідомлення з кнопками
+        try:
+            await query.message.delete()
+        except Exception as e:
+            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Створюємо return URL для повернення після зміни платіжного методу
+        bot_username = "upgrade21studio_bot"
+        return_url = f"https://t.me/{bot_username}"
+        
+        # Створюємо Billing Portal сесію
+        portal_url = await StripeManager.create_billing_portal_session(
+            customer_id=user.stripe_customer_id,
+            return_url=return_url
+        )
+        
+        if portal_url:
+            # Відправляємо посилання на портал
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 Змінити платіжний метод", url=portal_url)],
+                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")],
+                [InlineKeyboardButton("↩️ Назад", callback_data="back_to_subscription_menu")]
+            ])
+            
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="Щоб змінити платіжний метод, натисни кнопку нижче та введи нові платіжні дані.\n"
+                     "Наступне списання відбудеться з урахуванням змін.\n\n"
+                     "Якщо у тебе виникнуть будь-які питання, напиши мені.",
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+        else:
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="❌ Виникла помилка при створенні посилання.\n\n"
+                     "Будь ласка, зв'яжіться з підтримкою:\n"
+                     "👉 @alionakovaliova",
+                parse_mode='Markdown'
+            )
+            
+            # Автоматично відкриваємо меню керування підпискою
+            await asyncio.sleep(2)
+            await self.handle_subscription_management_from_callback(query.from_user.id)
     
     async def handle_successful_payment(self, telegram_id: int):
         """Обробити успішну оплату - надіслати кнопки для приєднання"""
@@ -1465,19 +1782,6 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             if cancelled_count > 0:
                 logger.info(f"Скасовано {cancelled_count} нагадувань про підписку для користувача {telegram_id}")
             
-            # Надсилаємо одне повідомлення про успішну оплату
-            await self.bot.send_message(
-                chat_id=telegram_id,
-                text="🎉 **Вітаю! Оплата успішна!**\n\n"
-                     "Ваша підписка активована! Тепер ви — частина UPGRADE21 STUDIO.\n\n"
-                     "**Що далі:**\n"
-                     "1. Приєднайтеся до наших приватних спільнот\n"
-                     "2. Знайдіться з тренером\n"
-                     "3. Почніть свою трансформацію!\n\n"
-                     "Ласкаво просимо в родину UPGRADE21! 💪",
-                parse_mode='Markdown'
-            )
-            
             # Отримуємо активні посилання з бази
             invite_links = DatabaseManager.get_active_invite_links()
             # Фільтруємо тільки невикінчені посилання
@@ -1495,7 +1799,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 # Є посилання на канал з БД
                 keyboard = [
                     [InlineKeyboardButton(
-                        text="📺 Надіслати запит на приєднання до каналу",
+                        text="🎀 Приєднатися до студії",
                         url=channel_link.invite_link
                     )]
                 ]
@@ -1504,10 +1808,10 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 
                 msg = await self.bot.send_message(
                     chat_id=telegram_id,
-                    text="📱 **Крок 1: Приєднання до каналу**\n\n"
-                         "Натисніть кнопку нижче і надішліть запит на приєднання до нашого приватного каналу.\n\n"
-                         "✅ Я автоматично схвалю ваш запит, як тільки побачу його!\n\n"
-                         "⏰ **Важливо:** приєднайтеся протягом доби",
+                    text="✨ **Вітаю! Твою підписку активовано!**\n\n"
+                         "Тепер ти — частина UPGRADE.21 🩵\n\n"
+                         "**Крок 1:**\n"
+                         "Натисни кнопку нижче та надішли запит на приєднання до онлайн-студії, де ти будеш тренуватися.",
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
@@ -1525,7 +1829,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 
                 keyboard = [
                     [InlineKeyboardButton(
-                        text="📺 Надіслати запит на приєднання до каналу",
+                        text="🎀 Приєднатися до студії",
                         url=f"https://t.me/c/{channel_username}"
                     )]
                 ]
@@ -1534,10 +1838,10 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 
                 await self.bot.send_message(
                     chat_id=telegram_id,
-                    text="📱 **Крок 1: Приєднання до каналу**\n\n"
-                         "Натисніть кнопку нижче і надішліть запит на приєднання до нашого приватного каналу.\n\n"
-                         "✅ Я автоматично схвалю ваш запит, як тільки побачу його!\n\n"
-                         "⏰ **Важливо:** приєднайтеся протягом доби",
+                    text="✨ **Вітаю! Твою підписку активовано!**\n\n"
+                         "Тепер ти — частина UPGRADE.21 🩵\n\n"
+                         "**Крок 1:**\n"
+                         "Натисни кнопку нижче та надішли запит на приєднання до онлайн-студії, де ти будеш тренуватися.",
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
@@ -2061,7 +2365,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                         if chat_link:
                             keyboard = [
                                 [InlineKeyboardButton(
-                                    text="💬 Надіслати запит на приєднання до групи",
+                                    text="💬 Приєднатися до спільноти",
                                     url=chat_link.invite_link
                                 )]
                             ]
@@ -2070,9 +2374,8 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                             
                             msg = await self.bot.send_message(
                                 chat_id=user_id,
-                                text="📱 **Крок 2: Приєднання до групи**\n\n"
-                                     "Натисніть кнопку нижче і надішліть запит на приєднання до нашої приватної групи.\n\n"
-                                     "✅ Я автоматично схвалю ваш запит!",
+                                text="**Крок 2:**\n\n"
+                                     "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.",
                                 reply_markup=reply_markup,
                                 parse_mode='Markdown'
                             )
@@ -2085,7 +2388,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                             chat_username = settings.private_chat_id.replace('-100', '')
                             keyboard = [
                                 [InlineKeyboardButton(
-                                    text="💬 Надіслати запит на приєднання до групи",
+                                    text="💬 Приєднатися до спільноти",
                                     url=f"https://t.me/c/{chat_username}"
                                 )]
                             ]
@@ -2094,9 +2397,8 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                             
                             msg = await self.bot.send_message(
                                 chat_id=user_id,
-                                text="📱 **Крок 2: Приєднання до групи**\n\n"
-                                     "Натисніть кнопку нижче і надішліть запит на приєднання до нашої приватної групи.\n\n"
-                                     "✅ Я автоматично схвалю ваш запит!",
+                                text="**Крок 2:**\n\n"
+                                     "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.",
                                 reply_markup=reply_markup,
                                 parse_mode='Markdown'
                             )
@@ -2122,20 +2424,19 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                             # Очищаємо список
                             del self.join_step_messages[user_id]
                         
-                        # Надсилаємо фінальне повідомлення про успішне завершення
-                        await self.bot.send_message(
-                            chat_id=user_id,
-                            text="🎉 **Вітаємо у UPGRADE21 STUDIO!**\n\n"
-                                 "✅ Ви успішно приєдналися до каналу та групи!\n\n"
-                                 "Тепер у вас є повний доступ до:\n"
-                                 "• Всіх тренувань та матеріалів\n"
-                                 "• Приватної спільноти однодумців\n"
-                                 "• Підтримки професійних тренерів\n\n"
-                                 "Почніть свою трансформацію вже сьогодні! 💪\n\n"
-                                 "Використовуйте меню нижче для керування підпискою.",
-                            parse_mode='Markdown',
-                            reply_markup=get_main_menu_keyboard()
-                        )
+                        # Надсилаємо відео кружечок замість текстового повідомлення
+                        video_path = "assets/welcome_video.mp4"
+                        if os.path.exists(video_path):
+                            await self.bot.send_video_note(
+                                chat_id=user_id,
+                                video_note=open(video_path, "rb")
+                            )
+                        
+                        # Затримка 5 секунд, щоб людина встигла подивитись кружечок
+                        await asyncio.sleep(5)
+                        
+                        # Відправляємо базове меню з підпискою
+                        await self.show_active_subscription_menu(user_id)
                         
                         # Встановлюємо стан активної підписки
                         DatabaseManager.update_user_state(user_id, UserState.ACTIVE_SUBSCRIPTION)
@@ -2299,13 +2600,13 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         
         if chat_link:
             keyboard = [[InlineKeyboardButton(
-                text="Приєднатися до чату",
+                text="💬 Приєднатися до спільноти",
                 url=chat_link.invite_link
             )]]
         else:
             # Fallback
             keyboard = [[InlineKeyboardButton(
-                text="Приєднатися до чату",
+                text="💬 Приєднатися до спільноти",
                 url=f"https://t.me/{settings.private_chat_id.lstrip('-')}"
             )]]
         
@@ -2319,9 +2620,9 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         
         await self.bot.send_message(
             chat_id=user_id,
-            text="**Крок 2: Приєднання до чату**\n\n"
-                 "Тепер приєднайтеся до нашого приватного чату для спілкування з іншими учасниками та тренерами.\n\n"
-                 "Після приєднання натисніть кнопку ' Я приєднався до чату'",
+            text="**Крок 2:**\n\n"
+                 "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.\n\n"
+                 "Після приєднання натисніть кнопку 'Я приєднався до чату'",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -2352,22 +2653,22 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             else:
                 logger.error(f"Користувач {user_id} не знайдений при оновленні joined_chat")
         
-        # Відправляємо повідомлення про успішне завершення приєднання
-        await self.bot.send_message(
-            chat_id=user_id,
-            text="**Вітаємо у UPGRADE21 STUDIO!**\n\n"
-                 "Ви успішно приєдналися до каналу та чату!\n"
-                 "Тепер у вас є повний доступ до всіх можливостей нашої спільноти!\n\n"
-                 "Переходимо до керування вашою підпискою...",
-            parse_mode='Markdown'
-        )
+        # Надсилаємо відео кружечок замість текстового повідомлення
+        video_path = "assets/welcome_video.mp4"
+        if os.path.exists(video_path):
+            await self.bot.send_video_note(
+                chat_id=user_id,
+                video_note=open(video_path, "rb")
+            )
+        
+        # Затримка 5 секунд, щоб людина встигла подивитись кружечок
+        await asyncio.sleep(5)
+        
+        # Відправляємо базове меню з підпискою
+        await self.show_active_subscription_menu(user_id)
         
         # Встановлюємо стан активної підписки
         DatabaseManager.update_user_state(user_id, UserState.ACTIVE_SUBSCRIPTION)
-        
-        # Автоматично відкриваємо меню керування підпискою
-        await asyncio.sleep(2)  # Коротка затримка для читабельності
-        await self.handle_subscription_management(update, context)
 
     async def handle_go_to_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Перейти в канал (користувач вже приєднаний)"""
@@ -2590,6 +2891,18 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         app.add_handler(MessageHandler(
             filters.Regex(f"^{Buttons.MANAGE_SUBSCRIPTION}$"), 
             self.handle_subscription_management
+        ))
+        app.add_handler(MessageHandler(
+            filters.Regex(f"^{Buttons.GO_TO_STUDIO}$"), 
+            self.handle_go_to_studio
+        ))
+        app.add_handler(MessageHandler(
+            filters.Regex(f"^{Buttons.GO_TO_COMMUNITY}$"), 
+            self.handle_go_to_community
+        ))
+        app.add_handler(MessageHandler(
+            filters.Regex(f"^{Buttons.ASK_QUESTION}$"), 
+            self.handle_ask_question
         ))
         app.add_handler(MessageHandler(
             filters.Regex(f"^{Buttons.DASHBOARD}$"), 

@@ -193,6 +193,7 @@ class UserState:
     PAYMENT_PENDING = "payment_pending"
     SUBSCRIPTION_PAUSED = "subscription_paused"
     SUBSCRIPTION_CANCELLED = "subscription_cancelled"
+    WAITING_CANCEL_FEEDBACK = "waiting_cancel_feedback"
     CHANNEL_JOIN_PENDING = "channel_join_pending"
     CHAT_JOIN_PENDING = "chat_join_pending"
 
@@ -202,12 +203,16 @@ class Buttons:
     MAIN_MENU = "🎛 Головне меню"
     JOIN = "Приєднатися"
     SUBSCRIBE = "🟢 Оформити підписку"
-    MANAGE_SUBSCRIPTION = "⚙️ Керувати підпискою"
+    MANAGE_SUBSCRIPTION = "✨ Керувати підпискою"
+    GO_TO_STUDIO = "🩵 Перейти в студію"
+    GO_TO_COMMUNITY = "💬 Перейти в спільноту"
+    ASK_QUESTION = "❓ Задати питання"
     SUPPORT = "⁉️ Підтримка"
     DASHBOARD = "📊 Дашборд"
-    PAUSE_SUBSCRIPTION = "🟠 Призупинити підписку"
-    CANCEL_SUBSCRIPTION = "🔴 Скасувати підписку"
-    RESUME_SUBSCRIPTION = "🟢 Поновити підписку"
+    PAUSE_SUBSCRIPTION = "⏸️ Призупинити підписку"
+    CANCEL_SUBSCRIPTION = "❌ Скасувати підписку"
+    CHANGE_PAYMENT_METHOD = "💳 Змінити платіжний метод"
+    RESUME_SUBSCRIPTION = "▶️ Поновити підписку"
 
 # Тексти повідомлень
 class Messages:
