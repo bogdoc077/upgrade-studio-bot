@@ -219,7 +219,7 @@ class UpgradeStudioBot:
                     "<b>Дякуємо за оплату!</b>\n\n"
                     "Ваша підписка успішно оформлена. Зараз ви отримаєте доступ до приватних каналів та чатів.\n\n"
                     "Ласкаво просимо до UPGRADE21 STUDIO! ",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 return
             elif start_param == "payment_cancelled":
@@ -227,7 +227,7 @@ class UpgradeStudioBot:
                     "<b>Оплата скасована</b>\n\n"
                     "Нічого страшного! Ви можете оформити підписку пізніше.\n\n"
                     "Напишіть /start щоб повернутися до головного меню.",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 return
         
@@ -495,7 +495,7 @@ class UpgradeStudioBot:
         await self.bot.send_message(
             chat_id=user_id,
             text=menu_text,
-            parse_mode='Markdown',
+            parse_mode='HTML',
             reply_markup=get_main_menu_keyboard()
         )
 
@@ -695,7 +695,7 @@ class UpgradeStudioBot:
             chat_id=user_id, 
             text=text, 
             reply_markup=keyboard, 
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         
         # Відновлюємо ReplyKeyboard (відправляємо і одразу видаляємо)
@@ -766,10 +766,10 @@ class UpgradeStudioBot:
                 sent_message = await self.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=dashboard_text,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
             else:
-                sent_message = await update.message.reply_text(dashboard_text, parse_mode='Markdown')
+                sent_message = await update.message.reply_text(dashboard_text, parse_mode='HTML')
             self.last_menu_messages[user_id] = sent_message.message_id
             return
         
@@ -793,14 +793,14 @@ class UpgradeStudioBot:
             sent_message = await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=dashboard_text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=get_dashboard_keyboard()
             )
 
         else:
             sent_message = await update.message.reply_text(
                 dashboard_text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=get_dashboard_keyboard()
             )
 
@@ -842,14 +842,14 @@ class UpgradeStudioBot:
             sent_message = await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=support_text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=get_support_keyboard()
             )
 
         else:
             sent_message = await update.message.reply_text(
                 support_text,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=get_support_keyboard()
             )
 
