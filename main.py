@@ -59,7 +59,7 @@ class UpgradeStudioBot:
             await self.bot.send_message(
                 chat_id=settings.admin_chat_id,
                 text=message,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             logger.info(f"Повідомлення адміну надіслано: {message[:50]}...")
         except Exception as e:
@@ -1146,7 +1146,7 @@ class UpgradeStudioBot:
                 f"Доступ до студії та спільноти залишатиметься до {end_date_str}, а нові списання не відбуватимуться.\n\n"
                 f"Якщо захочеш поновити підписку, ти завжди зможеш зробити це в цьому боті.",
                 reply_markup=keyboard,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return
     
@@ -1203,7 +1203,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             await query.edit_message_text(
                 text=offer_text,
                 reply_markup=get_subscription_offer_keyboard(),
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         else:
             # Якщо це звичайне повідомлення, надсилаємо нове
@@ -1211,7 +1211,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 chat_id=telegram_id,
                 text=offer_text,
                 reply_markup=get_subscription_offer_keyboard(),
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
     
     async def create_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1466,7 +1466,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 chat_id=query.from_user.id,
                 text="<b>Підписка поновлена</b> (тестовий режим адміна)\n\n"
                      "Ваша тестова підписка була поновлена і знову активна.",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
             # Автоматично відкриваємо меню керування підпискою
@@ -1655,7 +1655,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 text="Підписку скасовано ❌\n\n"
                      "Дякую, що була зі мною 🕊️\n\n"
                      "Буду вдячна, якщо поділишся, що тобі сподобалося в студії та що можна покращити.",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         else:
             await self.bot.send_message(
@@ -1708,7 +1708,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                      "Наступне списання відбудеться з урахуванням змін.\n\n"
                      "Якщо у тебе виникнуть будь-які питання, напиши мені.",
                 reply_markup=keyboard,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         else:
             await self.bot.send_message(
@@ -1716,7 +1716,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 text="❌ Виникла помилка при створенні посилання.\n\n"
                      "Будь ласка, зв'яжіться з підтримкою:\n"
                      "👉 @alionakovaliova",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
             # Автоматично відкриваємо меню керування підпискою
@@ -1814,7 +1814,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                          "<b>Крок 1:</b>\n"
                          "Натисни кнопку нижче та надішли запит на приєднання до онлайн-студії, де ти будеш тренуватися.",
                     reply_markup=reply_markup,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 # Зберігаємо ID повідомлення
                 if telegram_id not in self.join_step_messages:
@@ -1844,7 +1844,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                          "<b>Крок 1:</b>\n"
                          "Натисни кнопку нижче та надішли запит на приєднання до онлайн-студії, де ти будеш тренуватися.",
                     reply_markup=reply_markup,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 logger.info(f"Надіслано посилання на канал з .env для користувача {telegram_id}")
             
@@ -1898,7 +1898,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     f"Після переходу надішліть запит на приєднання - він буде автоматично схвалений!\n\n"
                     f"Не передавайте це посилання іншим користувачам",
                     reply_markup=join_keyboard,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
             else:
                 # Спробуємо створити нове посилання через Telegram API
@@ -1933,7 +1933,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                         f"Після переходу надішліть запит на приєднання - він буде автоматично схвалений!\n\n"
                         f"Не передавайте це посилання іншим користувачам",
                         reply_markup=join_keyboard,
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
                     
                 except Exception as e:
@@ -2012,7 +2012,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
 • Імітація успішних платежів
 """
         
-        await update.message.reply_text(admin_text, parse_mode='Markdown')
+        await update.message.reply_text(admin_text, parse_mode='HTML')
     
     async def set_admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Встановити роль адміна користувачу"""
@@ -2102,7 +2102,7 @@ ADMIN_CHAT_ID={user.id}"""
                 "Використовуйте:\n"
                 "• `/create_invite <chat_id> <chat_type> <invite_link> [назва]` - створити посилання\n"
                 "• `/list_invites` - показати всі посилання",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return
         
@@ -2118,7 +2118,7 @@ ADMIN_CHAT_ID={user.id}"""
         message += "• `/create_invite` - створити нове посилання\n"
         message += "• `/list_invites` - детальний список"
         
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message, parse_mode='HTML')
     
     async def create_invite_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Створити invite посилання для чату/каналу"""
@@ -2134,7 +2134,7 @@ ADMIN_CHAT_ID={user.id}"""
                 "`/create_invite <chat_id> <chat_type> <invite_link> [назва]`\n\n"
                 "<b>Приклад:</b>\n"
                 "`/create_invite -1002747224769 channel https://t.me/+AbCdEfGhIjKl Приватний канал`",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return
         
@@ -2163,7 +2163,7 @@ ADMIN_CHAT_ID={user.id}"""
                 f"• Тип: {link_obj.link_type}\n"
                 f"• Назва: {link_obj.chat_title or 'Не вказана'}\n"
                 f"• Посилання: `{link_obj.invite_link}`",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
         except Exception as e:
@@ -2193,7 +2193,7 @@ ADMIN_CHAT_ID={user.id}"""
             message += f"<b>Створено:</b> {link.created_at.strftime('%d.%m.%Y %H:%M')}\n"
             message += f"<b>Оновлено:</b> {link.updated_at.strftime('%d.%m.%Y %H:%M')}"
             
-            await update.message.reply_text(message, parse_mode='Markdown')
+            await update.message.reply_text(message, parse_mode='HTML')
     
     async def log_all_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Коротка команда для отримання ID чату"""
@@ -2378,7 +2378,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                                 text="<b>Крок 2:</b>\n\n"
                                      "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.",
                                 reply_markup=reply_markup,
-                                parse_mode='Markdown'
+                                parse_mode='HTML'
                             )
                             # Зберігаємо ID повідомлення
                             if user_id not in self.join_step_messages:
@@ -2401,7 +2401,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                                 text="<b>Крок 2:</b>\n\n"
                                      "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.",
                                 reply_markup=reply_markup,
-                                parse_mode='Markdown'
+                                parse_mode='HTML'
                             )
                             # Зберігаємо ID повідомлення
                             if user_id not in self.join_step_messages:
@@ -2504,7 +2504,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                     f"Після переходу надішліть запит на приєднання - він буде автоматично схвалений!\n\n"
                     f"Не передавайте це посилання іншим користувачам",
                     reply_markup=join_keyboard,
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
             else:
                 # Створюємо нове посилання
@@ -2539,7 +2539,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                         f"Після переходу надішліть запит на приєднання - він буде автоматично схвалений!\n\n"
                         f"Не передавайте це посилання іншим користувачам",
                         reply_markup=join_keyboard,
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
                     
                 except Exception as e:
@@ -2584,7 +2584,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             chat_id=user_id,
             text="<b>Відмінно!</b> Ви приєдналися до каналу!\n\n"
                  "Тепер у вас є доступ до всіх тренувань та корисної інформації ",
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         
         # Встановлюємо стан очікування приєднання до чату
@@ -2625,7 +2625,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                  "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.\n\n"
                  "Після приєднання натисніть кнопку 'Я приєднався до чату'",
             reply_markup=reply_markup,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
 
     async def handle_chat_joined(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2716,7 +2716,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                  "Ви вже приєднані до нашого приватного каналу!\n"
                  "Натисніть кнопку нижче, щоб перейти в канал та переглянути останні матеріали.",
             reply_markup=reply_markup,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         
         # Повертаємося до меню керування підпискою через кілька секунд
@@ -2768,7 +2768,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                  "Ви вже приєднані до нашого приватного чату!\n"
                  "Натисніть кнопку нижче, щоб перейти в чат та поспілкуватися з іншими учасниками.",
             reply_markup=reply_markup,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         
         # Повертаємося до меню керування підпискою через кілька секунд
@@ -2812,7 +2812,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         await query.edit_message_text(
             text=info_text,
             reply_markup=reply_markup,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
     
     async def set_reminder(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2833,7 +2833,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             f"Ми нагадаємо вам про підписку через 24 години.\n\n"
             f"У будь-який час ви можете оформити підписку, написавши /start\n\n"
             f"Дякуємо за інтерес до UPGRADE21 STUDIO! ",
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         
         # Плануємо нагадування (якщо є планувальник завдань)
