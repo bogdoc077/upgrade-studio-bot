@@ -279,7 +279,8 @@ class UpgradeStudioBot:
                 
                 await update.message.reply_text(
                     text=subscription_text,
-                    reply_markup=payment_keyboard
+                    reply_markup=payment_keyboard,
+                    parse_mode='HTML'
                 )
             else:
                 await update.message.reply_text(
@@ -1282,7 +1283,8 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             
             payment_msg = await query.edit_message_text(
                 text=subscription_text,
-                reply_markup=payment_keyboard
+                reply_markup=payment_keyboard,
+                parse_mode='HTML'
             )
             
             # Зберігаємо ID повідомлення з оплатою для подальшого видалення
