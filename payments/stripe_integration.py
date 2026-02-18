@@ -67,30 +67,76 @@ class StripeManager:
             price_in_cents = int(settings.subscription_price * 100)
             
             # Створюємо Checkout Session
-            session = stripe.checkout.Session.create(
-                customer=user.stripe_customer_id,
-                payment_method_types=['card'],
-                mode='subscription',
-                line_items=[{
-                    'price_data': {
-                        'currency': settings.subscription_currency,
-                        'product_data': {
-                            'name': 'Upgrade Studio - Місячна підписка',
-                            'description': 'Доступ до тренувань та спільноти Upgrade Studio'
+            try:
+                session = stripe.checkout.Session.create(
+                    customer=user.stripe_customer_id,
+                    payment_method_types=['card'],
+                    mode='subscription',
+                    line_items=[{
+                        'price_data': {
+                            'currency': settings.subscription_currency,
+                            'product_data': {
+                                'name': 'Upgrade Studio - Місячна підписка',
+                                'description': 'Доступ до тренувань та спільноти Upgrade Studio'
+                            },
+                            'unit_amount': price_in_cents,
+                            'recurring': {
+                                'interval': 'month'
+                            }
                         },
-                        'unit_amount': price_in_cents,
-                        'recurring': {
-                            'interval': 'month'
+                        'quantity': 1,
+                    }],
+                    success_url=success_url,
+                    cancel_url=cancel_url,
+                    metadata={
+                        'telegram_id': str(telegram_id)
+                    }
+                )
+            except stripe.error.InvalidRequestError as e:
+                # Якщо customer був видалений в Stripe - створюємо нового
+                if 'No such customer' in str(e):
+                    logger.warning(f"Customer {user.stripe_customer_id} не існує в Stripe, створюємо нового")
+                    customer_id = await StripeManager.create_customer(
+                        telegram_id=telegram_id,
+                        name=user.first_name
+                    )
+                    if not customer_id:
+                        return None
+                    
+                    # Оновлюємо user з новим customer_id
+                    with DatabaseManager() as db:
+                        db_user = db.query(User).filter(User.telegram_id == telegram_id).first()
+                        if db_user:
+                            db_user.stripe_customer_id = customer_id
+                            db.commit()
+                    
+                    # Пробуємо створити session знову з новим customer
+                    session = stripe.checkout.Session.create(
+                        customer=customer_id,
+                        payment_method_types=['card'],
+                        mode='subscription',
+                        line_items=[{
+                            'price_data': {
+                                'currency': settings.subscription_currency,
+                                'product_data': {
+                                    'name': 'Upgrade Studio - Місячна підписка',
+                                    'description': 'Доступ до тренувань та спільноти Upgrade Studio'
+                                },
+                                'unit_amount': price_in_cents,
+                                'recurring': {
+                                    'interval': 'month'
+                                }
+                            },
+                            'quantity': 1,
+                        }],
+                        success_url=success_url,
+                        cancel_url=cancel_url,
+                        metadata={
+                            'telegram_id': str(telegram_id)
                         }
-                    },
-                    'quantity': 1,
-                }],
-                success_url=success_url,
-                cancel_url=cancel_url,
-                metadata={
-                    'telegram_id': str(telegram_id)
-                }
-            )
+                    )
+                else:
+                    raise
             
             logger.info(f"Створено Checkout Session: {session.id} для telegram_id: {telegram_id}")
             return {
