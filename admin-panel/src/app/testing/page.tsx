@@ -52,7 +52,6 @@ export default function TestingPage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -129,173 +128,225 @@ export default function TestingPage() {
     }
   };
 
-  const getStatusBadgeColor = (status: string) => {
-    if (status === 'active') return 'bg-green-100 text-green-800';
-    if (status === 'paused') return 'bg-yellow-100 text-yellow-800';
-    if (status === 'cancelled') return 'bg-red-100 text-red-800';
-    return 'bg-gray-100 text-gray-800';
-  };
-
   return (
-    <div className="p-6">
+    <div className="admin-page">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <BeakerIcon className="w-8 h-8 text-indigo-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Тестування автоматичних сценаріїв</h1>
+      <div className="admin-page__header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <BeakerIcon style={{ width: '32px', height: '32px', color: 'var(--color-primary)' }} />
+          <div>
+            <h1 className="admin-page__title">Тестування автоматичних сценаріїв</h1>
+            <p className="admin-page__subtitle">
+              Запускайте автоматичні сценарії вручну для тестування функціоналу
+            </p>
+          </div>
         </div>
-        <p className="text-gray-600 text-sm">
-          Запускайте автоматичні сценарії вручну для тестування функціоналу
-        </p>
       </div>
 
-      {/* User Selection */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <UserIcon className="w-5 h-5 text-gray-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Вибір користувача</h2>
+      {/* User Selection Card */}
+      <div className="admin-card" style={{ marginBottom: '24px' }}>
+        <div className="admin-card__header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <UserIcon style={{ width: '20px', height: '20px', color: 'var(--color-text-secondary)' }} />
+            <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Вибір користувача</h2>
+          </div>
         </div>
+        
+        <div className="admin-card__body">
+          <div style={{ position: 'relative' }} ref={dropdownRef}>
+            <div style={{ position: 'relative' }}>
+              <MagnifyingGlassIcon style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: '20px',
+                height: '20px',
+                color: 'var(--color-text-light)'
+              }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onFocus={() => searchQuery.length >= 2 && setShowDropdown(true)}
+                placeholder="Почніть вводити ім'я, username або Telegram ID..."
+                className="admin-form__input"
+                style={{ paddingLeft: '42px' }}
+              />
+              {searching && (
+                <div style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)'
+                }}>
+                  <div className="spinner" style={{ width: '16px', height: '16px' }}></div>
+                </div>
+              )}
+            </div>
 
-        <div className="relative" ref={dropdownRef}>
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onFocus={() => searchQuery.length >= 2 && setShowDropdown(true)}
-              placeholder="Почніть вводити ім'я, username або Telegram ID..."
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-            />
-            {searching && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+            {/* Search Results Dropdown */}
+            {showDropdown && searchResults.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                zIndex: 10,
+                width: '100%',
+                marginTop: '4px',
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '8px',
+                boxShadow: 'var(--shadow-lg)',
+                maxHeight: '320px',
+                overflowY: 'auto'
+              }}>
+                {searchResults.map((user) => (
+                  <div
+                    key={user.id}
+                    onClick={() => selectUser(user)}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid var(--color-border-light)',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-gray-50)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: '14px', marginBottom: '4px' }}>
+                          {user.first_name} {user.last_name}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                          @{user.username || user.telegram_id} • ID: {user.telegram_id}
+                        </div>
+                      </div>
+                      {user.subscription_active && (
+                        <span className="admin-badge admin-badge--success" style={{ marginLeft: '12px' }}>
+                          Активна
+                        </span>
+                      )}
+                      {user.subscription_paused && (
+                        <span className="admin-badge admin-badge--warning" style={{ marginLeft: '12px' }}>
+                          Призупинена
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {showDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
+              <div style={{
+                position: 'absolute',
+                zIndex: 10,
+                width: '100%',
+                marginTop: '4px',
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '8px',
+                boxShadow: 'var(--shadow-lg)',
+                padding: '16px',
+                textAlign: 'center',
+                fontSize: '14px',
+                color: 'var(--color-text-secondary)'
+              }}>
+                Користувачів не знайдено
               </div>
             )}
           </div>
 
-          {/* Search Results Dropdown */}
-          {showDropdown && searchResults.length > 0 && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
-              {searchResults.map((user) => (
-                <div
-                  key={user.id}
-                  onClick={() => selectUser(user)}
-                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900 text-sm">
-                        {user.first_name} {user.last_name}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        @{user.username || user.telegram_id} • ID: {user.telegram_id}
-                      </div>
-                    </div>
-                    {user.subscription_active && (
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor('active')}`}>
-                        Активна
-                      </span>
-                    )}
-                    {user.subscription_paused && (
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor('paused')}`}>
-                        Призупинена
-                      </span>
-                    )}
+          {selectedUser && (
+            <div className="admin-alert admin-alert--success" style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <CheckCircleIcon style={{ width: '20px', height: '20px', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500, marginBottom: '4px' }}>
+                    Обрано: {selectedUser.first_name} {selectedUser.last_name}
+                  </div>
+                  <div style={{ fontSize: '13px', opacity: 0.9 }}>
+                    Telegram ID: {selectedUser.telegram_id} • @{selectedUser.username || selectedUser.telegram_id}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {showDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500">
-              Користувачів не знайдено
+              </div>
             </div>
           )}
         </div>
-
-        {selectedUser && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-            <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-green-900">
-                Обрано: {selectedUser.first_name} {selectedUser.last_name}
-              </div>
-              <div className="text-xs text-green-700">
-                Telegram ID: {selectedUser.telegram_id} • @{selectedUser.username || selectedUser.telegram_id}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Test Scenarios */}
-      <div className="space-y-4">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {TEST_SCENARIOS.map((scenario) => {
           const result = results[scenario.id];
           const isLoading = loading === scenario.id;
 
           return (
-            <div
-              key={scenario.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start gap-4">
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold text-gray-900 mb-2">
-                    {scenario.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    {scenario.description}
-                  </p>
+            <div key={scenario.id} className="admin-card">
+              <div className="admin-card__body">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px' }}>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>
+                      {scenario.name}
+                    </h3>
+                    <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', marginBottom: '12px' }}>
+                      {scenario.description}
+                    </p>
 
-                  {scenario.requiresActiveSubscription && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                      ⚠️ Потребує активної підписки
-                    </span>
-                  )}
+                    {scenario.requiresActiveSubscription && (
+                      <span className="admin-badge admin-badge--warning" style={{ fontSize: '12px' }}>
+                        ⚠️ Потребує активної підписки
+                      </span>
+                    )}
 
-                  {scenario.requiresPausedSubscription && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                      ⚠️ Потребує призупиненої підписки
-                    </span>
-                  )}
+                    {scenario.requiresPausedSubscription && (
+                      <span className="admin-badge admin-badge--warning" style={{ fontSize: '12px' }}>
+                        ⚠️ Потребує призупиненої підписки
+                      </span>
+                    )}
 
-                  {result && (
-                    <div className={`mt-3 p-3 rounded-lg flex items-start gap-2 ${
-                      result.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-                    }`}>
-                      {result.success ? (
-                        <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                      ) : (
-                        <ExclamationCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      )}
-                      <div className={`text-sm ${result.success ? 'text-green-800' : 'text-red-800'}`}>
-                        {result.message}
+                    {result && (
+                      <div 
+                        className={`admin-alert ${result.success ? 'admin-alert--success' : 'admin-alert--danger'}`}
+                        style={{ marginTop: '12px' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          {result.success ? (
+                            <CheckCircleIcon style={{ width: '20px', height: '20px', flexShrink: 0, marginTop: '2px' }} />
+                          ) : (
+                            <ExclamationCircleIcon style={{ width: '20px', height: '20px', flexShrink: 0, marginTop: '2px' }} />
+                          )}
+                          <div style={{ fontSize: '14px' }}>
+                            {result.message}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                <button
-                  onClick={() => runTest(scenario)}
-                  disabled={isLoading || !selectedUser}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                    isLoading || !selectedUser
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
-                  }`}
-                >
-                  {isLoading ? (
-                    <span className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Виконується...
-                    </span>
-                  ) : (
-                    'Запустити тест'
-                  )}
-                </button>
+                  <button
+                    onClick={() => runTest(scenario)}
+                    disabled={isLoading || !selectedUser}
+                    className="admin-btn admin-btn--primary"
+                    style={{ 
+                      minWidth: '160px',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {isLoading ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                        <div className="spinner" style={{ width: '16px', height: '16px' }}></div>
+                        Виконується...
+                      </span>
+                    ) : (
+                      'Запустити тест'
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           );
@@ -303,16 +354,18 @@ export default function TestingPage() {
       </div>
 
       {/* Info Block */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-2">
-          💡 Про тестування
-        </h3>
-        <ul className="space-y-1 text-sm text-blue-800">
-          <li>• Тести надсилають реальні повідомлення обраному користувачу в Telegram</li>
-          <li>• Деякі тести тимчасово змінюють стан користувача (наприклад, "Закінчення підписки")</li>
-          <li>• Обирайте тестових користувачів або власний акаунт для перевірки</li>
-          <li>• Результати тестів відображаються в реальному часі</li>
-        </ul>
+      <div className="admin-alert admin-alert--info" style={{ marginTop: '24px' }}>
+        <div>
+          <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
+            💡 Про тестування
+          </h3>
+          <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', lineHeight: '1.6' }}>
+            <li>Тести надсилають реальні повідомлення обраному користувачу в Telegram</li>
+            <li>Деякі тести тимчасово змінюють стан користувача (наприклад, "Закінчення підписки")</li>
+            <li>Обирайте тестових користувачів або власний акаунт для перевірки</li>
+            <li>Результати тестів відображаються в реальному часі</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
