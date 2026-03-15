@@ -539,6 +539,16 @@ class TaskScheduler:
                             
                             logger.info(f"Скинуто статуси для користувача {user.telegram_id}")
                             
+                            # Відправляємо пропозицію оформити підписку знову
+                            try:
+                                if self.bot_instance:
+                                    await self.bot_instance.show_subscription_offer(user.telegram_id)
+                                    logger.info(f"Відправлено пропозицію підписки користувачу {user.telegram_id}")
+                                else:
+                                    logger.warning(f"bot_instance не встановлено, не можемо відправити пропозицію підписки для {user.telegram_id}")
+                            except Exception as e:
+                                logger.error(f"Помилка відправки пропозиції підписки користувачу {user.telegram_id}: {e}")
+                            
                             # Невелика затримка між користувачами (50ms)
                             await asyncio.sleep(0.05)
                             

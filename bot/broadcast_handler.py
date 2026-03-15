@@ -282,11 +282,28 @@ class BroadcastHandler:
             text_blocks = [b for b in blocks if b.get('type') == 'text']
             media_blocks = [b for b in blocks if b.get('type') in ('image', 'video', 'document')]
             button_blocks = [b for b in blocks if b.get('type') == 'button']
+            subscription_button_blocks = [b for b in blocks if b.get('type') == 'subscription_button']
+            
+            # Якщо є кнопка підписки, створюємо спеціальне посилання на бот з callback
+            subscription_button = None
+            if subscription_button_blocks:
+                subscription_button = subscription_button_blocks[0]
+                # Генеруємо посилання на бот з параметром для показу підписки
+                bot_username = (await self.bot.get_me()).username
+                subscription_button_url = f"https://t.me/{bot_username}?start=subscription_offer"
+                subscription_button_text = subscription_button.get('buttonText', 'Оформити підписку')
             
             # Якщо є текст та медіа, відправляємо перше повідомлення з текстом + перше медіа + кнопка
             if text_blocks and media_blocks:
                 first_media = media_blocks[0]
-                first_button = button_blocks[0] if button_blocks else None
+                # Визначаємо яку кнопку використовувати
+                if subscription_button:
+                    button_text = subscription_button_text
+                    button_url = subscription_button_url
+                else:
+                    first_button = button_blocks[0] if button_blocks else None
+                    button_text = first_button.get('buttonText') if first_button else None
+                    button_url = first_button.get('buttonUrl') if first_button else None
                 
                 # Відправляємо перше повідомлення
                 await self._send_single_message(
@@ -294,8 +311,8 @@ class BroadcastHandler:
                     text=text_blocks[0].get('content'),
                     media_type=first_media.get('type'),
                     media_url=first_media.get('fileUrl'),
-                    button_text=first_button.get('buttonText') if first_button else None,
-                    button_url=first_button.get('buttonUrl') if first_button else None
+                    button_text=button_text,
+                    button_url=button_url
                 )
                 
                 # Відправляємо решту медіа окремо
@@ -312,7 +329,14 @@ class BroadcastHandler:
             
             # Якщо є тільки медіа
             elif media_blocks:
-                first_button = button_blocks[0] if button_blocks else None
+                # Визначаємо яку кнопку використовувати
+                if subscription_button:
+                    button_text = subscription_button_text
+                    button_url = subscription_button_url
+                else:
+                    first_button = button_blocks[0] if button_blocks else None
+                    button_text = first_button.get('buttonText') if first_button else None
+                    button_url = first_button.get('buttonUrl') if first_button else None
                 
                 # Перше медіа з кнопкою
                 await self._send_single_message(
@@ -320,8 +344,8 @@ class BroadcastHandler:
                     text=None,
                     media_type=media_blocks[0].get('type'),
                     media_url=media_blocks[0].get('fileUrl'),
-                    button_text=first_button.get('buttonText') if first_button else None,
-                    button_url=first_button.get('buttonUrl') if first_button else None
+                    button_text=button_text,
+                    button_url=button_url
                 )
                 
                 # Решта медіа без кнопок
@@ -338,14 +362,22 @@ class BroadcastHandler:
             
             # Якщо є тільки текст
             elif text_blocks:
-                first_button = button_blocks[0] if button_blocks else None
+                # Визначаємо яку кнопку використовувати
+                if subscription_button:
+                    button_text = subscription_button_text
+                    button_url = subscription_button_url
+                else:
+                    first_button = button_blocks[0] if button_blocks else None
+                    button_text = first_button.get('buttonText') if first_button else None
+                    button_url = first_button.get('buttonUrl') if first_button else None
+                
                 await self._send_single_message(
                     telegram_id=telegram_id,
                     text=text_blocks[0].get('content'),
                     media_type=None,
                     media_url=None,
-                    button_text=first_button.get('buttonText') if first_button else None,
-                    button_url=first_button.get('buttonUrl') if first_button else None
+                    button_text=button_text,
+                    button_url=button_url
                 )
             else:
                 logger.warning(f"No content to send for broadcast to {telegram_id}")

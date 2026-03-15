@@ -15,7 +15,7 @@ import {
 
 export interface MessageBlock {
   id: string;
-  type: 'text' | 'image' | 'video' | 'document' | 'button';
+  type: 'text' | 'image' | 'video' | 'document' | 'button' | 'subscription_button';
   content: string;
   file?: File;
   fileUrl?: string;
@@ -90,6 +90,7 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
       case 'video': return <VideoCameraIcon className="w-5 h-5" />;
       case 'document': return <DocumentIcon className="w-5 h-5" />;
       case 'button': return <LinkIcon className="w-5 h-5" />;
+      case 'subscription_button': return <LinkIcon className="w-5 h-5" />;
     }
   };
 
@@ -100,6 +101,7 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
       case 'video': return 'Відео';
       case 'document': return 'Документ';
       case 'button': return 'Кнопка';
+      case 'subscription_button': return 'Кнопка підписки';
     }
   };
 
@@ -257,14 +259,14 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
                 }}>
                   {block.type === 'image' && block.fileUrl && (
                     <img
-                      src={`http://localhost:8001${block.fileUrl}`}
+                      src={`/api${block.fileUrl}`}
                       alt="Preview"
                       style={{ width: '100%', height: 'auto', display: 'block' }}
                     />
                   )}
                   {block.type === 'video' && block.fileUrl && (
                     <video
-                      src={`http://localhost:8001${block.fileUrl}`}
+                      src={`/api${block.fileUrl}`}
                       controls
                       style={{ width: '100%', height: 'auto', display: 'block' }}
                     />
@@ -327,6 +329,33 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
                   fontSize: '14px'
                 }}
               />
+            </div>
+          )}
+
+          {block.type === 'subscription_button' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <input
+                type="text"
+                value={block.buttonText || 'Оформити підписку'}
+                onChange={(e) => updateBlock(block.id, { buttonText: e.target.value })}
+                placeholder="Текст кнопки (наприклад: Оформити підписку)"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '14px'
+                }}
+              />
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#f3f4f6',
+                borderRadius: '6px',
+                fontSize: '13px',
+                color: '#6b7280'
+              }}>
+                💡 Ця кнопка автоматично веде користувача до боту, де він отримає опис підписки з кнопками "Оплатити" та "Задати питання". Посилання на оплату генерується ботом індивідуально для кожного користувача.
+              </div>
             </div>
           )}
         </div>
@@ -396,6 +425,7 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
                   { type: 'video' as const, label: 'Відео', icon: VideoCameraIcon },
                   { type: 'document' as const, label: 'Документ', icon: DocumentIcon },
                   { type: 'button' as const, label: 'Кнопка', icon: LinkIcon },
+                  { type: 'subscription_button' as const, label: '💳 Кнопка підписки', icon: LinkIcon },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (

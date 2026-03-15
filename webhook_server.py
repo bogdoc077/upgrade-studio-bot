@@ -15,7 +15,7 @@ from stripe.error import StripeError
 
 from config import settings
 from payments import StripeManager
-from database import DatabaseManager, User
+from database import DatabaseManager, User, Payment
 
 # Створюємо FastAPI додаток
 app = FastAPI(title="Upgrade Studio Bot Webhooks")
@@ -218,25 +218,27 @@ async def handle_checkout_session_completed(session):
                         
                         if subscription_obj and subscription_obj.current_period_end:
                             # Встановлюємо дати на основі інформації з Stripe
-                            end_date = datetime.utcfromtimestamp(subscription_obj.current_period_end)
-                            user.next_billing_date = end_date
-                            user.subscription_end_date = end_date
+                            # next_billing_date - коли буде спроба оплати
+                            next_billing = datetime.utcfromtimestamp(subscription_obj.current_period_end)
+                            user.next_billing_date = next_billing
+                            # subscription_end_date - коли кікнуть після 3 невдалих спроб (next_billing + 2 дні)
+                            user.subscription_end_date = next_billing + timedelta(days=2)
                             date_set = True
                             logger.info(f"Дати підписки встановлено з Stripe для користувача {telegram_id}: "
-                                      f"subscription_end_date={user.subscription_end_date}, "
-                                      f"next_billing_date={user.next_billing_date}")
+                                      f"next_billing_date={user.next_billing_date.strftime('%Y-%m-%d')}, "
+                                      f"subscription_end_date={user.subscription_end_date.strftime('%Y-%m-%d')}")
                                 
                     except Exception as e:
                         logger.error(f"Не вдалося отримати деталі підписки {subscription_id}: {e}")
                 
                 # Якщо не вдалося отримати дати з Stripe - встановлюємо дефолтні (30 днів)
                 if not date_set:
-                    end_date = datetime.utcnow() + timedelta(days=30)
-                    user.next_billing_date = end_date
-                    user.subscription_end_date = end_date
+                    next_billing = datetime.utcnow() + timedelta(days=30)
+                    user.next_billing_date = next_billing
+                    user.subscription_end_date = next_billing + timedelta(days=2)
                     logger.info(f"Встановлено дефолтні дати підписки (30 днів) для користувача {telegram_id}: "
-                              f"subscription_end_date={user.subscription_end_date}, "
-                              f"next_billing_date={user.next_billing_date}")
+                              f"next_billing_date={user.next_billing_date.strftime('%Y-%m-%d')}, "
+                              f"subscription_end_date={user.subscription_end_date.strftime('%Y-%m-%d')}")
                 
                 user.updated_at = datetime.utcnow()
                 db.commit()
@@ -279,7 +281,7 @@ async def handle_checkout_session_completed(session):
                     message_text = (
                         f"✅ **Нова підписка**\n\n"
                         f"Користувач: {user_info}\n"
-                        f"ID: `{telegram_id}`\n"
+                        f"ID: {telegram_id}\n"
                         f"Ім'я: {user.first_name} {user.last_name or ''}\n"
                         f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
                         f"Успішних оплат: {payment_count}"
@@ -287,7 +289,9 @@ async def handle_checkout_session_completed(session):
                     
                     # Додаємо травми якщо є
                     if user.injuries and user.injuries.strip() and "Немає" not in user.injuries:
-                        message_text += f"\nТравми: \"{user.injuries}\""
+                        # Прибираємо префікс "Травма:" якщо він є
+                        injuries_text = user.injuries.replace("Травма: ", "").replace("Травма:", "")
+                        message_text += f"\nТравми: \"{injuries_text}\""
                     
                     await telegram_bot.send_message(
                         chat_id=settings.tech_notifications_chat_id,
@@ -344,28 +348,30 @@ async def handle_customer_subscription_updated(subscription):
                     db_user.auto_payment_enabled = False  # Вимикаємо автоплатіж при паузі
                     # subscription_active залишається True до subscription_end_date
                     # joined_channel/chat НЕ скидаємо - доступ до end_date
-                    logger.info(f"Webhook: Підписка призупинена для користувача {user.telegram_id}, доступ до end_date")
+                    logger.info(f"Webhook: Підписку призупинено для користувача {user.telegram_id}, доступ до end_date")
                 elif status in ['canceled', 'cancelled']:
                     db_user.subscription_cancelled = True
                     db_user.auto_payment_enabled = False  # Вимикаємо автоплатіж
                     # subscription_active залишається True до subscription_end_date
                     # joined_channel/chat НЕ скидаємо - доступ до end_date
-                    logger.info(f"Webhook: Підписка скасована для користувача {user.telegram_id}, доступ до end_date")
+                    logger.info(f"Webhook: Підписку скасовано для користувача {user.telegram_id}, доступ до end_date")
                 
                 # Оновлюємо дати
                 if 'current_period_end' in subscription:
                     period_end = datetime.utcfromtimestamp(subscription['current_period_end'])
                     if status == 'active' and not cancel_at_period_end:
-                        # Для активних підписок встановлюємо обидві дати
+                        # Для активних підписок:
+                        # next_billing_date - коли буде спроба оплати (дата зі Stripe)
                         db_user.next_billing_date = period_end
-                        db_user.subscription_end_date = period_end  # Дата до якої активна підписка
+                        # subscription_end_date - коли кікнуть після невдалих спроб (+2 дні для 3 спроб)
+                        db_user.subscription_end_date = period_end + timedelta(days=2)
                     elif cancel_at_period_end or status in ['canceled', 'cancelled']:
                         # Для скасованих підписок - це дата закінчення
-                        db_user.subscription_end_date = period_end
+                        db_user.subscription_end_date = period_end + timedelta(days=2)
                         db_user.next_billing_date = None  # Немає наступного списання
                     elif status == 'paused':
                         # Для призупинених підписок зберігаємо кінцеву дату
-                        db_user.subscription_end_date = period_end
+                        db_user.subscription_end_date = period_end + timedelta(days=2)
                         db_user.next_billing_date = None  # Немає списання поки призупинено
                 
                 db_user.updated_at = datetime.utcnow()
@@ -419,7 +425,7 @@ async def handle_customer_subscription_updated(subscription):
                 elif cancel_at_period_end:
                     await send_telegram_notification(
                         user.telegram_id,
-                        f"⚠️ **Підписка скасована**\n\n"
+                        f"⚠️ **Підписку скасовано**\n\n"
                         f"Ваша підписка буде активна до {period_end.strftime('%d.%m.%Y')}.\n"
                         "Після цієї дати доступ до каналів буде припинено.\n\n"
                         "❌ Автоматичне продовження вимкнено\n\n"
@@ -428,7 +434,7 @@ async def handle_customer_subscription_updated(subscription):
                 elif status == 'paused':
                     await send_telegram_notification(
                         user.telegram_id,
-                        f"⏸️ **Підписка призупинена**\n\n"
+                        f"⏸️ **Підписку призупинено**\n\n"
                         f"Ваша підписка залишається активною до {period_end.strftime('%d.%m.%Y')}.\n"
                         "Доступ до каналів зберігається до цієї дати.\n\n"
                         "❌ Автоматичне продовження вимкнено\n\n"
@@ -487,6 +493,24 @@ async def handle_payment_method_attached(payment_method):
             logger.info(f"Пропускаємо повідомлення про зміну платіжного методу - це перша оплата для користувача {user.telegram_id}")
             return True
         
+        # Синхронізуємо дати зі Stripe при зміні платіжного методу
+        try:
+            if user.stripe_subscription_id:
+                subscription_obj = stripe.Subscription.retrieve(user.stripe_subscription_id)
+                if subscription_obj and subscription_obj.current_period_end:
+                    next_billing = datetime.utcfromtimestamp(subscription_obj.current_period_end)
+                    with DatabaseManager() as db:
+                        db_user = db.query(User).filter(User.telegram_id == user.telegram_id).first()
+                        if db_user:
+                            db_user.next_billing_date = next_billing
+                            db_user.subscription_end_date = next_billing + timedelta(days=2)
+                            db.commit()
+                            logger.info(f"Оновлено дати зі Stripe при зміні платіжного методу: next_billing={next_billing.strftime('%Y-%m-%d')}")
+                            # Оновлюємо локальний об'єкт
+                            user = DatabaseManager.get_user_by_telegram_id(user.telegram_id)
+        except Exception as e:
+            logger.warning(f"Не вдалося синхронізувати дати зі Stripe: {e}")
+        
         # Отримуємо дату наступного списання
         next_billing_str = "кінця поточного періоду"
         if user.next_billing_date:
@@ -508,18 +532,29 @@ async def handle_payment_method_attached(payment_method):
         )
         
         # Відправляємо повідомлення в Tech групу
+        # Але тільки якщо це не перша оплата (перевіряємо кількість платежів)
         try:
-            user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
-            await telegram_bot.send_message(
-                chat_id=settings.tech_notifications_chat_id,
-                text=f"💳 **Платіжний метод оновлено**\n\n"
-                     f"Користувач: {user_info}\n"
-                     f"ID: `{user.telegram_id}`\n"
-                     f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                     f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
-                parse_mode='Markdown'
-            )
-            logger.info(f"Повідомлення про зміну платіжного методу надіслано в Tech групу")
+            with DatabaseManager() as db:
+                payment_count = db.query(Payment).filter(
+                    Payment.user_id == user.id,
+                    Payment.status.in_(["succeeded", "completed"])
+                ).count()
+            
+            # Якщо є хоча б один платіж, значить це зміна методу, а не перша оплата
+            if payment_count > 0:
+                user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
+                await telegram_bot.send_message(
+                    chat_id=settings.tech_notifications_chat_id,
+                    text=f"💳 <b>Платіжний метод оновлено</b>\n\n"
+                         f"Користувач: {user_info}\n"
+                         f"ID: {user.telegram_id}\n"
+                         f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                         f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                    parse_mode='HTML'
+                )
+                logger.info(f"Повідомлення про зміну платіжного методу надіслано в Tech групу")
+            else:
+                logger.info(f"Пропускаємо повідомлення про зміну методу - це перша оплата (payment_count={payment_count})")
         except Exception as e:
             logger.error(f"Помилка відправки повідомлення в Tech групу: {e}")
         
@@ -557,11 +592,14 @@ async def handle_invoice_payment_failed(invoice):
             next_attempt_date = datetime.utcfromtimestamp(next_payment_attempt)
             next_attempt_str = next_attempt_date.strftime('%d.%m')
             
-            # Оновлюємо дату наступного платежу в базі
+            # Оновлюємо дати в базі:
+            # next_billing_date - коли буде наступна спроба оплати
+            # subscription_end_date - коли кікнуть (+2 дні від першої спроби для 3 спроб)
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == user.telegram_id).first()
                 if db_user:
                     db_user.next_billing_date = next_attempt_date
+                    # subscription_end_date залишається як є (була встановлена при першій спробі + 2 дні)
                     db.commit()
                     logger.info(f"Оновлено next_billing_date для {user.telegram_id} на {next_attempt_str}")
         
@@ -656,7 +694,7 @@ async def handle_invoice_payment_succeeded(invoice):
                     if subscription_obj and subscription_obj.current_period_end:
                         end_date = datetime.utcfromtimestamp(subscription_obj.current_period_end)
                         db_user.next_billing_date = end_date
-                        db_user.subscription_end_date = end_date
+                        db_user.subscription_end_date = end_date + timedelta(days=2)
                         db_user.subscription_active = True
                         db_user.auto_payment_enabled = True  # Успішна оплата = автоплатіж працює
                         

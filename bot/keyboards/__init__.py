@@ -5,15 +5,25 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMa
 from config import Buttons, SurveyOptions
 
 
-def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
+def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     """Головне меню бота для користувачів з активною підпискою"""
     keyboard = [
-        [KeyboardButton(Buttons.MANAGE_SUBSCRIPTION)],
-        [KeyboardButton(Buttons.GO_TO_STUDIO)],
-        [KeyboardButton(Buttons.GO_TO_COMMUNITY)],
-        [KeyboardButton(Buttons.ASK_QUESTION)]
+        [InlineKeyboardButton(Buttons.MANAGE_SUBSCRIPTION, callback_data="manage_subscription")],
+        [InlineKeyboardButton(Buttons.GO_TO_STUDIO, callback_data="go_to_studio")],
+        [InlineKeyboardButton(Buttons.GO_TO_COMMUNITY, callback_data="go_to_community")],
+        [InlineKeyboardButton(Buttons.ASK_QUESTION, callback_data="ask_question")]
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_cancelled_subscription_keyboard() -> InlineKeyboardMarkup:
+    """Меню для користувачів зі скасованою підпискою (без керування)"""
+    keyboard = [
+        [InlineKeyboardButton(Buttons.GO_TO_STUDIO, callback_data="go_to_studio")],
+        [InlineKeyboardButton(Buttons.GO_TO_COMMUNITY, callback_data="go_to_community")],
+        [InlineKeyboardButton(Buttons.ASK_QUESTION, callback_data="ask_question")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 
 def get_welcome_keyboard() -> InlineKeyboardMarkup:
@@ -45,7 +55,7 @@ def get_subscription_offer_keyboard() -> InlineKeyboardMarkup:
     """Клавіатура пропозиції підписки"""
     keyboard = [
         [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-        [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+        [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
     ]
     return InlineKeyboardMarkup(keyboard)
 

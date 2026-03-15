@@ -1988,6 +1988,204 @@ async def get_system_logs(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
+# ================ ТЕСТУВАННЯ АВТОМАТИЧНИХ СЦЕНАРІЇВ ================
+
+@app.post("/api/testing/check-upcoming-payment", dependencies=[Depends(verify_token)])
+async def test_check_upcoming_payment(data: dict):
+    """Тестування сценарію перевірки наближення оплати (7 днів)"""
+    try:
+        telegram_id = data.get('telegram_id')
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="telegram_id is required")
+        
+        from telegram import Bot
+        from tasks.scheduler import TaskScheduler
+        
+        bot = Bot(token=settings.telegram_bot_token)
+        scheduler = TaskScheduler(bot)
+        
+        # Викликаємо метод для конкретного користувача
+        from database.models import DatabaseManager, User
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            if not user.subscription_active or user.subscription_cancelled or user.subscription_paused:
+                raise HTTPException(status_code=400, detail="User subscription is not active/valid for this test")
+            
+            # Відправляємо тестове повідомлення
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu_after_cancel")]
+            ])
+            
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text="🩵 [ТЕСТ] Підписка буде автоматично продовжена через 7 днів.",
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+        
+        return {"success": True, "message": "Test notification sent successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in test_check_upcoming_payment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/testing/expired-subscription", dependencies=[Depends(verify_token)])
+async def test_expired_subscription(data: dict):
+    """Тестування сценарію закінчення підписки"""
+    try:
+        telegram_id = data.get('telegram_id')
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="telegram_id is required")
+        
+        from database.models import DatabaseManager, User
+        
+        # Імітуємо закінчення підписки
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Зберігаємо оригінальні значення
+            original_subscription_active = user.subscription_active
+            original_joined_channel = user.joined_channel
+            original_joined_chat = user.joined_chat
+            
+            # Тимчасово скидаємо статуси
+            user.subscription_active = False
+            user.joined_channel = False
+            user.joined_chat = False
+            db.commit()
+        
+        # Відправляємо пропозицію підписки
+        try:
+            # Імпортуємо bot instance (якщо доступний)
+            from main import UpgradeStudioBot
+            # Тут можна викликати метод show_subscription_offer, але для тесту просто відправимо повідомлення
+            from telegram import Bot
+            bot = Bot(token=settings.telegram_bot_token)
+            
+            await bot.send_message(
+                chat_id=telegram_id,
+                text="🔴 [ТЕСТ] Ваша підписка закінчилася. Оформіть підписку знову, щоб продовжити доступ до студії.",
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            logger.error(f"Error sending test message: {e}")
+        
+        # Відновлюємо оригінальні значення через 5 секунд
+        await asyncio.sleep(5)
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if user:
+                user.subscription_active = original_subscription_active
+                user.joined_channel = original_joined_channel
+                user.joined_chat = original_joined_chat
+                db.commit()
+        
+        return {
+            "success": True,
+            "message": "Test scenario executed. Original values restored after 5 seconds."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in test_expired_subscription: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/testing/paused-subscription-reminder", dependencies=[Depends(verify_token)])
+async def test_paused_subscription_reminder(data: dict):
+    """Тестування нагадування про призупинену підписку"""
+    try:
+        telegram_id = data.get('telegram_id')
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="telegram_id is required")
+        
+        from telegram import Bot
+        from database.models import DatabaseManager, User
+        
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            if not user.subscription_paused:
+                raise HTTPException(status_code=400, detail="User subscription is not paused")
+            
+            # Рахуємо дні до закінчення
+            days_left = 0
+            if user.subscription_end_date:
+                days_left = (user.subscription_end_date - datetime.utcnow()).days
+            
+            bot = Bot(token=settings.telegram_bot_token)
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text=f"""⚠️ [ТЕСТ] **Нагадування про підписку**
+
+Ваша підписка закінчується через **{days_left} {'день' if days_left == 1 else 'дні'}**.
+
+❌ Автоматичне продовження вимкнене (підписка призупинена)
+
+Щоб продовжити доступ, поновіть підписку в меню бота.""",
+                parse_mode='Markdown'
+            )
+        
+        return {"success": True, "message": "Test reminder sent successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in test_paused_subscription_reminder: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/testing/join-reminder", dependencies=[Depends(verify_token)])
+async def test_join_reminder(data: dict):
+    """Тестування нагадування про приєднання до каналів"""
+    try:
+        telegram_id = data.get('telegram_id')
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="telegram_id is required")
+        
+        from telegram import Bot
+        from database.models import DatabaseManager, User
+        
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            bot = Bot(token=settings.telegram_bot_token)
+            
+            # Відправляємо тестове нагадування
+            reminder_text = """🩵 [ТЕСТ] Нагадування про приєднання
+
+Не забудь приєднатися до наших каналів:
+
+📺 Канал з тренуваннями
+💬 Чат зі спільнотою
+
+Щоб отримати запрошення, використай меню бота."""
+            
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text=reminder_text,
+                parse_mode='Markdown'
+            )
+        
+        return {"success": True, "message": "Test join reminder sent successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in test_join_reminder: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)

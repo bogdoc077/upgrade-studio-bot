@@ -476,6 +476,7 @@ export default function UsersPage() {
                   <th className="admin-table__header-cell">Статус</th>
                   <th className="admin-table__header-cell">Дата реєстрації</th>
                   <th className="admin-table__header-cell">Наступний платіж</th>
+                  <th className="admin-table__header-cell">Доступ до</th>
                   <th className="admin-table__header-cell">Підписка призупинена</th>
                   <th className="admin-table__header-cell">Підписка скасована</th>
                   <th className="admin-table__header-cell">Статус автоплатежу</th>
@@ -493,9 +494,13 @@ export default function UsersPage() {
                     </td>
                     <td className="admin-table__cell">
                       <span className={`admin-status ${
+                        user.subscription_cancelled ? 'admin-status--danger' : 
+                        user.subscription_paused ? 'admin-status--warning' :
                         user.subscription_active === 1 ? 'admin-status--active' : 'admin-status--inactive'
                       }`}>
-                        {user.subscription_active === 1 ? 'Активна підписка' : 'Неактивний'}
+                        {user.subscription_cancelled ? 'Скасовано' :
+                         user.subscription_paused ? 'Призупинено' :
+                         user.subscription_active === 1 ? 'Активна' : 'Неактивна'}
                       </span>
                     </td>
                     <td className="admin-table__cell">
@@ -504,6 +509,12 @@ export default function UsersPage() {
                     <td className="admin-table__cell">
                       {user.next_billing_date 
                         ? new Date(user.next_billing_date).toLocaleDateString('uk-UA')
+                        : '-'
+                      }
+                    </td>
+                    <td className="admin-table__cell">
+                      {user.subscription_end_date 
+                        ? new Date(user.subscription_end_date).toLocaleDateString('uk-UA')
                         : '-'
                       }
                     </td>
@@ -597,12 +608,11 @@ export default function UsersPage() {
             { label: 'Telegram ID', value: selectedUser.telegram_id },
             { label: 'Username', value: selectedUser.username || '—' },
             { label: "Ім'я", value: `${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim() || '—' },
-            { label: 'Статус підписки', value: selectedUser.subscription_active === 1 ? 'Активна' : 'Неактивна', type: 'status' },
+            { label: 'Статус підписки', value: selectedUser.subscription_cancelled ? 'Скасовано' : selectedUser.subscription_paused ? 'Призупинено' : selectedUser.subscription_active === 1 ? 'Активна' : 'Неактивна', type: 'status' },
             { label: 'Дата реєстрації', value: selectedUser.created_at, type: 'date' },
-            { label: 'Підписка до', value: selectedUser.subscription_end_date, type: 'date' },
             { label: 'Наступний платіж', value: selectedUser.next_billing_date, type: 'date' },
+            { label: 'Доступ до', value: selectedUser.subscription_end_date, type: 'date' },
             { label: 'Stripe Customer ID', value: selectedUser.stripe_customer_id || '—' },
-            { label: 'Тренувань виконано', value: selectedUser.workouts_completed || 0 },
             { label: 'Підписка призупинена', value: selectedUser.subscription_paused === 1, type: 'boolean' },
             { label: 'Цілі', value: selectedUser.goals || '—' },
             { label: 'Травми', value: selectedUser.injuries || '—' },

@@ -552,7 +552,7 @@ export default function BroadcastsPage() {
                         {selectedBroadcast.attachment_type === 'image' && (
                           <img 
                             src={selectedBroadcast.attachment_url.startsWith('/uploads') 
-                              ? `http://localhost:8001${selectedBroadcast.attachment_url}` 
+                              ? `/api${selectedBroadcast.attachment_url}` 
                               : selectedBroadcast.attachment_url}
                             alt="Preview"
                             style={{
@@ -565,7 +565,7 @@ export default function BroadcastsPage() {
                         {selectedBroadcast.attachment_type === 'video' && (
                           <video 
                             src={selectedBroadcast.attachment_url.startsWith('/uploads') 
-                              ? `http://localhost:8001${selectedBroadcast.attachment_url}` 
+                              ? `/api${selectedBroadcast.attachment_url}` 
                               : selectedBroadcast.attachment_url}
                             controls
                             style={{

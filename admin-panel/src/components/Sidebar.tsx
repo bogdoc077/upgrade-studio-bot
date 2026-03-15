@@ -12,7 +12,8 @@ import {
   Cog6ToothIcon,
   DocumentTextIcon,
   ArrowRightOnRectangleIcon,
-  Bars3Icon
+  Bars3Icon,
+  BeakerIcon
 } from '@heroicons/react/24/outline';
 import { MenuItem } from '@/types';
 
@@ -27,6 +28,7 @@ const menuItems: MenuItem[] = [
   { id: 'users', label: 'Користувачі', path: '/users', icon: 'UsersIcon' },
   { id: 'payments', label: 'Платежі', path: '/payments', icon: 'CreditCardIcon' },
   { id: 'broadcasts', label: 'Розсилки', path: '/broadcasts', icon: 'SpeakerWaveIcon' },
+  { id: 'testing', label: 'Тестування', path: '/testing', icon: 'BeakerIcon' },
   { id: 'logs', label: 'Логи системи', path: '/logs', icon: 'DocumentTextIcon' },
   { id: 'admins', label: 'Адміни', path: '/admins', icon: 'UserGroupIcon' },
   { id: 'settings', label: 'Налаштування', path: '/settings', icon: 'Cog6ToothIcon' },
@@ -37,6 +39,7 @@ const iconComponents = {
   UsersIcon,
   CreditCardIcon,
   SpeakerWaveIcon,
+  BeakerIcon,
   UserGroupIcon,
   Cog6ToothIcon,
   DocumentTextIcon,
