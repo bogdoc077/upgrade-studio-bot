@@ -144,7 +144,7 @@ export default function TestingPage() {
       </div>
 
       {/* User Selection Card */}
-      <div className="admin-card" style={{ marginBottom: '24px' }}>
+      <div className="admin-card" style={{ marginBottom: '24px', overflow: 'visible' }}>
         <div className="admin-card__header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <UserIcon style={{ width: '20px', height: '20px', color: 'var(--color-text-secondary)' }} />
@@ -152,7 +152,7 @@ export default function TestingPage() {
           </div>
         </div>
         
-        <div className="admin-card__body">
+        <div className="admin-card__body" style={{ overflow: 'visible' }}>
           <div style={{ position: 'relative' }} ref={dropdownRef}>
             <div style={{ position: 'relative' }}>
               <MagnifyingGlassIcon style={{
