@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { BeakerIcon, UserIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useRef } from 'react';
+import { BeakerIcon, UserIcon, CheckCircleIcon, ExclamationCircleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { makeApiCall } from '@/utils/api-client';
 
 interface TestScenario {
@@ -43,25 +43,41 @@ const TEST_SCENARIOS: TestScenario[] = [
 ];
 
 export default function TestingPage() {
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [results, setResults] = useState<{ [key: string]: { success: boolean; message: string } }>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const searchUsers = async (query: string) => {
     if (!query || query.length < 2) {
       setSearchResults([]);
+      setShowDropdown(false);
       return;
     }
 
     setSearching(true);
+    setShowDropdown(true);
     try {
       const response = await makeApiCall(`/api/users?search=${encodeURIComponent(query)}&limit=10`, {
         method: 'GET'
       });
-      setSearchResults(response.users || []);
+      setSearchResults(response.data || []);
     } catch (error) {
       console.error('Search error:', error);
       setSearchResults([]);
@@ -77,13 +93,14 @@ export default function TestingPage() {
   };
 
   const selectUser = (user: any) => {
-    setSelectedUserId(user.telegram_id.toString());
+    setSelectedUser(user);
     setSearchQuery(`${user.first_name || ''} ${user.last_name || ''} (@${user.username || user.telegram_id})`.trim());
+    setShowDropdown(false);
     setSearchResults([]);
   };
 
   const runTest = async (scenario: TestScenario) => {
-    if (!selectedUserId) {
+    if (!selectedUser) {
       alert('Будь ласка, оберіть користувача');
       return;
     }
@@ -92,7 +109,7 @@ export default function TestingPage() {
     try {
       const response = await makeApiCall(scenario.endpoint, {
         method: 'POST',
-        body: JSON.stringify({ telegram_id: parseInt(selectedUserId) })
+        body: JSON.stringify({ telegram_id: parseInt(selectedUser.telegram_id) })
       });
 
       setResults(prev => ({
@@ -112,95 +129,77 @@ export default function TestingPage() {
     }
   };
 
+  const getStatusBadgeColor = (status: string) => {
+    if (status === 'active') return 'bg-green-100 text-green-800';
+    if (status === 'paused') return 'bg-yellow-100 text-yellow-800';
+    if (status === 'cancelled') return 'bg-red-100 text-red-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="p-6">
       {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <BeakerIcon style={{ width: '32px', height: '32px', color: '#6366f1' }} />
-          <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Тестування автоматичних сценаріїв</h1>
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <BeakerIcon className="w-8 h-8 text-indigo-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Тестування автоматичних сценаріїв</h1>
         </div>
-        <p style={{ color: '#6b7280', fontSize: '14px' }}>
+        <p className="text-gray-600 text-sm">
           Запускайте автоматичні сценарії вручну для тестування функціоналу
         </p>
       </div>
 
       {/* User Selection */}
-      <div style={{
-        backgroundColor: '#fff',
-        border: '1px solid #e5e7eb',
-        borderRadius: '8px',
-        padding: '24px',
-        marginBottom: '24px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <UserIcon style={{ width: '20px', height: '20px', color: '#6b7280' }} />
-          <h2 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>Вибір користувача</h2>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <UserIcon className="w-5 h-5 text-gray-500" />
+          <h2 className="text-lg font-semibold text-gray-900">Вибір користувача</h2>
         </div>
 
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder="Почніть вводити ім'я, username або Telegram ID..."
-            style={{
-              width: '100%',
-              padding: '12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              fontSize: '14px'
-            }}
-          />
+        <div className="relative" ref={dropdownRef}>
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onFocus={() => searchQuery.length >= 2 && setShowDropdown(true)}
+              placeholder="Почніть вводити ім'я, username або Telegram ID..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+            />
+            {searching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+              </div>
+            )}
+          </div>
 
           {/* Search Results Dropdown */}
-          {searchResults.length > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              right: 0,
-              marginTop: '4px',
-              backgroundColor: '#fff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '6px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-              maxHeight: '300px',
-              overflowY: 'auto',
-              zIndex: 10
-            }}>
+          {showDropdown && searchResults.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
               {searchResults.map((user) => (
                 <div
                   key={user.id}
                   onClick={() => selectUser(user)}
-                  style={{
-                    padding: '12px',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid #f3f4f6',
-                    transition: 'background-color 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f9fafb';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#fff';
-                  }}
+                  className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors"
                 >
-                  <div style={{ fontWeight: '500', fontSize: '14px', marginBottom: '4px' }}>
-                    {user.first_name} {user.last_name}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                    @{user.username || user.telegram_id} • ID: {user.telegram_id}
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900 text-sm">
+                        {user.first_name} {user.last_name}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        @{user.username || user.telegram_id} • ID: {user.telegram_id}
+                      </div>
+                    </div>
                     {user.subscription_active && (
-                      <span style={{
-                        marginLeft: '8px',
-                        padding: '2px 8px',
-                        backgroundColor: '#d1fae5',
-                        color: '#065f46',
-                        borderRadius: '4px',
-                        fontSize: '11px'
-                      }}>
-                        Активна підписка
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor('active')}`}>
+                        Активна
+                      </span>
+                    )}
+                    {user.subscription_paused && (
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor('paused')}`}>
+                        Призупинена
                       </span>
                     )}
                   </div>
@@ -209,36 +208,30 @@ export default function TestingPage() {
             </div>
           )}
 
-          {searching && (
-            <div style={{
-              position: 'absolute',
-              right: '12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#6b7280'
-            }}>
-              Пошук...
+          {showDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500">
+              Користувачів не знайдено
             </div>
           )}
         </div>
 
-        {selectedUserId && (
-          <div style={{
-            marginTop: '12px',
-            padding: '12px',
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #86efac',
-            borderRadius: '6px',
-            fontSize: '14px',
-            color: '#166534'
-          }}>
-            ✓ Обрано користувача з Telegram ID: <strong>{selectedUserId}</strong>
+        {selectedUser && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+            <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-green-900">
+                Обрано: {selectedUser.first_name} {selectedUser.last_name}
+              </div>
+              <div className="text-xs text-green-700">
+                Telegram ID: {selectedUser.telegram_id} • @{selectedUser.username || selectedUser.telegram_id}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
       {/* Test Scenarios */}
-      <div style={{ display: 'grid', gap: '16px' }}>
+      <div className="space-y-4">
         {TEST_SCENARIOS.map((scenario) => {
           const result = results[scenario.id];
           const isLoading = loading === scenario.id;
@@ -246,70 +239,39 @@ export default function TestingPage() {
           return (
             <div
               key={scenario.id}
-              style={{
-                backgroundColor: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '20px'
-              }}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow"
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', margin: 0 }}>
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">
                     {scenario.name}
                   </h3>
-                  <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '12px', margin: 0 }}>
+                  <p className="text-sm text-gray-600 mb-3">
                     {scenario.description}
                   </p>
 
                   {scenario.requiresActiveSubscription && (
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#92400e',
-                      backgroundColor: '#fef3c7',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      display: 'inline-block',
-                      marginTop: '8px'
-                    }}>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                       ⚠️ Потребує активної підписки
-                    </div>
+                    </span>
                   )}
 
                   {scenario.requiresPausedSubscription && (
-                    <div style={{
-                      fontSize: '12px',
-                      color: '#92400e',
-                      backgroundColor: '#fef3c7',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      display: 'inline-block',
-                      marginTop: '8px'
-                    }}>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                       ⚠️ Потребує призупиненої підписки
-                    </div>
+                    </span>
                   )}
 
                   {result && (
-                    <div style={{
-                      marginTop: '12px',
-                      padding: '12px',
-                      backgroundColor: result.success ? '#f0fdf4' : '#fef2f2',
-                      border: `1px solid ${result.success ? '#86efac' : '#fca5a5'}`,
-                      borderRadius: '6px',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '8px'
-                    }}>
+                    <div className={`mt-3 p-3 rounded-lg flex items-start gap-2 ${
+                      result.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                    }`}>
                       {result.success ? (
-                        <CheckCircleIcon style={{ width: '20px', height: '20px', color: '#16a34a', flexShrink: 0 }} />
+                        <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       ) : (
-                        <ExclamationCircleIcon style={{ width: '20px', height: '20px', color: '#dc2626', flexShrink: 0 }} />
+                        <ExclamationCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                       )}
-                      <div style={{
-                        fontSize: '14px',
-                        color: result.success ? '#166534' : '#991b1b'
-                      }}>
+                      <div className={`text-sm ${result.success ? 'text-green-800' : 'text-red-800'}`}>
                         {result.message}
                       </div>
                     </div>
@@ -318,32 +280,21 @@ export default function TestingPage() {
 
                 <button
                   onClick={() => runTest(scenario)}
-                  disabled={isLoading || !selectedUserId}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: isLoading ? '#9ca3af' : '#6366f1',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: isLoading || !selectedUserId ? 'not-allowed' : 'pointer',
-                    opacity: isLoading || !selectedUserId ? 0.6 : 1,
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isLoading && selectedUserId) {
-                      e.currentTarget.style.backgroundColor = '#4f46e5';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isLoading && selectedUserId) {
-                      e.currentTarget.style.backgroundColor = '#6366f1';
-                    }
-                  }}
+                  disabled={isLoading || !selectedUser}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                    isLoading || !selectedUser
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
+                  }`}
                 >
-                  {isLoading ? 'Виконується...' : 'Запустити тест'}
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Виконується...
+                    </span>
+                  ) : (
+                    'Запустити тест'
+                  )}
                 </button>
               </div>
             </div>
@@ -352,21 +303,15 @@ export default function TestingPage() {
       </div>
 
       {/* Info Block */}
-      <div style={{
-        marginTop: '24px',
-        padding: '16px',
-        backgroundColor: '#eff6ff',
-        border: '1px solid #bfdbfe',
-        borderRadius: '8px'
-      }}>
-        <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#1e40af', marginBottom: '8px', margin: 0 }}>
+      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-blue-900 mb-2">
           💡 Про тестування
         </h3>
-        <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '13px', color: '#1e40af', lineHeight: '1.6' }}>
-          <li>Тести надсилають реальні повідомлення обраному користувачу в Telegram</li>
-          <li>Деякі тести тимчасово змінюють стан користувача (наприклад, "Закінчення підписки")</li>
-          <li>Обирайте тестових користувачів або власний акаунт для перевірки</li>
-          <li>Результати тестів відображаються в реальному часі</li>
+        <ul className="space-y-1 text-sm text-blue-800">
+          <li>• Тести надсилають реальні повідомлення обраному користувачу в Telegram</li>
+          <li>• Деякі тести тимчасово змінюють стан користувача (наприклад, "Закінчення підписки")</li>
+          <li>• Обирайте тестових користувачів або власний акаунт для перевірки</li>
+          <li>• Результати тестів відображаються в реальному часі</li>
         </ul>
       </div>
     </div>
