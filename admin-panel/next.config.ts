@@ -10,6 +10,16 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '50mb',
     },
   },
+  
+  // Proxy API requests to FastAPI backend
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:8001/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;
