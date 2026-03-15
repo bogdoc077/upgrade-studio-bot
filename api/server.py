@@ -1990,8 +1990,8 @@ async def get_system_logs(
 
 # ================ ТЕСТУВАННЯ АВТОМАТИЧНИХ СЦЕНАРІЇВ ================
 
-@app.post("/api/testing/check-upcoming-payment", dependencies=[Depends(verify_token)])
-async def test_check_upcoming_payment(data: dict):
+@app.post("/api/testing/check-upcoming-payment")
+async def test_check_upcoming_payment(data: dict, admin: Dict = Depends(get_current_admin_flexible)):
     """Тестування сценарію перевірки наближення оплати (7 днів)"""
     try:
         telegram_id = data.get('telegram_id')
@@ -2035,8 +2035,8 @@ async def test_check_upcoming_payment(data: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/testing/expired-subscription", dependencies=[Depends(verify_token)])
-async def test_expired_subscription(data: dict):
+@app.post("/api/testing/expired-subscription")
+async def test_expired_subscription(data: dict, admin: Dict = Depends(get_current_admin_flexible)):
     """Тестування сценарію закінчення підписки"""
     try:
         telegram_id = data.get('telegram_id')
@@ -2099,8 +2099,8 @@ async def test_expired_subscription(data: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/testing/paused-subscription-reminder", dependencies=[Depends(verify_token)])
-async def test_paused_subscription_reminder(data: dict):
+@app.post("/api/testing/paused-subscription-reminder")
+async def test_paused_subscription_reminder(data: dict, admin: Dict = Depends(get_current_admin_flexible)):
     """Тестування нагадування про призупинену підписку"""
     try:
         telegram_id = data.get('telegram_id')
@@ -2144,8 +2144,8 @@ async def test_paused_subscription_reminder(data: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/testing/join-reminder", dependencies=[Depends(verify_token)])
-async def test_join_reminder(data: dict):
+@app.post("/api/testing/join-reminder")
+async def test_join_reminder(data: dict, admin: Dict = Depends(get_current_admin_flexible)):
     """Тестування нагадування про приєднання до каналів"""
     try:
         telegram_id = data.get('telegram_id')
