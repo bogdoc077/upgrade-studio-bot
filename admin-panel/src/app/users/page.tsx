@@ -15,6 +15,7 @@ import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import UserEditModal from '@/components/UserEditModal';
 import Pagination from '@/components/Pagination';
 import { User } from '@/types';
+import { makeApiCall } from '@/utils/api-client';
 
 interface Stats {
   total: number;
@@ -119,28 +120,17 @@ export default function UsersPage() {
     try {
       console.log('[Client] Deleting user:', userId);
       setIsDeleting(true);
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      await makeApiCall(`/api/users/${userId}`, {
+        method: 'DELETE'
       });
       
-      console.log('[Client] Delete response status:', response.status);
-      
-      if (response.ok) {
-        console.log('[Client] Delete successful');
-        setShowDeleteModal(false);
-        setSelectedUser(null);
-        await fetchUsers(); // Refresh the list
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[Client] Delete failed:', errorData);
-        throw new Error(errorData.error || 'Помилка видалення користувача');
-      }
-    } catch (err) {
+      console.log('[Client] Delete successful');
+      setShowDeleteModal(false);
+      setSelectedUser(null);
+      await fetchUsers(); // Refresh the list
+    } catch (err: any) {
       console.error('[Client] Error deleting user:', err);
-      alert('Помилка видалення користувача');
+      alert(err.message || 'Помилка видалення користувача');
     } finally {
       setIsDeleting(false);
     }
