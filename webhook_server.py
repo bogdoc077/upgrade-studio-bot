@@ -285,7 +285,7 @@ async def handle_checkout_session_completed(session):
                     
                     # Формуємо повідомлення
                     message_text = (
-                        f"**✅ Нова підписка**\n\n"
+                        f"<b>✅ Нова підписка</b>\n\n"
                         f"Користувач: {user_info}\n"
                         f"ID: {telegram_id}\n"
                         f"Ім'я: {user.first_name} {user.last_name or ''}\n"
@@ -302,7 +302,7 @@ async def handle_checkout_session_completed(session):
                     await telegram_bot.send_message(
                         chat_id=settings.tech_notifications_chat_id,
                         text=message_text,
-                        parse_mode='Markdown'
+                        parse_mode='HTML'
                     )
                     logger.info(f"Повідомлення про оплату надіслано в Tech групу")
                 except Exception as e:
