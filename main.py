@@ -1801,9 +1801,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         
         # Перевіряємо, чи це адмін з тестовими даними
         if user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
-            # Імітуємо скасування для адміна з підтримкою доступу до кінця періоду
-            # Зберігаємо існуючу дату закінчення або встановлюємо через 30 днів
-            subscription_end_date = user.subscription_end_date or (datetime.utcnow() + timedelta(days=30))
+            # Імітуємо скасування для адміна
+            # Для скасованої підписки - доступ до next_billing_date (БЕЗ +2 днів)
+            subscription_end_date = user.next_billing_date or (datetime.utcnow() + timedelta(days=30))
             
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
@@ -1827,26 +1827,43 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             return
         
         # Звичайна обробка для реальних користувачів
-        # Зберігаємо існуючу дату закінчення (вже встановлена з Stripe webhook)
-        subscription_end_date = user.subscription_end_date
+        # Отримуємо дату закінчення поточного оплаченого періоду зі Stripe
+        subscription_end_date = user.next_billing_date  # Це дата current_period_end з Stripe
+        
+        # Якщо немає next_billing_date, спробуємо отримати зі Stripe API
+        if not subscription_end_date and user.stripe_subscription_id:
+            try:
+                subscription_info = await StripeManager.get_subscription(user.stripe_subscription_id)
+                if subscription_info and 'current_period_end' in subscription_info:
+                    subscription_end_date = datetime.utcfromtimestamp(subscription_info['current_period_end'])
+                    logger.info(f"Отримано current_period_end зі Stripe: {subscription_end_date.strftime('%Y-%m-%d')}")
+            except Exception as e:
+                logger.warning(f"Не вдалося отримати дані зі Stripe: {e}")
+        
+        # Якщо все ще немає дати, використовуємо fallback
+        if not subscription_end_date:
+            subscription_end_date = datetime.utcnow() + timedelta(days=30)
+            logger.warning(f"Використано fallback дату закінчення: {subscription_end_date.strftime('%Y-%m-%d')}")
         
         success = await StripeManager.cancel_subscription(user.stripe_subscription_id)
         
         logger.info(f"Результат скасування підписки в Stripe: {success}")
         
         if success:
-            # Оновлюємо статус в базі - не видаляємо активність до кінця періоду
+            # Оновлюємо статус в базі
+            # При скасуванні підписки доступ до current_period_end (БЕЗ +2 днів на спроби оплати)
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
                 if db_user:
-                    logger.info(f"До скасування: paused={db_user.subscription_paused}, cancelled={db_user.subscription_cancelled}, auto_payment={db_user.auto_payment_enabled}")
+                    logger.info(f"До скасування: paused={db_user.subscription_paused}, cancelled={db_user.subscription_cancelled}, auto_payment={db_user.auto_payment_enabled}, end_date={db_user.subscription_end_date}")
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = True
+                    # Встановлюємо дату закінчення БЕЗ +2 днів (бо не буде спроб автооплати)
                     db_user.subscription_end_date = subscription_end_date
                     db_user.next_billing_date = None
                     db_user.auto_payment_enabled = False
                     db.commit()
-                    logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date}")
+                    logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date.strftime('%Y-%m-%d')}")
                 else:
                     logger.error(f"Користувач {query.from_user.id} не знайдений в базі при скасуванні підписки")
             

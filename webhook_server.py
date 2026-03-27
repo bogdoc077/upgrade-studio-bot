@@ -366,11 +366,13 @@ async def handle_customer_subscription_updated(subscription):
                         # subscription_end_date - коли кікнуть після невдалих спроб (+2 дні для 3 спроб)
                         db_user.subscription_end_date = period_end + timedelta(days=2)
                     elif cancel_at_period_end or status in ['canceled', 'cancelled']:
-                        # Для скасованих підписок - це дата закінчення
-                        db_user.subscription_end_date = period_end + timedelta(days=2)
+                        # Для скасованих підписок - доступ тільки до period_end (БЕЗ +2 днів)
+                        # Бо не буде спроб автооплати
+                        db_user.subscription_end_date = period_end
                         db_user.next_billing_date = None  # Немає наступного списання
                     elif status == 'paused':
-                        # Для призупинених підписок зберігаємо кінцеву дату
+                        # Для призупинених підписок - доступ до period_end + 2 дні
+                        # Бо після відновлення можуть бути спроби оплати
                         db_user.subscription_end_date = period_end + timedelta(days=2)
                         db_user.next_billing_date = None  # Немає списання поки призупинено
                 
