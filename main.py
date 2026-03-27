@@ -2744,55 +2744,58 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == user_id).first()
                 if db_user:
+                    # Визначаємо чи це повторне приєднання (підписник що вийшов і повернувся)
+                    # vs перше приєднання нового підписника
+                    # Перше приєднання: стан CHANNEL_JOIN_PENDING або CHAT_JOIN_PENDING
+                    # Повторне: будь-який інший стан (наприклад ACTIVE_SUBSCRIPTION)
+                    is_rejoin = user.subscription_active and user.state not in [
+                        UserState.CHANNEL_JOIN_PENDING,
+                        UserState.CHAT_JOIN_PENDING
+                    ]
+                    
                     if str(chat_id) == str(settings.private_channel_id):
                         # Це канал
                         db_user.joined_channel = True
                         db.commit()
-                        logger.info(f"Оновлено joined_channel=True для користувача {user_id}")
+                        logger.info(f"Оновлено joined_channel=True для користувача {user_id}, is_rejoin={is_rejoin}")
                         
-                        # Тепер надсилаємо посилання на групу
                         await asyncio.sleep(1)  # Невелика затримка
                         
-                        # Шукаємо посилання на групу
-                        invite_links = DatabaseManager.get_active_invite_links()
-                        active_links = [link for link in invite_links if not link.is_expired] if invite_links else []
-                        
-                        chat_link = None
-                        for link in active_links:
-                            if link.link_type == "chat"or link.link_type == "group":
-                                chat_link = link
-                                break
-                        
-                        if chat_link:
-                            keyboard = [
-                                [InlineKeyboardButton(
-                                    text="💬 Приєднатися до спільноти",
-                                    url=chat_link.invite_link
-                                )]
-                            ]
-                            
-                            reply_markup = InlineKeyboardMarkup(keyboard)
-                            
-                            msg = await self.bot.send_message(
+                        if is_rejoin:
+                            # Повторне приєднання: показуємо коротке повідомлення + оновлене меню
+                            logger.info(f"Користувач {user_id} повторно приєднався до каналу (rejoin)")
+                            await self.bot.send_message(
                                 chat_id=user_id,
-                                text="<b>Крок 2:</b>\n\n"
-                                     "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.",
-                                reply_markup=reply_markup,
+                                text="✅ <b>Доступ до студії оновлено!</b>",
                                 parse_mode='HTML'
                             )
-                            # Зберігаємо ID повідомлення
-                            if user_id not in self.join_step_messages:
-                                self.join_step_messages[user_id] = []
-                            self.join_step_messages[user_id].append(msg.message_id)
+                            await self.show_active_subscription_menu(user_id)
                         else:
-                            # Fallback до .env
-                            chat_username = settings.private_chat_id.replace('-100', '')
-                            keyboard = [
-                                [InlineKeyboardButton(
-                                    text="💬 Приєднатися до спільноти",
-                                    url=f"https://t.me/c/{chat_username}"
-                                )]
-                            ]
+                            # Перше приєднання: показуємо Крок 2 з посиланням на спільноту
+                            invite_links = DatabaseManager.get_active_invite_links()
+                            active_links = [link for link in invite_links if not link.is_expired] if invite_links else []
+                            
+                            chat_link = None
+                            for link in active_links:
+                                if link.link_type == "chat" or link.link_type == "group":
+                                    chat_link = link
+                                    break
+                            
+                            if chat_link:
+                                keyboard = [
+                                    [InlineKeyboardButton(
+                                        text="💬 Приєднатися до спільноти",
+                                        url=chat_link.invite_link
+                                    )]
+                                ]
+                            else:
+                                chat_username = settings.private_chat_id.replace('-100', '')
+                                keyboard = [
+                                    [InlineKeyboardButton(
+                                        text="💬 Приєднатися до спільноти",
+                                        url=f"https://t.me/c/{chat_username}"
+                                    )]
+                                ]
                             
                             reply_markup = InlineKeyboardMarkup(keyboard)
                             
@@ -2812,35 +2815,44 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                         # Це група/чат
                         db_user.joined_chat = True
                         db.commit()
-                        logger.info(f"Оновлено joined_chat=True для користувача {user_id}")
+                        logger.info(f"Оновлено joined_chat=True для користувача {user_id}, is_rejoin={is_rejoin}")
                         
-                        # Видаляємо попередні повідомлення Крок 1 та Крок 2
-                        if user_id in self.join_step_messages:
-                            for message_id in self.join_step_messages[user_id]:
-                                try:
-                                    await self.bot.delete_message(chat_id=user_id, message_id=message_id)
-                                    logger.info(f"Видалено повідомлення {message_id} для користувача {user_id}")
-                                except Exception as e:
-                                    logger.warning(f"Не вдалося видалити повідомлення {message_id}: {e}")
-                            # Очищаємо список
-                            del self.join_step_messages[user_id]
-                        
-                        # Надсилаємо відео кружечок замість текстового повідомлення
-                        video_path = "assets/welcome_video.mp4"
-                        if os.path.exists(video_path):
-                            await self.bot.send_video_note(
+                        if is_rejoin:
+                            # Повторне приєднання: показуємо коротке повідомлення + оновлене меню
+                            logger.info(f"Користувач {user_id} повторно приєднався до чату (rejoin)")
+                            await self.bot.send_message(
                                 chat_id=user_id,
-                                video_note=open(video_path, "rb")
+                                text="✅ <b>Доступ до спільноти оновлено!</b>",
+                                parse_mode='HTML'
                             )
-                        
-                        # Затримка 5 секунд, щоб людина встигла подивитись кружечок
-                        await asyncio.sleep(5)
-                        
-                        # Відправляємо базове меню з підпискою
-                        await self.show_active_subscription_menu(user_id)
-                        
-                        # Встановлюємо стан активної підписки
-                        DatabaseManager.update_user_state(user_id, UserState.ACTIVE_SUBSCRIPTION)
+                            await self.show_active_subscription_menu(user_id)
+                        else:
+                            # Перше приєднання: видаляємо попередні повідомлення Крок 1 та Крок 2
+                            if user_id in self.join_step_messages:
+                                for message_id in self.join_step_messages[user_id]:
+                                    try:
+                                        await self.bot.delete_message(chat_id=user_id, message_id=message_id)
+                                        logger.info(f"Видалено повідомлення {message_id} для користувача {user_id}")
+                                    except Exception as e:
+                                        logger.warning(f"Не вдалося видалити повідомлення {message_id}: {e}")
+                                del self.join_step_messages[user_id]
+                            
+                            # Надсилаємо відео кружечок замість текстового повідомлення
+                            video_path = "assets/welcome_video.mp4"
+                            if os.path.exists(video_path):
+                                await self.bot.send_video_note(
+                                    chat_id=user_id,
+                                    video_note=open(video_path, "rb")
+                                )
+                            
+                            # Затримка 5 секунд, щоб людина встигла подивитись кружечок
+                            await asyncio.sleep(5)
+                            
+                            # Відправляємо базове меню з підпискою
+                            await self.show_active_subscription_menu(user_id)
+                            
+                            # Встановлюємо стан активної підписки
+                            DatabaseManager.update_user_state(user_id, UserState.ACTIVE_SUBSCRIPTION)
                     else:
                         logger.warning(f"Невідомий chat_id: {chat_id}")
                 else:
