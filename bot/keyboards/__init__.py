@@ -7,16 +7,11 @@ from config import Buttons, SurveyOptions
 
 def get_main_menu_keyboard(channel_url: str = None, chat_url: str = None) -> InlineKeyboardMarkup:
     """Головне меню бота для користувачів з активною підпискою"""
-    # Якщо посилання не передані, використовуємо базові
-    if not channel_url:
-        channel_url = "https://t.me/upgrade21studio"
-    if not chat_url:
-        chat_url = "https://t.me/upgrade21community"
-    
+    # Використовуємо callback для перевірки членства перед переходом
     keyboard = [
         [InlineKeyboardButton(Buttons.MANAGE_SUBSCRIPTION, callback_data="manage_subscription")],
-        [InlineKeyboardButton(Buttons.GO_TO_STUDIO, url=channel_url)],
-        [InlineKeyboardButton(Buttons.GO_TO_COMMUNITY, url=chat_url)],
+        [InlineKeyboardButton(Buttons.GO_TO_STUDIO, callback_data="go_to_studio")],
+        [InlineKeyboardButton(Buttons.GO_TO_COMMUNITY, callback_data="go_to_community")],
         [InlineKeyboardButton(Buttons.ASK_QUESTION, url="https://t.me/alionakovaliova")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -24,15 +19,10 @@ def get_main_menu_keyboard(channel_url: str = None, chat_url: str = None) -> Inl
 
 def get_cancelled_subscription_keyboard(channel_url: str = None, chat_url: str = None) -> InlineKeyboardMarkup:
     """Меню для користувачів зі скасованою підпискою (без керування)"""
-    # Якщо посилання не передані, використовуємо базові
-    if not channel_url:
-        channel_url = "https://t.me/upgrade21studio"
-    if not chat_url:
-        chat_url = "https://t.me/upgrade21community"
-    
+    # Для скасованої підписки теж використовуємо callback (доступ до кінця періоду)
     keyboard = [
-        [InlineKeyboardButton(Buttons.GO_TO_STUDIO, url=channel_url)],
-        [InlineKeyboardButton(Buttons.GO_TO_COMMUNITY, url=chat_url)],
+        [InlineKeyboardButton(Buttons.GO_TO_STUDIO, callback_data="go_to_studio")],
+        [InlineKeyboardButton(Buttons.GO_TO_COMMUNITY, callback_data="go_to_community")],
         [InlineKeyboardButton(Buttons.ASK_QUESTION, url="https://t.me/alionakovaliova")]
     ]
     return InlineKeyboardMarkup(keyboard)
