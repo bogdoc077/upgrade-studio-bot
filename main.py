@@ -554,12 +554,15 @@ class UpgradeStudioBot:
                 [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
             ])
             
-            await self.bot.send_message(
+            payment_msg = await self.bot.send_message(
                 chat_id=user_id,
                 text=subscription_text,
                 reply_markup=payment_keyboard,
                 parse_mode='HTML'
             )
+            # Зберігаємо ID повідомлення для видалення після оплати
+            self.payment_message_ids[user_id] = payment_msg.message_id
+            logger.info(f"[broadcast] Збережено ID повідомлення оплати {payment_msg.message_id} для користувача {user_id}")
         else:
             await self.bot.send_message(
                 chat_id=user_id,
@@ -2191,6 +2194,17 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                         self.join_step_messages[telegram_id] = []
                     self.join_step_messages[telegram_id].append(msg.message_id)
             
+            # Якщо вже в обох групах (повторний підписник ще в межах свого попереднього доступу)
+            if not send_channel_invite and not send_chat_invite:
+                await self.bot.send_message(
+                    chat_id=telegram_id,
+                    text="✅ <b>Підписку відновлено!</b>\n\n"
+                         "Ти знову маєш повний доступ до студії та спільноти 🩵\n\n"
+                         "Тренуйся та надихайся разом з нами!",
+                    parse_mode='HTML'
+                )
+                return
+            
             # Плануємо нагадування про приєднання (якщо користувач не приєднається протягом доби)
             if send_channel_invite or send_chat_invite:
                 if self.task_scheduler:
@@ -2241,6 +2255,14 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             with DatabaseManager() as db:
                 db_user = db.query(User).filter(User.telegram_id == telegram_id).first()
                 if db_user:
+                    # Якщо це повторна підписка (скасована/призупинена) — скидаємо joined статуси
+                    # щоб користувач пройшов повний флоу приєднання до каналу/чату
+                    is_resubscription = db_user.subscription_cancelled or db_user.subscription_paused
+                    if is_resubscription and db_user.joined_channel and db_user.joined_chat:
+                        db_user.joined_channel = False
+                        db_user.joined_chat = False
+                        logger.info(f"[re-sub] Скинуто joined_channel/chat для повторного підписника {telegram_id}")
+                    
                     db_user.subscription_active = True
                     db_user.subscription_paused = False
                     db_user.subscription_cancelled = False
