@@ -1037,8 +1037,7 @@ class UpgradeStudioBot:
                 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
                 keyboard = [[InlineKeyboardButton("🩵 Перейти в студію", url=invite_link_obj.invite_link)]]
                 await query.edit_message_text(
-                    "Я помітила, що ти вийшов зі студії 😊\n\n"
-                    "Додаю тебе знову! Натисни кнопку нижче 🎀",
+                    "⚠️ Доступ до студії було втрачено!\n\nДолучайся за посиланням нижче 🎀",
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
             except Exception as e:
@@ -1047,17 +1046,21 @@ class UpgradeStudioBot:
                 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
                 keyboard = [[InlineKeyboardButton("🩵 Перейти в студію", url=channel_link.invite_link)]]
                 await query.edit_message_text(
-                    "Натисни кнопку нижче, щоб перейти в студію 🎀",
+                    "⚠️ Доступ до студії було втрачено!\n\nДолучайся за посиланням нижче 🎀",
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
         else:
-            # Користувач вже є членом - просто показуємо посилання
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            keyboard = [[InlineKeyboardButton("🩵 Перейти в студію", url=channel_link.invite_link)]]
-            await query.edit_message_text(
-                "Натисни кнопку нижче, щоб перейти в студію 🎀",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            # Користувач вже є членом - відкриваємо посилання автоматично
+            try:
+                await query.answer(url=channel_link.invite_link)
+            except Exception:
+                # Якщо не спрацювало - показуємо кнопку
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                keyboard = [[InlineKeyboardButton("🩵 Перейти в студію", url=channel_link.invite_link)]]
+                await query.edit_message_text(
+                    "Натисни кнопку нижче 🎀",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
     
     async def handle_go_to_community(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Перейти в спільноту з перевіркою членства"""
@@ -1122,8 +1125,7 @@ class UpgradeStudioBot:
                 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
                 keyboard = [[InlineKeyboardButton("💬 Перейти в спільноту", url=invite_link_obj.invite_link)]]
                 await query.edit_message_text(
-                    "Я помітила, що ти вийшов зі спільноти 😊\n\n"
-                    "Додаю тебе знову! Натисни кнопку нижче 🎀",
+                    "⚠️ Доступ до спільноти було втрачено!\n\nДолучайся за посиланням нижче 🎀",
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
             except Exception as e:
@@ -1132,17 +1134,21 @@ class UpgradeStudioBot:
                 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
                 keyboard = [[InlineKeyboardButton("💬 Перейти в спільноту", url=chat_link.invite_link)]]
                 await query.edit_message_text(
-                    "Натисни кнопку нижче, щоб перейти в спільноту 🎀",
+                    "⚠️ Доступ до спільноти було втрачено!\n\nДолучайся за посиланням нижче 🎀",
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
         else:
-            # Користувач вже є членом - просто показуємо посилання
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            keyboard = [[InlineKeyboardButton("💬 Перейти в спільноту", url=chat_link.invite_link)]]
-            await query.edit_message_text(
-                "Натисни кнопку нижче, щоб перейти в спільноту 🎀",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            # Користувач вже є членом - відкриваємо посилання автоматично
+            try:
+                await query.answer(url=chat_link.invite_link)
+            except Exception:
+                # Якщо не спрацювало - показуємо кнопку
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                keyboard = [[InlineKeyboardButton("💬 Перейти в спільноту", url=chat_link.invite_link)]]
+                await query.edit_message_text(
+                    "Натисни кнопку нижче 🎀",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Загальний обробник callback запитів"""
