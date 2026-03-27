@@ -2201,6 +2201,110 @@ async def test_join_reminder(data: dict, admin: Dict = Depends(get_current_admin
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/testing/paused-expired-renewal")
+async def test_paused_expired_renewal(data: dict, admin: Dict = Depends(get_current_admin_flexible)):
+    """Тестування сценарію: призупинена підписка + доступ закінчився + поновлення"""
+    try:
+        telegram_id = data.get('telegram_id')
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="telegram_id is required")
+        
+        from telegram import Bot
+        from bot.keyboards import get_subscription_offer_keyboard
+        from database.models import DatabaseManager, User
+        
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            bot = Bot(token=settings.telegram_bot_token)
+            
+            # Імітуємо що підписка була призупинена і доступ закінчився
+            subscription_end = user.subscription_end_date.strftime('%d.%m.%Y') if user.subscription_end_date else "невідомо"
+            
+            message_text = f"""🔔 [ТЕСТ] Ваша підписка призупинена
+
+Ваша підписка була призупинена і термін дії закінчився ({subscription_end}).
+
+Доступ до студії та спільноти було знято.
+
+Готові повернутися до тренувань? 
+Ми раді бачити вас знову! 💪
+
+Щоб поновити підписку:
+• Натисніть кнопку "Оформити підписку" нижче
+• Або оберіть "Підписка" в головному меню
+
+Повертайтесь до форми та мотивації! 🔥"""
+            
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text=message_text,
+                reply_markup=get_subscription_offer_keyboard(),
+                parse_mode='Markdown'
+            )
+        
+        return {"success": True, "message": "Test paused-expired renewal scenario sent successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in test_paused_expired_renewal: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/testing/cancelled-expired-renewal")
+async def test_cancelled_expired_renewal(data: dict, admin: Dict = Depends(get_current_admin_flexible)):
+    """Тестування сценарію: скасована підписка + доступ закінчився + поновлення"""
+    try:
+        telegram_id = data.get('telegram_id')
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="telegram_id is required")
+        
+        from telegram import Bot
+        from bot.keyboards import get_subscription_offer_keyboard
+        from database.models import DatabaseManager, User
+        
+        with DatabaseManager() as db:
+            user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            bot = Bot(token=settings.telegram_bot_token)
+            
+            # Імітуємо що підписка була скасована і доступ закінчився
+            subscription_end = user.subscription_end_date.strftime('%d.%m.%Y') if user.subscription_end_date else "невідомо"
+            
+            message_text = f"""❌ [ТЕСТ] Ваша підписка скасована
+
+Ваша підписка була скасована і термін дії закінчився ({subscription_end}).
+
+Доступ до студії та спільноти було знято.
+
+Сподіваємось, що вам сподобалось! 
+Якщо вирішите повернутися — ми завжди раді! 🤗
+
+Щоб оформити нову підписку:
+• Натисніть кнопку "Оформити підписку" нижче
+• Або оберіть "Підписка" в головному меню
+
+Ми чекаємо на вас! 💙"""
+            
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text=message_text,
+                reply_markup=get_subscription_offer_keyboard(),
+                parse_mode='Markdown'
+            )
+        
+        return {"success": True, "message": "Test cancelled-expired renewal scenario sent successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in test_cancelled_expired_renewal: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)

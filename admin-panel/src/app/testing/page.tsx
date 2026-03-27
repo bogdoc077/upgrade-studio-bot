@@ -35,6 +35,18 @@ const TEST_SCENARIOS: TestScenario[] = [
     requiresPausedSubscription: true
   },
   {
+    id: 'paused_expired_renewal',
+    name: 'Призупинена → Доступ закінчився → Поновлення',
+    description: 'Імітує сценарій: підписка призупинена, доступ закінчився, користувач хоче поновити. Показує повідомлення та меню для поновлення.',
+    endpoint: '/api/testing/paused-expired-renewal'
+  },
+  {
+    id: 'cancelled_expired_renewal',
+    name: 'Скасована → Доступ закінчився → Поновлення',
+    description: 'Імітує сценарій: підписка скасована, доступ закінчився, користувач хоче поновити. Показує повідомлення та меню для поновлення.',
+    endpoint: '/api/testing/cancelled-expired-renewal'
+  },
+  {
     id: 'join_reminder',
     name: 'Нагадування про приєднання',
     description: 'Надсилає нагадування про необхідність приєднатися до каналів та чатів.',
