@@ -1682,22 +1682,24 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             else:
                 logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
         
-        # Намагаємось призупинити в Stripe (best effort)
-        if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
-            try:
-                stripe_success = await StripeManager.pause_subscription(user.stripe_subscription_id)
-                if not stripe_success:
-                    logger.error(f"Stripe pause failed for user {query.from_user.id}, sub_id={user.stripe_subscription_id}")
-                else:
-                    logger.info(f"Stripe pause successful for user {query.from_user.id}")
-            except Exception as e:
-                logger.error(f"Stripe pause exception for user {query.from_user.id}: {e}")
-        
-        # Видаляємо попереднє повідомлення з кнопками
+        # Видаляємо повідомлення ОДРАЗУ — не чекаємо Stripe
         try:
             await query.message.delete()
         except Exception as e:
             logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Запускаємо Stripe у фоні (fire-and-forget) — не блокує UI
+        if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
+            async def _stripe_pause_bg():
+                try:
+                    ok = await StripeManager.pause_subscription(user.stripe_subscription_id)
+                    if ok:
+                        logger.info(f"[BG] Stripe pause OK for user {query.from_user.id}")
+                    else:
+                        logger.error(f"[BG] Stripe pause failed for user {query.from_user.id}")
+                except Exception as e:
+                    logger.error(f"[BG] Stripe pause exception for user {query.from_user.id}: {e}")
+            asyncio.create_task(_stripe_pause_bg())
         
         # Відправляємо повідомлення в Tech групу
         user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
@@ -1794,26 +1796,31 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db.commit()
                 logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True")
         
-        # Намагаємось поновити в Stripe (best effort)
+        # Запускаємо Stripe у фоні (fire-and-forget)
         if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
-            try:
-                stripe_success = await StripeManager.resume_subscription(user.stripe_subscription_id)
-                if stripe_success:
-                    # Оновлюємо дату наступного платежу зі Stripe
-                    try:
-                        subscription_obj = await StripeManager.get_subscription(user.stripe_subscription_id)
-                        if subscription_obj and 'current_period_end' in subscription_obj:
-                            with DatabaseManager() as db:
-                                db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
-                                if db_user:
-                                    db_user.next_billing_date = datetime.utcfromtimestamp(subscription_obj['current_period_end'])
-                                    db.commit()
-                    except Exception as e:
-                        logger.warning(f"Не вдалося оновити дату платежу зі Stripe: {e}")
-                else:
-                    logger.error(f"Stripe resume failed for user {query.from_user.id}, sub_id={user.stripe_subscription_id}")
-            except Exception as e:
-                logger.error(f"Stripe resume exception for user {query.from_user.id}: {e}")
+            sub_id = user.stripe_subscription_id
+            user_id_for_bg = query.from_user.id
+            async def _stripe_resume_bg():
+                try:
+                    ok = await StripeManager.resume_subscription(sub_id)
+                    if ok:
+                        logger.info(f"[BG] Stripe resume OK for user {user_id_for_bg}")
+                        # Оновлюємо дату наступного платежу зі Stripe
+                        try:
+                            subscription_obj = await StripeManager.get_subscription(sub_id)
+                            if subscription_obj and 'current_period_end' in subscription_obj:
+                                with DatabaseManager() as db:
+                                    db_user = db.query(User).filter(User.telegram_id == user_id_for_bg).first()
+                                    if db_user:
+                                        db_user.next_billing_date = datetime.utcfromtimestamp(subscription_obj['current_period_end'])
+                                        db.commit()
+                        except Exception as e:
+                            logger.warning(f"[BG] Не вдалося оновити дату платежу зі Stripe: {e}")
+                    else:
+                        logger.error(f"[BG] Stripe resume failed for user {user_id_for_bg}")
+                except Exception as e:
+                    logger.error(f"[BG] Stripe resume exception for user {user_id_for_bg}: {e}")
+            asyncio.create_task(_stripe_resume_bg())
         
         # Якщо доступ був втрачений - відправляємо запрошення для приєднання
         if had_no_access:
@@ -1821,7 +1828,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             await self.send_join_invitations(query.from_user.id)
             return
         
-        # Видаляємо попереднє повідомлення з кнопками
+        # Видаляємо повідомлення ОДРАЗУ
         try:
             await query.message.delete()
         except Exception as e:
@@ -1970,22 +1977,26 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             else:
                 logger.error(f"Користувач {query.from_user.id} не знайдений в базі при скасуванні підписки")
         
-        # Намагаємось скасувати в Stripe (best effort)
-        if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
-            try:
-                stripe_success = await StripeManager.cancel_subscription(user.stripe_subscription_id)
-                if not stripe_success:
-                    logger.error(f"Stripe cancel failed for user {query.from_user.id}, sub_id={user.stripe_subscription_id}")
-                else:
-                    logger.info(f"Stripe cancel successful for user {query.from_user.id}")
-            except Exception as e:
-                logger.error(f"Stripe cancel exception for user {query.from_user.id}: {e}")
-        
-        # Видаляємо попереднє повідомлення з кнопками
+        # Видаляємо повідомлення ОДРАЗУ — не чекаємо Stripe
         try:
             await query.message.delete()
         except Exception as e:
             logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Запускаємо Stripe у фоні (fire-and-forget)
+        if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
+            sub_id = user.stripe_subscription_id
+            user_id_for_bg = query.from_user.id
+            async def _stripe_cancel_bg():
+                try:
+                    ok = await StripeManager.cancel_subscription(sub_id)
+                    if ok:
+                        logger.info(f"[BG] Stripe cancel OK for user {user_id_for_bg}")
+                    else:
+                        logger.error(f"[BG] Stripe cancel failed for user {user_id_for_bg}")
+                except Exception as e:
+                    logger.error(f"[BG] Stripe cancel exception for user {user_id_for_bg}: {e}")
+            asyncio.create_task(_stripe_cancel_bg())
         
         # Підраховуємо кількість успішних оплат для повідомлення в Tech групу
         from database.models import Payment

@@ -28,7 +28,7 @@ class StripeManager:
     @staticmethod
     async def _stripe_call(func, *args, **kwargs):
         """Виконати синхронний Stripe виклик асинхронно через thread pool"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()  # get_running_loop() — правильний варіант всередині coroutine
         return await loop.run_in_executor(None, partial(func, *args, **kwargs))
 
     @staticmethod
