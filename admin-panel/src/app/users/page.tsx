@@ -56,7 +56,7 @@ export default function UsersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Допоміжна функція для форматування дат UTC без конвертації в локальний час
-  const formatUTCDate = (dateString: string | null) => {
+  const formatUTCDate = (dateString: string | null | undefined) => {
     if (!dateString) return '-';
     // Парсимо дату як UTC і форматуємо тільки день.місяць.рік
     const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
