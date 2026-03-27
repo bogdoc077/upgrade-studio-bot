@@ -47,6 +47,7 @@ export interface User {
   subscription_paused: number | boolean;
   stripe_customer_id?: string;
   stripe_subscription_id?: string;
+  email?: string;  // Email зі Stripe для пошуку клієнта
   joined_channel: number | boolean;
   joined_chat: number | boolean;
   workouts_completed: number;

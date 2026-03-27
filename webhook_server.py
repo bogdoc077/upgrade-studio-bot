@@ -208,6 +208,12 @@ async def handle_checkout_session_completed(session):
                 user.stripe_customer_id = session.get('customer')
                 user.stripe_subscription_id = subscription_id
                 
+                # Зберігаємо email клієнта зі Stripe для легкого пошуку
+                customer_email = session.get('customer_details', {}).get('email') or session.get('customer_email')
+                if customer_email:
+                    user.email = customer_email
+                    logger.info(f"Збережено email клієнта: {customer_email}")
+                
                 # Встановлюємо дати підписки
                 date_set = False
                 
@@ -699,6 +705,10 @@ async def handle_invoice_payment_succeeded(invoice):
                         db_user.subscription_end_date = end_date + timedelta(days=2)
                         db_user.subscription_active = True
                         db_user.auto_payment_enabled = True  # Успішна оплата = автоплатіж працює
+                        
+                        # Оновлюємо email якщо він є в invoice
+                        if invoice.get('customer_email'):
+                            db_user.email = invoice.get('customer_email')
                         
                         # Якщо була призупинена або скасована - знімаємо ці статуси
                         if db_user.subscription_paused:

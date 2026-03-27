@@ -473,6 +473,7 @@ export default function UsersPage() {
                   <th className="admin-table__header-cell">ID</th>
                   <th className="admin-table__header-cell">Telegram ID</th>
                   <th className="admin-table__header-cell">Username</th>
+                  <th className="admin-table__header-cell">Email</th>
                   <th className="admin-table__header-cell">Ім'я</th>
                   <th className="admin-table__header-cell">Статус</th>
                   <th className="admin-table__header-cell">Дата реєстрації</th>
@@ -490,6 +491,19 @@ export default function UsersPage() {
                     <td className="admin-table__cell admin-table__cell--bold">{user.id}</td>
                     <td className="admin-table__cell">{user.telegram_id.toString()}</td>
                     <td className="admin-table__cell">{user.username || '-'}</td>
+                    <td className="admin-table__cell">
+                      {user.email ? (
+                        <a 
+                          href={`https://dashboard.stripe.com/customers?email=${encodeURIComponent(user.email)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="admin-link"
+                          title="Відкрити в Stripe Dashboard"
+                        >
+                          {user.email}
+                        </a>
+                      ) : '-'}
+                    </td>
                     <td className="admin-table__cell">
                       {`${user.first_name || ''} ${user.last_name || ''}`.trim() || '-'}
                     </td>

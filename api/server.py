@@ -385,13 +385,13 @@ async def get_users(
         where_conditions = []
         query_params = []
         
-        # Пошук по імені, username, telegram_id
+        # Пошук по імені, username, telegram_id, email
         if search:
             search_query = f"%{search}%"
             where_conditions.append(
-                "(CAST(telegram_id AS CHAR) LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR username LIKE %s)"
+                "(CAST(telegram_id AS CHAR) LIKE %s OR first_name LIKE %s OR last_name LIKE %s OR username LIKE %s OR email LIKE %s)"
             )
-            query_params.extend([search_query, search_query, search_query, search_query])
+            query_params.extend([search_query, search_query, search_query, search_query, search_query])
         
         # Фільтр по статусу підписки
         if subscription_status:

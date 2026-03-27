@@ -38,6 +38,7 @@ class User(Base):
     auto_payment_enabled = Column(Boolean, default=True)  # Статус автоплатежу
     stripe_customer_id = Column(String(255), nullable=True)
     stripe_subscription_id = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)  # Email зі Stripe для пошуку клієнта
     
     # Членство в каналах
     joined_channel = Column(Boolean, default=False)
