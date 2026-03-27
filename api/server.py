@@ -2013,14 +2013,8 @@ async def test_check_upcoming_payment(data: dict, admin: Dict = Depends(get_curr
         if not telegram_id:
             raise HTTPException(status_code=400, detail="telegram_id is required")
         
-        from telegram import Bot
-        from tasks.scheduler import TaskScheduler
+        from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
         
-        bot = Bot(token=settings.telegram_bot_token)
-        scheduler = TaskScheduler(bot)
-        
-        # Викликаємо метод для конкретного користувача
-        from database.models import DatabaseManager, User
         with DatabaseManager() as db:
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
             if not user:
@@ -2028,19 +2022,20 @@ async def test_check_upcoming_payment(data: dict, admin: Dict = Depends(get_curr
             
             if not user.subscription_active or user.subscription_cancelled or user.subscription_paused:
                 raise HTTPException(status_code=400, detail="User subscription is not active/valid for this test")
-            
-            # Відправляємо тестове повідомлення
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu_after_cancel")]
-            ])
-            
-            await bot.send_message(
-                chat_id=user.telegram_id,
-                text="🩵 [ТЕСТ] Підписка буде автоматично продовжена через 7 днів.",
-                reply_markup=keyboard,
-                parse_mode='Markdown'
-            )
+        
+        bot = Bot(token=settings.telegram_bot_token)
+        
+        # Реальний текст і клавіатура з scheduler.py check_upcoming_payments
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu_after_cancel")]
+        ])
+        
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="🧡 Підписка буде автоматично продовжена через 7 днів.",
+            reply_markup=keyboard,
+            parse_mode='Markdown'
+        )
         
         return {"success": True, "message": "Test notification sent successfully"}
     except HTTPException:
@@ -2058,54 +2053,56 @@ async def test_expired_subscription(data: dict, admin: Dict = Depends(get_curren
         if not telegram_id:
             raise HTTPException(status_code=400, detail="telegram_id is required")
         
-        from database.models import DatabaseManager, User
+        from telegram import Bot
+        from bot.keyboards import get_subscription_offer_keyboard
         
-        # Імітуємо закінчення підписки
         with DatabaseManager() as db:
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
-            
-            # Зберігаємо оригінальні значення
-            original_subscription_active = user.subscription_active
-            original_joined_channel = user.joined_channel
-            original_joined_chat = user.joined_chat
-            
-            # Тимчасово скидаємо статуси
-            user.subscription_active = False
-            user.joined_channel = False
-            user.joined_chat = False
-            db.commit()
         
-        # Відправляємо пропозицію підписки
-        try:
-            # Імпортуємо bot instance (якщо доступний)
-            from main import UpgradeStudioBot
-            # Тут можна викликати метод show_subscription_offer, але для тесту просто відправимо повідомлення
-            from telegram import Bot
-            bot = Bot(token=settings.telegram_bot_token)
-            
-            await bot.send_message(
-                chat_id=telegram_id,
-                text="🔴 [ТЕСТ] Ваша підписка закінчилася. Оформіть підписку знову, щоб продовжити доступ до студії.",
-                parse_mode='HTML'
-            )
-        except Exception as e:
-            logger.error(f"Error sending test message: {e}")
+        bot = Bot(token=settings.telegram_bot_token)
         
-        # Відновлюємо оригінальні значення через 5 секунд
-        await asyncio.sleep(5)
-        with DatabaseManager() as db:
-            user = db.query(User).filter(User.telegram_id == telegram_id).first()
-            if user:
-                user.subscription_active = original_subscription_active
-                user.joined_channel = original_joined_channel
-                user.joined_chat = original_joined_chat
-                db.commit()
+        # Реальний текст з scheduler.py _remove_user_from_chats
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="⚠️ **Ваша підписка закінчилась**\n\nДоступ до приватних каналів та чатів було закрито.\n\nЩоб продовжити користуватися сервісом:\n1. Поновіть підписку через /start\n2. Або зв'яжіться з підтримкою\n\nДякуємо, що були з нами! 💙",
+            parse_mode='Markdown'
+        )
+        
+        # Також відправляємо пропозицію підписки (як у show_subscription_offer_with_payment)
+        price_formatted = f"{settings.subscription_price:.0f}"
+        currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
+        
+        subscription_text = f"""<b>Що тебе чекає у студії �</b>
+
+• 3 тренування на тиждень які ніколи не повторюються
+• Доступ до тренувань поточного та попереднього місяця
+• Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
+• Тривалість 30–45 хв
+
+<b>Додатково:</b> 3 руханки та лекції від нутриціолога.
+
+<b>Ком'юніті неймовірних дівчат</b>
+• підтримка в чаті та натхнення
+• практика з нутріціологом
+
+Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
+
+<b>Вартість:</b> {price_formatted}{currency_symbol}/місяць 🎀
+
+Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
+        
+        await bot.send_message(
+            chat_id=telegram_id,
+            text=subscription_text,
+            reply_markup=get_subscription_offer_keyboard(),
+            parse_mode='HTML'
+        )
         
         return {
             "success": True,
-            "message": "Test scenario executed. Original values restored after 5 seconds."
+            "message": "Test scenario executed: expired subscription notification + subscription offer sent."
         }
     except HTTPException:
         raise
@@ -2123,7 +2120,6 @@ async def test_paused_subscription_reminder(data: dict, admin: Dict = Depends(ge
             raise HTTPException(status_code=400, detail="telegram_id is required")
         
         from telegram import Bot
-        from database.models import DatabaseManager, User
         
         with DatabaseManager() as db:
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
@@ -2133,21 +2129,26 @@ async def test_paused_subscription_reminder(data: dict, admin: Dict = Depends(ge
             if not user.subscription_paused:
                 raise HTTPException(status_code=400, detail="User subscription is not paused")
             
-            # Рахуємо дні до закінчення
             days_left = 0
             if user.subscription_end_date:
                 days_left = (user.subscription_end_date - datetime.utcnow()).days
             
+            end_date_str = user.subscription_end_date.strftime('%d.%m.%Y') if user.subscription_end_date else "невідомо"
+            
             bot = Bot(token=settings.telegram_bot_token)
+            
+            # Реальний текст з scheduler.py check_expired_subscriptions (paused batch)
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=f"""⚠️ [ТЕСТ] **Нагадування про підписку**
+                text=f"""⚠️ **Нагадування про підписку**
 
-Ваша підписка закінчується через **{days_left} {'день' if days_left == 1 else 'дні'}**.
+Ваша підписка закінчується через **{days_left} {'день' if days_left == 1 else 'дні'}** ({end_date_str}).
 
 ❌ Автоматичне продовження вимкнене (підписка призупинена)
 
-Щоб продовжити доступ, поновіть підписку в меню бота.""",
+Щоб продовжити доступ:
+1. Відновіть підписку в особистому кабінеті
+2. Або зверніться до підтримки""",
                 parse_mode='Markdown'
             )
         
@@ -2167,29 +2168,40 @@ async def test_join_reminder(data: dict, admin: Dict = Depends(get_current_admin
         if not telegram_id:
             raise HTTPException(status_code=400, detail="telegram_id is required")
         
-        from telegram import Bot
-        from database.models import DatabaseManager, User
+        from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
         
         with DatabaseManager() as db:
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             
+            # Отримуємо реальні посилання з БД
+            invite_links = DatabaseManager.get_active_invite_links()
+            
+            keyboard = []
+            for link in invite_links:
+                if link.link_type == "channel":
+                    keyboard.append([InlineKeyboardButton(
+                        text="🩵 Приєднатися до студії",
+                        url=link.invite_link
+                    )])
+                elif link.link_type == "group":
+                    keyboard.append([InlineKeyboardButton(
+                        text="💬 Приєднатися до спільноти",
+                        url=link.invite_link
+                    )])
+            
+            # Додаємо кнопки підтвердження
+            keyboard.append([InlineKeyboardButton("Я приєднався до каналу", callback_data="channel_joined")])
+            keyboard.append([InlineKeyboardButton("Я приєднався до чату", callback_data="chat_joined")])
+            
             bot = Bot(token=settings.telegram_bot_token)
             
-            # Відправляємо тестове нагадування
-            reminder_text = """🩵 [ТЕСТ] Нагадування про приєднання
-
-Не забудь приєднатися до наших каналів:
-
-📺 Канал з тренуваннями
-💬 Чат зі спільнотою
-
-Щоб отримати запрошення, використай меню бота."""
-            
+            # Реальний текст з scheduler.py _get_join_channel_reminder
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=reminder_text,
+                text="⏰ Нагадування!\n\nВи ще не приєдналися до каналу та чату. \nДля участі у тренуваннях обов'язково приєднайтеся:\n\n⚠️ Важливо: приєднайтеся протягом доби, інакше буду нагадувати",
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='Markdown'
             )
         
@@ -2211,7 +2223,6 @@ async def test_paused_expired_renewal(data: dict, admin: Dict = Depends(get_curr
         
         from telegram import Bot
         from bot.keyboards import get_subscription_offer_keyboard
-        from database.models import DatabaseManager, User
         
         with DatabaseManager() as db:
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
@@ -2220,29 +2231,45 @@ async def test_paused_expired_renewal(data: dict, admin: Dict = Depends(get_curr
             
             bot = Bot(token=settings.telegram_bot_token)
             
-            # Імітуємо що підписка була призупинена і доступ закінчився
-            subscription_end = user.subscription_end_date.strftime('%d.%m.%Y') if user.subscription_end_date else "невідомо"
+            subscription_end = user.subscription_end_date.strftime('%d.%m') if user.subscription_end_date else "невідомо"
             
-            message_text = f"""🔔 [ТЕСТ] Ваша підписка призупинена
+            # Реальний текст: повідомлення про закінчення призупиненої підписки
+            # + пропозиція підписки як в show_subscription_offer_with_payment
+            price_formatted = f"{settings.subscription_price:.0f}"
+            currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
+            
+            # Спочатку повідомлення про закінчення доступу (з _remove_user_from_chats)
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text="⚠️ **Ваша підписка закінчилась**\n\nДоступ до приватних каналів та чатів було закрито.\n\nДякуємо, що були з нами! 💙",
+                parse_mode='Markdown'
+            )
+            
+            # Потім пропозиція підписки (реальний текст з show_subscription_offer_with_payment)
+            subscription_text = f"""<b>Що тебе чекає у студії �</b>
 
-Ваша підписка була призупинена і термін дії закінчився ({subscription_end}).
+• 3 тренування на тиждень які ніколи не повторюються
+• Доступ до тренувань поточного та попереднього місяця
+• Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
+• Тривалість 30–45 хв
 
-Доступ до студії та спільноти було знято.
+<b>Додатково:</b> 3 руханки та лекції від нутриціолога.
 
-Готові повернутися до тренувань? 
-Ми раді бачити вас знову! 💪
+<b>Ком'юніті неймовірних дівчат</b>
+• підтримка в чаті та натхнення
+• практика з нутріціологом
 
-Щоб поновити підписку:
-• Натисніть кнопку "Оформити підписку" нижче
-• Або оберіть "Підписка" в головному меню
+Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
 
-Повертайтесь до форми та мотивації! 🔥"""
+<b>Вартість:</b> {price_formatted}{currency_symbol}/місяць 🎀
+
+Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
             
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=message_text,
+                text=subscription_text,
                 reply_markup=get_subscription_offer_keyboard(),
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         
         return {"success": True, "message": "Test paused-expired renewal scenario sent successfully"}
@@ -2263,7 +2290,6 @@ async def test_cancelled_expired_renewal(data: dict, admin: Dict = Depends(get_c
         
         from telegram import Bot
         from bot.keyboards import get_subscription_offer_keyboard
-        from database.models import DatabaseManager, User
         
         with DatabaseManager() as db:
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
@@ -2272,29 +2298,41 @@ async def test_cancelled_expired_renewal(data: dict, admin: Dict = Depends(get_c
             
             bot = Bot(token=settings.telegram_bot_token)
             
-            # Імітуємо що підписка була скасована і доступ закінчився
-            subscription_end = user.subscription_end_date.strftime('%d.%m.%Y') if user.subscription_end_date else "невідомо"
+            price_formatted = f"{settings.subscription_price:.0f}"
+            currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
             
-            message_text = f"""❌ [ТЕСТ] Ваша підписка скасована
+            # Спочатку повідомлення про закінчення доступу (з _remove_user_from_chats)
+            await bot.send_message(
+                chat_id=user.telegram_id,
+                text="⚠️ **Ваша підписка закінчилась**\n\nДоступ до приватних каналів та чатів було закрито.\n\nДякуємо, що були з нами! 💙",
+                parse_mode='Markdown'
+            )
+            
+            # Потім пропозиція підписки (реальний текст з show_subscription_offer_with_payment)
+            subscription_text = f"""<b>Що тебе чекає у студії �</b>
 
-Ваша підписка була скасована і термін дії закінчився ({subscription_end}).
+• 3 тренування на тиждень які ніколи не повторюються
+• Доступ до тренувань поточного та попереднього місяця
+• Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
+• Тривалість 30–45 хв
 
-Доступ до студії та спільноти було знято.
+<b>Додатково:</b> 3 руханки та лекції від нутриціолога.
 
-Сподіваємось, що вам сподобалось! 
-Якщо вирішите повернутися — ми завжди раді! 🤗
+<b>Ком'юніті неймовірних дівчат</b>
+• підтримка в чаті та натхнення
+• практика з нутріціологом
 
-Щоб оформити нову підписку:
-• Натисніть кнопку "Оформити підписку" нижче
-• Або оберіть "Підписка" в головному меню
+Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
 
-Ми чекаємо на вас! 💙"""
+<b>Вартість:</b> {price_formatted}{currency_symbol}/місяць 🎀
+
+Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
             
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=message_text,
+                text=subscription_text,
                 reply_markup=get_subscription_offer_keyboard(),
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
         
         return {"success": True, "message": "Test cancelled-expired renewal scenario sent successfully"}
