@@ -105,7 +105,8 @@ BROADCASTS_DIR = UPLOAD_DIR / "broadcasts"
 BROADCASTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Монтуємо статичні файли
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+# /api/uploads — бо nginx проксює /api/* → FastAPI, тому браузер запитує /api/uploads/...
+app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 # CORS для Next.js
 app.add_middleware(
