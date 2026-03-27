@@ -573,6 +573,25 @@ class UpgradeStudioBot:
         if not user:
             return
         
+        # Отримуємо посилання на канал та чат з бази даних
+        invite_links = DatabaseManager.get_active_invite_links()
+        channel_url = None
+        chat_url = None
+        
+        for link in invite_links:
+            if link.link_type == "channel":
+                channel_url = link.invite_link
+            elif link.link_type == "group":
+                chat_url = link.invite_link
+        
+        # Fallback якщо посилання не знайдені
+        if not channel_url:
+            from config import settings
+            channel_url = f"https://t.me/c/{settings.private_channel_id.replace('-100', '')}"
+        if not chat_url:
+            from config import settings
+            chat_url = f"https://t.me/c/{settings.private_chat_id.replace('-100', '')}"
+        
         # Рахуємо дні членства
         days_member = (datetime.utcnow() - user.member_since).days
         
@@ -587,7 +606,7 @@ class UpgradeStudioBot:
                 [InlineKeyboardButton("▶️ Поновити підписку", callback_data="resume_subscription")],
                 [InlineKeyboardButton("❌ Скасувати підписку", callback_data="cancel_subscription")],
                 [InlineKeyboardButton("💳 Змінити платіжний метод", callback_data="change_payment_method")],
-                [InlineKeyboardButton("❓ Задати питання", callback_data="ask_question")]
+                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
             ])
         elif user.subscription_paused:
             # Підписка призупинена (незалежно від active) - показуємо статус призупинення
@@ -596,7 +615,7 @@ class UpgradeStudioBot:
                 menu_text = f"<b>Підписку призупинено</b> ⏸️\n\nДоступ до студії та спільноти залишається до <b>{subscription_end_date.strftime('%d.%m')}</b>"
             else:
                 menu_text = f"<b>Підписку призупинено</b> ⏸️"
-            keyboard = get_main_menu_keyboard()
+            keyboard = get_main_menu_keyboard(channel_url, chat_url)
         elif user.subscription_cancelled:
             # Підписка скасована - показуємо меню БЕЗ керування підпискою
             subscription_end_date = user.subscription_end_date
@@ -604,11 +623,11 @@ class UpgradeStudioBot:
                 menu_text = f"<b>Підписку скасовано</b> ❌\n\nДоступ до студії та спільноти залишається до <b>{subscription_end_date.strftime('%d.%m')}</b>"
             else:
                 menu_text = f"<b>Підписку скасовано</b> ❌"
-            keyboard = get_cancelled_subscription_keyboard()
+            keyboard = get_cancelled_subscription_keyboard(channel_url, chat_url)
         else:
             # Підписка активна
             menu_text = f"<b>Підписка активна</b> ✅\n\nТи зі мною вже: <b>{days_member} днів</b>"
-            keyboard = get_main_menu_keyboard()
+            keyboard = get_main_menu_keyboard(channel_url, chat_url)
         
         await self.bot.send_message(
             chat_id=user_id,
@@ -620,6 +639,17 @@ class UpgradeStudioBot:
     async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати головне меню"""
         user_id = update.effective_user.id
+        
+        # Отримуємо посилання на канал та чат з бази даних
+        invite_links = DatabaseManager.get_active_invite_links()
+        channel_url = None
+        chat_url = None
+        
+        for link in invite_links:
+            if link.link_type == "channel":
+                channel_url = link.invite_link
+            elif link.link_type == "group":
+                chat_url = link.invite_link
         
         # Видаляємо попереднє повідомлення меню
         if user_id in self.last_menu_messages:
@@ -641,12 +671,12 @@ class UpgradeStudioBot:
             sent_message = await self.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="Головне меню",
-                reply_markup=get_main_menu_keyboard()
+                reply_markup=get_main_menu_keyboard(channel_url, chat_url)
             )
         else:
             sent_message = await update.message.reply_text(
                 "Головне меню",
-                reply_markup=get_main_menu_keyboard()
+                reply_markup=get_main_menu_keyboard(channel_url, chat_url)
             )
         
         # Зберігаємо ID нового повідомлення меню
@@ -1194,15 +1224,6 @@ class UpgradeStudioBot:
             except Exception:
                 pass
             await self.handle_subscription_management_from_callback(query.from_user.id)
-        elif data == "go_to_studio":
-            # Кнопка "Перейти в студію"
-            await self.handle_go_to_studio(update, context)
-        elif data == "go_to_community":
-            # Кнопка "Перейти в спільноту"
-            await self.handle_go_to_community(update, context)
-        elif data == "ask_question":
-            # Кнопка "Задати питання"
-            await self.handle_ask_question(update, context)
         elif data == "refresh_dashboard":
             await self.handle_dashboard(update, context)
         elif data == "join_channel_access":
