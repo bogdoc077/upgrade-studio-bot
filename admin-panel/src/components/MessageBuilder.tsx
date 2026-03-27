@@ -17,6 +17,9 @@ export interface MessageBlock {
   id: string;
   type: 'text' | 'image' | 'video' | 'document' | 'button' | 'subscription_button';
   content: string;
+  // Додаткові поля для різних типів блоків
+  text?: string;      // Для text блоків
+  url?: string;       // Для media блоків (image, video, document)
   file?: File;
   fileUrl?: string;
   buttonText?: string;
