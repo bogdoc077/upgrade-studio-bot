@@ -1494,6 +1494,20 @@ async def get_broadcast_stats(admin: Dict = Depends(get_current_admin_flexible))
         result = cursor.fetchone()
         no_subscription_count = result["count"] if result else 0
         
+        # Користувачі з доступом (для звірки хто має бути в чаті/спільноті)
+        # Включає: активні + скасовані але ще не закінчилися + призупинені але не закінчилися
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM users 
+            WHERE (
+                (subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0)
+                OR (subscription_cancelled = 1 AND subscription_end_date >= NOW())
+                OR (subscription_paused = 1 AND subscription_end_date >= NOW())
+            )
+        """)
+        result = cursor.fetchone()
+        with_access_count = result["count"] if result else 0
+        
         cursor.close()
         db.close()
         
@@ -1501,7 +1515,8 @@ async def get_broadcast_stats(admin: Dict = Depends(get_current_admin_flexible))
             "active": active_count,
             "cancelled": cancelled_count,
             "paused": paused_count,
-            "no_subscription": no_subscription_count
+            "no_subscription": no_subscription_count,
+            "with_access": with_access_count
         }
         
     except Exception as e:

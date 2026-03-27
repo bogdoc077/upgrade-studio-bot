@@ -17,6 +17,7 @@ interface BroadcastStats {
   paused: number;
   cancelled: number;
   no_subscription: number;
+  with_access: number;
 }
 
 interface Broadcast {
@@ -272,6 +273,17 @@ export default function BroadcastsPage() {
       {/* Stats Cards */}
       {stats && (
         <div className="admin-stats">
+          <div className="admin-stats__card" style={{borderLeft: '3px solid #10b981'}}>
+            <div className="admin-stats__header">
+              <span className="admin-stats__title">З доступом зараз</span>
+            </div>
+            <div className="admin-stats__content">
+              <div className="admin-stats__value" style={{color: '#10b981'}}>{stats.with_access}</div>
+              <div style={{fontSize: '12px', color: '#6b7280', marginTop: '4px'}}>
+                Мають бути в чаті/спільноті
+              </div>
+            </div>
+          </div>
           <div className="admin-stats__card">
             <div className="admin-stats__header">
               <span className="admin-stats__title">Активні підписки</span>

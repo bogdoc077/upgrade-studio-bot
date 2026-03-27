@@ -279,7 +279,7 @@ async def handle_checkout_session_completed(session):
                     
                     # Формуємо повідомлення
                     message_text = (
-                        f"✅ **Нова підписка**\n\n"
+                        f"**✅ Нова підписка**\n\n"
                         f"Користувач: {user_info}\n"
                         f"ID: {telegram_id}\n"
                         f"Ім'я: {user.first_name} {user.last_name or ''}\n"
