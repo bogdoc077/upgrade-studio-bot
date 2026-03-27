@@ -297,7 +297,7 @@ class BroadcastHandler:
                 # Генеруємо посилання на бот з параметром для показу підписки
                 bot_username = (await self.bot.get_me()).username
                 subscription_button_url = f"https://t.me/{bot_username}?start=subscription_offer"
-                subscription_button_text = subscription_button.get('buttonText', 'Оформити підписку')
+                subscription_button_text = subscription_button.get('buttonText') or 'Оформити підписку'
                 logger.info(f"Subscription button: text='{subscription_button_text}', url='{subscription_button_url}'")
             
             # Якщо є текст та медіа, відправляємо перше повідомлення з текстом + перше медіа + кнопка
@@ -385,6 +385,16 @@ class BroadcastHandler:
                     media_url=None,
                     button_text=button_text,
                     button_url=button_url
+                )
+            elif subscription_button:
+                # Тільки кнопка підписки без тексту/медіа — відправляємо з текстом-запрошенням
+                await self._send_single_message(
+                    telegram_id=telegram_id,
+                    text='👇',
+                    media_type=None,
+                    media_url=None,
+                    button_text=subscription_button_text,
+                    button_url=subscription_button_url
                 )
             else:
                 logger.warning(f"No content to send for broadcast to {telegram_id}")

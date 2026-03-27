@@ -41,6 +41,7 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
       id: `block-${Date.now()}`,
       type,
       content: '',
+      ...(type === 'subscription_button' ? { buttonText: 'Оформити підписку' } : {}),
     };
     onChange([...blocks, newBlock]);
     setShowAddMenu(false);
