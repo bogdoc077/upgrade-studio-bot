@@ -2,8 +2,10 @@
 Інтеграція з Stripe для обробки платежів та підписок
 """
 import stripe
+import asyncio
 import logging
 from datetime import datetime, timedelta
+from functools import partial
 from typing import Optional, Dict, Any
 
 from config import settings
@@ -19,11 +21,23 @@ class StripeManager:
     """Менеджер для роботи з Stripe API"""
     
     @staticmethod
+    def _run_sync(func, *args, **kwargs):
+        """Запустити синхронний Stripe виклик в thread executor (уникає блокування event loop)"""
+        return func(*args, **kwargs)
+    
+    @staticmethod
+    async def _stripe_call(func, *args, **kwargs):
+        """Виконати синхронний Stripe виклик асинхронно через thread pool"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, partial(func, *args, **kwargs))
+
+    @staticmethod
     async def create_customer(telegram_id: int, email: str = None, 
                             name: str = None) -> Optional[str]:
         """Створити клієнта в Stripe"""
         try:
-            customer = stripe.Customer.create(
+            customer = await StripeManager._stripe_call(
+                stripe.Customer.create,
                 metadata={'telegram_id': str(telegram_id)},
                 email=email,
                 name=name
@@ -66,31 +80,31 @@ class StripeManager:
             # Отримуємо ціну в центах
             price_in_cents = int(settings.subscription_price * 100)
             
+            session_params = dict(
+                customer=user.stripe_customer_id,
+                payment_method_types=['card'],
+                mode='subscription',
+                line_items=[{
+                    'price_data': {
+                        'currency': settings.subscription_currency,
+                        'product_data': {
+                            'name': 'Upgrade Studio - Місячна підписка',
+                            'description': 'Доступ до тренувань та спільноти Upgrade Studio'
+                        },
+                        'unit_amount': price_in_cents,
+                        'recurring': {'interval': 'month'}
+                    },
+                    'quantity': 1,
+                }],
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata={'telegram_id': str(telegram_id)}
+            )
+            
             # Створюємо Checkout Session
             try:
-                session = stripe.checkout.Session.create(
-                    customer=user.stripe_customer_id,
-                    payment_method_types=['card'],
-                    mode='subscription',
-                    line_items=[{
-                        'price_data': {
-                            'currency': settings.subscription_currency,
-                            'product_data': {
-                                'name': 'Upgrade Studio - Місячна підписка',
-                                'description': 'Доступ до тренувань та спільноти Upgrade Studio'
-                            },
-                            'unit_amount': price_in_cents,
-                            'recurring': {
-                                'interval': 'month'
-                            }
-                        },
-                        'quantity': 1,
-                    }],
-                    success_url=success_url,
-                    cancel_url=cancel_url,
-                    metadata={
-                        'telegram_id': str(telegram_id)
-                    }
+                session = await StripeManager._stripe_call(
+                    stripe.checkout.Session.create, **session_params
                 )
             except stripe.error.InvalidRequestError as e:
                 # Якщо customer був видалений в Stripe - створюємо нового
@@ -110,30 +124,9 @@ class StripeManager:
                             db_user.stripe_customer_id = customer_id
                             db.commit()
                     
-                    # Пробуємо створити session знову з новим customer
-                    session = stripe.checkout.Session.create(
-                        customer=customer_id,
-                        payment_method_types=['card'],
-                        mode='subscription',
-                        line_items=[{
-                            'price_data': {
-                                'currency': settings.subscription_currency,
-                                'product_data': {
-                                    'name': 'Upgrade Studio - Місячна підписка',
-                                    'description': 'Доступ до тренувань та спільноти Upgrade Studio'
-                                },
-                                'unit_amount': price_in_cents,
-                                'recurring': {
-                                    'interval': 'month'
-                                }
-                            },
-                            'quantity': 1,
-                        }],
-                        success_url=success_url,
-                        cancel_url=cancel_url,
-                        metadata={
-                            'telegram_id': str(telegram_id)
-                        }
+                    session_params['customer'] = customer_id
+                    session = await StripeManager._stripe_call(
+                        stripe.checkout.Session.create, **session_params
                     )
                 else:
                     raise
@@ -152,14 +145,18 @@ class StripeManager:
     async def get_subscription(subscription_id: str) -> Optional[Dict[str, Any]]:
         """Отримати інформацію про підписку"""
         try:
-            subscription = stripe.Subscription.retrieve(subscription_id)
+            subscription = await StripeManager._stripe_call(
+                stripe.Subscription.retrieve,
+                subscription_id
+            )
             return {
                 'id': subscription.id,
                 'status': subscription.status,
-                'current_period_start': subscription.current_period_start,  # Повертаємо timestamp
-                'current_period_end': subscription.current_period_end,      # Повертаємо timestamp
+                'current_period_start': subscription.current_period_start,
+                'current_period_end': subscription.current_period_end,
                 'customer_id': subscription.customer,
-                'cancel_at_period_end': subscription.cancel_at_period_end   # Чи скасовано на кінець періоду
+                'cancel_at_period_end': subscription.cancel_at_period_end,
+                'pause_collection': subscription.get('pause_collection')
             }
         except Exception as e:
             logger.error(f"Помилка при отриманні підписки {subscription_id}: {e}")
@@ -167,15 +164,14 @@ class StripeManager:
     
     @staticmethod
     async def pause_subscription(subscription_id: str) -> bool:
-        """Призупинити підписку"""
+        """Призупинити підписку (зупиняє майбутні платежі)"""
         try:
-            stripe.Subscription.modify(
+            result = await StripeManager._stripe_call(
+                stripe.Subscription.modify,
                 subscription_id,
-                pause_collection={
-                    'behavior': 'mark_uncollectible'
-                }
+                pause_collection={'behavior': 'void'}  # void = рахунки не виставляються
             )
-            logger.info(f"Підписку {subscription_id} призупинено")
+            logger.info(f"Підписку {subscription_id} призупинено в Stripe, status={result.status}, pause_collection={result.get('pause_collection')}")
             return True
         except Exception as e:
             logger.error(f"Помилка при призупиненні підписки {subscription_id}: {e}")
@@ -183,13 +179,15 @@ class StripeManager:
     
     @staticmethod
     async def resume_subscription(subscription_id: str) -> bool:
-        """Поновити підписку"""
+        """Поновити підписку (прибирає паузу або cancel_at_period_end)"""
         try:
-            stripe.Subscription.modify(
+            result = await StripeManager._stripe_call(
+                stripe.Subscription.modify,
                 subscription_id,
-                pause_collection=''  # Прибираємо паузу
+                pause_collection='',  # Прибираємо паузу
+                cancel_at_period_end=False  # Скасовуємо відкладене скасування
             )
-            logger.info(f"Підписку {subscription_id} поновлено")
+            logger.info(f"Підписку {subscription_id} поновлено в Stripe, status={result.status}")
             return True
         except Exception as e:
             logger.error(f"Помилка при поновленні підписки {subscription_id}: {e}")
@@ -197,10 +195,14 @@ class StripeManager:
     
     @staticmethod
     async def cancel_subscription(subscription_id: str) -> bool:
-        """Скасувати підписку"""
+        """Скасувати підписку наприкінці поточного оплаченого періоду"""
         try:
-            stripe.Subscription.delete(subscription_id)
-            logger.info(f"Підписку {subscription_id} скасовано")
+            result = await StripeManager._stripe_call(
+                stripe.Subscription.modify,
+                subscription_id,
+                cancel_at_period_end=True  # Скасувати наприкінці поточного периоду (не одразу)
+            )
+            logger.info(f"Підписку {subscription_id} заплановано на скасування в Stripe, cancel_at_period_end={result.cancel_at_period_end}")
             return True
         except Exception as e:
             logger.error(f"Помилка при скасуванні підписки {subscription_id}: {e}")
@@ -211,18 +213,15 @@ class StripeManager:
         """Створити Setup Intent для оновлення платіжного методу (без можливості скасувати підписку)"""
         try:
             # Створюємо Setup Intent для додавання/оновлення платіжного методу
-            setup_intent = stripe.SetupIntent.create(
+            setup_intent = await StripeManager._stripe_call(
+                stripe.SetupIntent.create,
                 customer=customer_id,
                 payment_method_types=['card'],
-                usage='off_session',  # Дозволяє використовувати картку для майбутніх платежів
-                metadata={
-                    'type': 'payment_method_update'
-                }
+                usage='off_session',
+                metadata={'type': 'payment_method_update'}
             )
             
             logger.info(f"Створено Setup Intent для оновлення платіжного методу customer {customer_id}")
-            
-            # Повертаємо client_secret для фронтенду Stripe
             return setup_intent.client_secret
         except Exception as e:
             logger.error(f"Помилка при створенні Setup Intent: {e}")
@@ -248,27 +247,15 @@ class StripeManager:
             if not allow_cancel:
                 # Створюємо тимчасову конфігурацію Billing Portal з обмеженими функціями
                 try:
-                    configuration = stripe.billing_portal.Configuration.create(
-                        business_profile={
-                            'headline': 'Оновлення платіжного методу',
-                        },
+                    configuration = await StripeManager._stripe_call(
+                        stripe.billing_portal.Configuration.create,
+                        business_profile={'headline': 'Оновлення платіжного методу'},
                         features={
-                            'customer_update': {
-                                'enabled': True,
-                                'allowed_updates': ['email', 'address'],
-                            },
-                            'payment_method_update': {
-                                'enabled': True,
-                            },
-                            'subscription_cancel': {
-                                'enabled': False,  # Вимикаємо можливість скасування
-                            },
-                            'subscription_pause': {
-                                'enabled': False,  # Вимикаємо можливість призупинення
-                            },
-                            'subscription_update': {
-                                'enabled': False,  # Вимикаємо можливість зміни плану
-                            },
+                            'customer_update': {'enabled': True, 'allowed_updates': ['email', 'address']},
+                            'payment_method_update': {'enabled': True},
+                            'subscription_cancel': {'enabled': False},
+                            'subscription_pause': {'enabled': False},
+                            'subscription_update': {'enabled': False},
                         },
                     )
                     portal_config['configuration'] = configuration.id
@@ -276,7 +263,10 @@ class StripeManager:
                 except Exception as config_error:
                     logger.warning(f"Не вдалося створити custom конфігурацію: {config_error}. Використовуємо default.")
             
-            session = stripe.billing_portal.Session.create(**portal_config)
+            session = await StripeManager._stripe_call(
+                stripe.billing_portal.Session.create,
+                **portal_config
+            )
             logger.info(f"Створено Billing Portal сесію для customer {customer_id} (allow_cancel={allow_cancel})")
             return session.url
         except Exception as e:
