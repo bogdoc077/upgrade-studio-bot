@@ -979,6 +979,8 @@ class UpgradeStudioBot:
         # Підтримка callback та text message
         if update.callback_query:
             query = update.callback_query
+            await query.answer()  # Спочатку відповідаємо на callback
+            
             # Отримуємо посилання на канал з бази даних
             invite_links = DatabaseManager.get_active_invite_links()
             channel_link = None
@@ -995,8 +997,20 @@ class UpgradeStudioBot:
                 logger.warning("Invite link для каналу не знайдено в БД, використовуємо налаштування")
                 url = f"https://t.me/c/{settings.private_channel_id.replace('-100', '')}"
             
-            # Відповідаємо з URL - Telegram відкриє його автоматично
-            await query.answer(url=url, show_alert=False)
+            # Відправляємо повідомлення з кнопкою для переходу
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = [[InlineKeyboardButton("🩵 Перейти в студію", url=url)]]
+            try:
+                await query.edit_message_text(
+                    "Натисни кнопку нижче, щоб перейти в студію 🎀",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception:
+                # Якщо не вдалося редагувати, відправляємо нове повідомлення
+                await query.message.reply_text(
+                    "Натисни кнопку нижче, щоб перейти в студію 🎀",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
         else:
             # Якщо викликано через текстове повідомлення - показуємо кнопку
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -1025,6 +1039,8 @@ class UpgradeStudioBot:
         # Підтримка callback та text message
         if update.callback_query:
             query = update.callback_query
+            await query.answer()  # Спочатку відповідаємо на callback
+            
             # Отримуємо посилання на чат з бази даних
             invite_links = DatabaseManager.get_active_invite_links()
             chat_link = None
@@ -1041,8 +1057,20 @@ class UpgradeStudioBot:
                 logger.warning("Invite link для чату не знайдено в БД, використовуємо налаштування")
                 url = f"https://t.me/c/{settings.private_chat_id.replace('-100', '')}"
             
-            # Відповідаємо з URL - Telegram відкриє його автоматично
-            await query.answer(url=url, show_alert=False)
+            # Відправляємо повідомлення з кнопкою для переходу
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = [[InlineKeyboardButton("💬 Перейти в спільноту", url=url)]]
+            try:
+                await query.edit_message_text(
+                    "Натисни кнопку нижче, щоб перейти в спільноту 🎀",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception:
+                # Якщо не вдалося редагувати, відправляємо нове повідомлення
+                await query.message.reply_text(
+                    "Натисни кнопку нижче, щоб перейти в спільноту 🎀",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
         else:
             # Якщо викликано через текстове повідомлення - показуємо кнопку
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -1071,8 +1099,22 @@ class UpgradeStudioBot:
         # Підтримка callback та text message
         if update.callback_query:
             query = update.callback_query
-            # Відповідаємо з URL - Telegram відкриє його автоматично
-            await query.answer(url="https://t.me/alionakovaliova", show_alert=False)
+            await query.answer()  # Спочатку відповідаємо на callback
+            
+            # Відправляємо повідомлення з кнопкою для переходу
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = [[InlineKeyboardButton("Написати Альоні", url="https://t.me/alionakovaliova")]]
+            try:
+                await query.edit_message_text(
+                    "Якщо у тебе виникли питання, напиши мені — з радістю допоможу! ✨",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception:
+                # Якщо не вдалося редагувати, відправляємо нове повідомлення
+                await query.message.reply_text(
+                    "Якщо у тебе виникли питання, напиши мені — з радістю допоможу! ✨",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
         else:
             # Якщо викликано через текстове повідомлення - показуємо кнопку
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
