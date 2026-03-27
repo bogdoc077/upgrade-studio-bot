@@ -2971,7 +2971,9 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         
         # Перевіряємо чи це перше приєднання чи повторне
         user = DatabaseManager.get_user_by_telegram_id(user_id)
-        was_previously_joined = user.joined_channel if user else False
+        
+        # Повторне приєднання = користувач вже мав активну підписку і стан не CHANNEL_JOIN_PENDING
+        is_rejoin = user and user.subscription_active and user.state != UserState.CHANNEL_JOIN_PENDING
         
         # Оновлюємо статус приєднання до каналу
         with DatabaseManager() as db:
@@ -2979,14 +2981,32 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             if db_user:
                 db_user.joined_channel = True
                 db.commit()
-                logger.info(f"Оновлено joined_channel=True для користувача {user_id}, was_previously_joined={was_previously_joined}")
+                logger.info(f"Оновлено joined_channel=True для користувача {user_id}, is_rejoin={is_rejoin}")
             else:
                 logger.error(f"Користувач {user_id} не знайдений при оновленні joined_channel")
         
-        # Якщо користувач вже був приєднаний раніше (повторне приєднання після виходу)
-        if was_previously_joined:
-            logger.info(f"Користувач {user_id} повторно приєднався до каналу - пропускаємо привітання")
-            # Просто показуємо головне меню без додаткових повідомлень
+        # Якщо це повторне приєднання (користувач вийшов і повернувся)
+        if is_rejoin:
+            logger.info(f"Користувач {user_id} повторно приєднався до каналу - відправляємо коротке повідомлення")
+            
+            # Видаляємо попереднє головне меню якщо воно є
+            if user_id in self.last_menu_messages:
+                try:
+                    await self.bot.delete_message(
+                        chat_id=user_id,
+                        message_id=self.last_menu_messages[user_id]
+                    )
+                except Exception as e:
+                    logger.debug(f"Не вдалося видалити попереднє меню: {e}")
+            
+            # Відправляємо коротке повідомлення
+            await self.bot.send_message(
+                chat_id=user_id,
+                text="✅ <b>Доступ до студії оновлено!</b>",
+                parse_mode='HTML'
+            )
+            
+            # Показуємо оновлене головне меню
             await self.show_active_subscription_menu(user_id)
             return
         
@@ -3057,7 +3077,9 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         
         # Перевіряємо чи це перше приєднання чи повторне
         user = DatabaseManager.get_user_by_telegram_id(user_id)
-        was_previously_joined = user.joined_chat if user else False
+        
+        # Повторне приєднання = користувач вже мав активну підписку і стан не CHAT_JOIN_PENDING
+        is_rejoin = user and user.subscription_active and user.state != UserState.CHAT_JOIN_PENDING
         
         # Оновлюємо статус приєднання до чату
         with DatabaseManager() as db:
@@ -3065,14 +3087,32 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             if db_user:
                 db_user.joined_chat = True
                 db.commit()
-                logger.info(f"Оновлено joined_chat=True для користувача {user_id}, was_previously_joined={was_previously_joined}")
+                logger.info(f"Оновлено joined_chat=True для користувача {user_id}, is_rejoin={is_rejoin}")
             else:
                 logger.error(f"Користувач {user_id} не знайдений при оновленні joined_chat")
         
-        # Якщо користувач вже був приєднаний раніше (повторне приєднання після виходу)
-        if was_previously_joined:
-            logger.info(f"Користувач {user_id} повторно приєднався до чату - пропускаємо привітання")
-            # Просто показуємо головне меню без кружечка та додаткових повідомлень
+        # Якщо це повторне приєднання (користувач вийшов і повернувся)
+        if is_rejoin:
+            logger.info(f"Користувач {user_id} повторно приєднався до чату - відправляємо коротке повідомлення")
+            
+            # Видаляємо попереднє головне меню якщо воно є
+            if user_id in self.last_menu_messages:
+                try:
+                    await self.bot.delete_message(
+                        chat_id=user_id,
+                        message_id=self.last_menu_messages[user_id]
+                    )
+                except Exception as e:
+                    logger.debug(f"Не вдалося видалити попереднє меню: {e}")
+            
+            # Відправляємо коротке повідомлення
+            await self.bot.send_message(
+                chat_id=user_id,
+                text="✅ <b>Доступ до спільноти оновлено!</b>",
+                parse_mode='HTML'
+            )
+            
+            # Показуємо оновлене головне меню
             await self.show_active_subscription_menu(user_id)
             # Встановлюємо стан активної підписки
             DatabaseManager.update_user_state(user_id, UserState.ACTIVE_SUBSCRIPTION)
