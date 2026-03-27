@@ -204,12 +204,30 @@ class UpgradeStudioBot:
             
             # Якщо минуло 7+ днів або немає збереженого часу, скидаємо стан
             if not feedback_requested_at or (datetime.now() - feedback_requested_at).days >= 7:
-                # Скидаємо стан на SUBSCRIPTION_OFFER для показу пропозиції підписки
-                DatabaseManager.update_user_state(user.id, UserState.SUBSCRIPTION_OFFER)
+                # Скидаємо стан на SUBSCRIPTION_CANCELLED для показу статусу скасування
+                DatabaseManager.update_user_state(user.id, UserState.SUBSCRIPTION_CANCELLED)
                 if 'cancel_feedback_requested_at' in context.user_data:
                     del context.user_data['cancel_feedback_requested_at']
                 # Оновлюємо локальний об'єкт
-                telegram_user.state = UserState.SUBSCRIPTION_OFFER
+                telegram_user.state = UserState.SUBSCRIPTION_CANCELLED
+            else:
+                # Якщо ще не минуло 7 днів, показуємо повідомлення про скасування з датою
+                subscription_end_date = telegram_user.subscription_end_date
+                if subscription_end_date:
+                    end_date_str = subscription_end_date.strftime('%d.%m.%Y')
+                    await update.message.reply_text(
+                        f"<b>Підписку скасовано</b> ❌\n\n"
+                        f"Доступ до студії та спільноти залишається до <b>{end_date_str}</b>\n\n"
+                        f"Якщо хочеш поділитися відгуком про студію, просто напиши мені повідомлення.",
+                        parse_mode='HTML'
+                    )
+                else:
+                    await update.message.reply_text(
+                        f"<b>Підписку скасовано</b> ❌\n\n"
+                        f"Якщо хочеш поділитися відгуком про студію, просто напиши мені повідомлення.",
+                        parse_mode='HTML'
+                    )
+                return
         
         # Перевіряємо параметри start команди
         if context.args:
@@ -571,13 +589,13 @@ class UpgradeStudioBot:
                 [InlineKeyboardButton("💳 Змінити платіжний метод", callback_data="change_payment_method")],
                 [InlineKeyboardButton("❓ Задати питання", callback_data="ask_question")]
             ])
-        elif user.subscription_paused and user.subscription_active:
-            # Підписка призупинена але доступ ще є - стандартне меню
+        elif user.subscription_paused:
+            # Підписка призупинена (незалежно від active) - показуємо статус призупинення
             subscription_end_date = user.subscription_end_date
-            if subscription_end_date:
-                menu_text = f"Підписку призупинено ⏸️\n\nДоступ до студії та спільноти залишається до <b>{subscription_end_date.strftime('%d.%m')}</b>"
+            if subscription_end_date and user.subscription_active:
+                menu_text = f"<b>Підписку призупинено</b> ⏸️\n\nДоступ до студії та спільноти залишається до <b>{subscription_end_date.strftime('%d.%m')}</b>"
             else:
-                menu_text = f"Підписку призупинено ⏸️"
+                menu_text = f"<b>Підписку призупинено</b> ⏸️"
             keyboard = get_main_menu_keyboard()
         elif user.subscription_cancelled:
             # Підписка скасована - показуємо меню БЕЗ керування підпискою
@@ -769,11 +787,12 @@ class UpgradeStudioBot:
                     try:
                         subscription_info = await StripeManager.get_subscription(user.stripe_subscription_id)
                         if subscription_info:
-                            # Отримуємо актуальну дату наступного платежу зі Stripe
-                            next_billing_date = datetime.fromtimestamp(subscription_info['current_period_end'])
-                            subscription_end_date = next_billing_date
+                            # Отримуємо актуальну дату наступного платежу зі Stripe (використовуємо UTC)
+                            next_billing_date = datetime.utcfromtimestamp(subscription_info['current_period_end'])
+                            # subscription_end_date - дата кінцевого кіку після 3 невдалих спроб (+2 дні)
+                            subscription_end_date = next_billing_date + timedelta(days=2)
                             
-                            logger.info(f"Отримано актуальні дані зі Stripe для користувача {user_id}: next_billing={next_billing_date.strftime('%d.%m.%Y')}")
+                            logger.info(f"Отримано актуальні дані зі Stripe для користувача {user_id}: next_billing={next_billing_date.strftime('%d.%m.%Y')}, end_date={subscription_end_date.strftime('%d.%m.%Y')}")
                     except Exception as e:
                         logger.warning(f"Не вдалося отримати дані зі Stripe для користувача {user_id}: {e}")
                 
@@ -957,123 +976,112 @@ class UpgradeStudioBot:
     
     async def handle_go_to_studio(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Перейти в студію (канал)"""
-        user_id = update.effective_user.id
-        
-        # Отримуємо посилання на канал з бази даних
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        
-        # Шукаємо invite link для каналу в базі
-        invite_links = DatabaseManager.get_active_invite_links()
-        channel_link = None
-        
-        for link in invite_links:
-            if link.link_type == "channel":
-                channel_link = link
-                break
-        
-        if channel_link:
-            # Використовуємо invite link з бази даних
-            keyboard = [[InlineKeyboardButton(
-                text="🩵 Перейти в студію",
-                url=channel_link.invite_link
-            )]]
+        # Підтримка callback та text message
+        if update.callback_query:
+            query = update.callback_query
+            # Отримуємо посилання на канал з бази даних
+            invite_links = DatabaseManager.get_active_invite_links()
+            channel_link = None
+            
+            for link in invite_links:
+                if link.link_type == "channel":
+                    channel_link = link
+                    break
+            
+            if channel_link:
+                url = channel_link.invite_link
+            else:
+                # Fallback - використовуємо налаштування з .env
+                logger.warning("Invite link для каналу не знайдено в БД, використовуємо налаштування")
+                url = f"https://t.me/c/{settings.private_channel_id.replace('-100', '')}"
+            
+            # Відповідаємо з URL - Telegram відкриє його автоматично
+            await query.answer(url=url, show_alert=False)
         else:
-            # Fallback - використовуємо налаштування з .env
-            logger.warning("Invite link для каналу не знайдено в БД, використовуємо налаштування")
-            keyboard = [[InlineKeyboardButton(
-                text="🩵 Перейти в студію",
-                url=f"https://t.me/c/{settings.private_channel_id.replace('-100', '')}"
-            )]]
-        
-        await update.message.reply_text(
-            "Натисни кнопку нижче, щоб перейти в студію 🎀",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+            # Якщо викликано через текстове повідомлення - показуємо кнопку
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            invite_links = DatabaseManager.get_active_invite_links()
+            channel_link = None
+            
+            for link in invite_links:
+                if link.link_type == "channel":
+                    channel_link = link
+                    break
+            
+            if channel_link:
+                url = channel_link.invite_link
+            else:
+                logger.warning("Invite link для каналу не знайдено в БД")
+                url = f"https://t.me/c/{settings.private_channel_id.replace('-100', '')}"
+            
+            keyboard = [[InlineKeyboardButton("🩵 Перейти в студію", url=url)]]
+            await update.message.reply_text(
+                "Натисни кнопку нижче, щоб перейти в студію 🎀",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
     
     async def handle_go_to_community(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Перейти в спільноту (чат)"""
         # Підтримка callback та text message
         if update.callback_query:
             query = update.callback_query
-            await query.answer()
-            user_id = query.from_user.id
-            send_method = lambda text, **kwargs: self.bot.send_message(
-                chat_id=user_id,
-                text=text,
-                **kwargs
+            # Отримуємо посилання на чат з бази даних
+            invite_links = DatabaseManager.get_active_invite_links()
+            chat_link = None
+            
+            for link in invite_links:
+                if link.link_type == "group":
+                    chat_link = link
+                    break
+            
+            if chat_link:
+                url = chat_link.invite_link
+            else:
+                # Fallback - використовуємо налаштування з .env
+                logger.warning("Invite link для чату не знайдено в БД, використовуємо налаштування")
+                url = f"https://t.me/c/{settings.private_chat_id.replace('-100', '')}"
+            
+            # Відповідаємо з URL - Telegram відкриє його автоматично
+            await query.answer(url=url, show_alert=False)
+        else:
+            # Якщо викликано через текстове повідомлення - показуємо кнопку
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            invite_links = DatabaseManager.get_active_invite_links()
+            chat_link = None
+            
+            for link in invite_links:
+                if link.link_type == "group":
+                    chat_link = link
+                    break
+            
+            if chat_link:
+                url = chat_link.invite_link
+            else:
+                logger.warning("Invite link для чату не знайдено в БД")
+                url = f"https://t.me/c/{settings.private_chat_id.replace('-100', '')}"
+            
+            keyboard = [[InlineKeyboardButton("💬 Перейти в спільноту", url=url)]]
+            await update.message.reply_text(
+                "Натисни кнопку нижче, щоб перейти в спільноту 🎀",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
-        else:
-            user_id = update.effective_user.id
-            send_method = update.message.reply_text
-        
-        # Отримуємо посилання на чат з бази даних
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        
-        # Шукаємо invite link для чату в базі
-        invite_links = DatabaseManager.get_active_invite_links()
-        chat_link = None
-        
-        for link in invite_links:
-            if link.link_type == "group":
-                chat_link = link
-                break
-        
-        if chat_link:
-            # Використовуємо invite link з бази даних
-            keyboard = [
-                [InlineKeyboardButton(
-                    text="💬 Перейти в спільноту",
-                    url=chat_link.invite_link
-                )],
-                [InlineKeyboardButton(Buttons.BACK, callback_data="main_menu")]
-            ]
-        else:
-            # Fallback - використовуємо налаштування з .env
-            logger.warning("Invite link для чату не знайдено в БД, використовуємо налаштування")
-            keyboard = [
-                [InlineKeyboardButton(
-                    text="💬 Перейти в спільноту",
-                    url=f"https://t.me/c/{settings.private_chat_id.replace('-100', '')}"
-                )],
-                [InlineKeyboardButton(Buttons.BACK, callback_data="main_menu")]
-            ]
-        
-        await send_method(
-            "Натисни кнопку нижче, щоб перейти в спільноту 🎀",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
     
     async def handle_ask_question(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Задати питання"""
         # Підтримка callback та text message
         if update.callback_query:
             query = update.callback_query
-            await query.answer()
-            user_id = query.from_user.id
-            send_method = lambda text, **kwargs: self.bot.send_message(
-                chat_id=user_id,
-                text=text,
-                **kwargs
-            )
+            # Відповідаємо з URL - Telegram відкриє його автоматично
+            await query.answer(url="https://t.me/alionakovaliova", show_alert=False)
         else:
-            user_id = update.effective_user.id
-            send_method = update.message.reply_text
-        
-        # Надсилаємо контакт для питань
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        
-        keyboard = [
-            [InlineKeyboardButton(
-                text="Написати Альоні",
-                url="https://t.me/alionakovaliova"
-            )],
-            [InlineKeyboardButton(Buttons.BACK, callback_data="main_menu")]
-        ]
-        
-        await send_method(
-            "Якщо у тебе виникли питання, напиши мені — з радістю допоможу! ✨",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+            # Якщо викликано через текстове повідомлення - показуємо кнопку
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            
+            keyboard = [[InlineKeyboardButton("Написати Альоні", url="https://t.me/alionakovaliova")]]
+            await update.message.reply_text(
+                "Якщо у тебе виникли питання, напиши мені — з радістю допоможу! ✨",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Загальний обробник callback запитів"""
@@ -1278,14 +1286,14 @@ class UpgradeStudioBot:
                 except:
                     pass
             
-            # Відправляємо повідомлення в Tech групу з фідбеком
+            # Відправляємо оновлене повідомлення в Tech групу з фідбеком
             user_info = f"@{update.effective_user.username}" if update.effective_user.username else update.effective_user.full_name
             await self.send_tech_notification(
-                f"❌ <b>Скасована клієнтом</b>\n\n"
+                f"💬 <b>Отримано фідбек про скасування</b>\n\n"
                 f"Користувач: {user_info}\n"
                 f"ID: {update.effective_user.id}\n"
                 f"Ім'я: {update.effective_user.first_name} {update.effective_user.last_name or ''}\n"
-                f"Дата: {cancel_date_str}\n"
+                f"Дата скасування: {cancel_date_str}\n"
                 f"Успішних оплат: {payment_count}\n"
                 f"Побажання: {feedback_text}"
             )
@@ -1848,8 +1856,28 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             except Exception as e:
                 logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
             
-            # Зберігаємо дані для відправки в Tech групу після отримання фідбеку
-            context.user_data['cancel_subscription_date'] = subscription_end_date.isoformat()
+            # Підраховуємо кількість успішних оплат для повідомлення в Tech групу
+            from database.models import Payment
+            payment_count = 0
+            with DatabaseManager() as db:
+                payment_count = db.query(Payment).filter(
+                    Payment.user_id == user.id,
+                    Payment.status.in_(["succeeded", "completed"])
+                ).count()
+            
+            # Відправляємо повідомлення в Tech групу одразу (без фідбеку)
+            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
+            await self.send_tech_notification(
+                f"❌ <b>Скасована клієнтом</b>\n\n"
+                f"Користувач: {user_info}\n"
+                f"ID: {query.from_user.id}\n"
+                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
+                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+                f"Успішних оплат: {payment_count}"
+            )
+            
+            # Зберігаємо дані для відправки фідбеку (якщо користувач його надасть)
+            context.user_data['cancel_subscription_date'] = subscription_end_date.isoformat() if subscription_end_date else None
             context.user_data['cancel_date'] = datetime.now().isoformat()
             
             # Встановлюємо стан очікування фідбеку
@@ -1895,10 +1923,11 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         bot_username = "upgrade21studio_bot"
         return_url = f"https://t.me/{bot_username}"
         
-        # Створюємо Billing Portal сесію
+        # Створюємо Billing Portal сесію БЕЗ можливості скасування підписки
         portal_url = await StripeManager.create_billing_portal_session(
             customer_id=user.stripe_customer_id,
-            return_url=return_url
+            return_url=return_url,
+            allow_cancel=False  # Вимикаємо можливість скасування підписки в порталі
         )
         
         if portal_url:
@@ -2816,17 +2845,28 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         # Скасовуємо нагадування про приєднання до каналу
         DatabaseManager.cancel_user_reminders(user_id, "join_channel")
         
+        # Перевіряємо чи це перше приєднання чи повторне
+        user = DatabaseManager.get_user_by_telegram_id(user_id)
+        was_previously_joined = user.joined_channel if user else False
+        
         # Оновлюємо статус приєднання до каналу
         with DatabaseManager() as db:
             db_user = db.query(User).filter(User.telegram_id == user_id).first()
             if db_user:
                 db_user.joined_channel = True
                 db.commit()
-                logger.info(f"Оновлено joined_channel=True для користувача {user_id}")
+                logger.info(f"Оновлено joined_channel=True для користувача {user_id}, was_previously_joined={was_previously_joined}")
             else:
                 logger.error(f"Користувач {user_id} не знайдений при оновленні joined_channel")
         
-        # Відправляємо повідомлення про успішне схвалення каналу
+        # Якщо користувач вже був приєднаний раніше (повторне приєднання після виходу)
+        if was_previously_joined:
+            logger.info(f"Користувач {user_id} повторно приєднався до каналу - пропускаємо привітання")
+            # Просто показуємо головне меню без додаткових повідомлень
+            await self.show_active_subscription_menu(user_id)
+            return
+        
+        # Перше приєднання - відправляємо повідомлення про успішне схвалення каналу
         await self.bot.send_message(
             chat_id=user_id,
             text="<b>Відмінно!</b> Ви приєдналися до каналу!\n\n"
@@ -2891,17 +2931,30 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         # Скасовуємо всі залишкові нагадування про приєднання
         DatabaseManager.cancel_user_reminders(user_id, "join_channel")
         
+        # Перевіряємо чи це перше приєднання чи повторне
+        user = DatabaseManager.get_user_by_telegram_id(user_id)
+        was_previously_joined = user.joined_chat if user else False
+        
         # Оновлюємо статус приєднання до чату
         with DatabaseManager() as db:
             db_user = db.query(User).filter(User.telegram_id == user_id).first()
             if db_user:
                 db_user.joined_chat = True
                 db.commit()
-                logger.info(f"Оновлено joined_chat=True для користувача {user_id}")
+                logger.info(f"Оновлено joined_chat=True для користувача {user_id}, was_previously_joined={was_previously_joined}")
             else:
                 logger.error(f"Користувач {user_id} не знайдений при оновленні joined_chat")
         
-        # Надсилаємо відео кружечок замість текстового повідомлення
+        # Якщо користувач вже був приєднаний раніше (повторне приєднання після виходу)
+        if was_previously_joined:
+            logger.info(f"Користувач {user_id} повторно приєднався до чату - пропускаємо привітання")
+            # Просто показуємо головне меню без кружечка та додаткових повідомлень
+            await self.show_active_subscription_menu(user_id)
+            # Встановлюємо стан активної підписки
+            DatabaseManager.update_user_state(user_id, UserState.ACTIVE_SUBSCRIPTION)
+            return
+        
+        # Перше приєднання - надсилаємо відео кружечок
         video_path = "assets/welcome_video.mp4"
         if os.path.exists(video_path):
             await self.bot.send_video_note(

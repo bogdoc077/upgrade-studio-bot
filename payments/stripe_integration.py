@@ -207,14 +207,77 @@ class StripeManager:
             return False
     
     @staticmethod
-    async def create_billing_portal_session(customer_id: str, return_url: str) -> Optional[str]:
-        """Створити сесію Stripe Customer Portal для зміни платіжного методу"""
+    async def create_payment_method_update_session(customer_id: str) -> Optional[str]:
+        """Створити Setup Intent для оновлення платіжного методу (без можливості скасувати підписку)"""
         try:
-            session = stripe.billing_portal.Session.create(
+            # Створюємо Setup Intent для додавання/оновлення платіжного методу
+            setup_intent = stripe.SetupIntent.create(
                 customer=customer_id,
-                return_url=return_url,
+                payment_method_types=['card'],
+                usage='off_session',  # Дозволяє використовувати картку для майбутніх платежів
+                metadata={
+                    'type': 'payment_method_update'
+                }
             )
-            logger.info(f"Створено Billing Portal сесію для customer {customer_id}")
+            
+            logger.info(f"Створено Setup Intent для оновлення платіжного методу customer {customer_id}")
+            
+            # Повертаємо client_secret для фронтенду Stripe
+            return setup_intent.client_secret
+        except Exception as e:
+            logger.error(f"Помилка при створенні Setup Intent: {e}")
+            return None
+    
+    @staticmethod
+    async def create_billing_portal_session(customer_id: str, return_url: str, allow_cancel: bool = False) -> Optional[str]:
+        """Створити сесію Stripe Customer Portal для зміни платіжного методу
+        
+        Args:
+            customer_id: ID клієнта в Stripe
+            return_url: URL для повернення після завершення
+            allow_cancel: Чи дозволити скасування підписки в порталі (за замовчуванням False)
+        """
+        try:
+            # Налаштування конфігурації порталу
+            portal_config = {
+                'customer': customer_id,
+                'return_url': return_url,
+            }
+            
+            # Якщо не дозволяємо скасування, використовуємо конфігурацію з обмеженими можливостями
+            if not allow_cancel:
+                # Створюємо тимчасову конфігурацію Billing Portal з обмеженими функціями
+                try:
+                    configuration = stripe.billing_portal.Configuration.create(
+                        business_profile={
+                            'headline': 'Оновлення платіжного методу',
+                        },
+                        features={
+                            'customer_update': {
+                                'enabled': True,
+                                'allowed_updates': ['email', 'address'],
+                            },
+                            'payment_method_update': {
+                                'enabled': True,
+                            },
+                            'subscription_cancel': {
+                                'enabled': False,  # Вимикаємо можливість скасування
+                            },
+                            'subscription_pause': {
+                                'enabled': False,  # Вимикаємо можливість призупинення
+                            },
+                            'subscription_update': {
+                                'enabled': False,  # Вимикаємо можливість зміни плану
+                            },
+                        },
+                    )
+                    portal_config['configuration'] = configuration.id
+                    logger.info(f"Створено конфігурацію Billing Portal без можливості скасування: {configuration.id}")
+                except Exception as config_error:
+                    logger.warning(f"Не вдалося створити custom конфігурацію: {config_error}. Використовуємо default.")
+            
+            session = stripe.billing_portal.Session.create(**portal_config)
+            logger.info(f"Створено Billing Portal сесію для customer {customer_id} (allow_cancel={allow_cancel})")
             return session.url
         except Exception as e:
             logger.error(f"Помилка при створенні Billing Portal сесії: {e}")

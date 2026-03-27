@@ -55,6 +55,17 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Допоміжна функція для форматування дат UTC без конвертації в локальний час
+  const formatUTCDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    // Парсимо дату як UTC і форматуємо тільки день.місяць.рік
+    const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${day}.${month}.${year}`;
+  };
+
   useEffect(() => {
     fetchUsers();
   }, [currentPage, itemsPerPage]);
@@ -494,19 +505,13 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="admin-table__cell">
-                      {new Date(user.created_at).toLocaleDateString('uk-UA')}
+                      {formatUTCDate(user.created_at)}
                     </td>
                     <td className="admin-table__cell">
-                      {user.next_billing_date 
-                        ? new Date(user.next_billing_date).toLocaleDateString('uk-UA')
-                        : '-'
-                      }
+                      {formatUTCDate(user.next_billing_date)}
                     </td>
                     <td className="admin-table__cell">
-                      {user.subscription_end_date 
-                        ? new Date(user.subscription_end_date).toLocaleDateString('uk-UA')
-                        : '-'
-                      }
+                      {formatUTCDate(user.subscription_end_date)}
                     </td>
                     <td className="admin-table__cell">
                       <span className={`admin-status ${
