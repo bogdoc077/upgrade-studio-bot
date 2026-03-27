@@ -573,6 +573,73 @@ class UpgradeStudioBot:
         if not user:
             return
         
+        # Отримуємо посилання на канал та чат з бази даних
+        invite_links = DatabaseManager.get_active_invite_links()
+        channel_url = None
+        chat_url = None
+        
+        for link in invite_links:
+            if link.link_type == "channel":
+                channel_url = link.invite_link
+            elif link.link_type == "group":
+                chat_url = link.invite_link
+        
+        # Перевіряємо членство та автоматично додаємо користувача якщо він вийшов
+        if user.subscription_active and not user.subscription_paused and not user.subscription_cancelled:
+            # Перевіряємо канал
+            try:
+                channel_member = await self.bot.get_chat_member(
+                    chat_id=settings.private_channel_id,
+                    user_id=user_id
+                )
+                is_member_channel = channel_member.status in ['member', 'administrator', 'creator']
+                if not is_member_channel and channel_url:
+                    # Користувач вийшов - створюємо новий invite link
+                    try:
+                        invite_link_obj = await self.bot.create_chat_invite_link(
+                            chat_id=settings.private_channel_id,
+                            member_limit=1,
+                            name=f"Auto-rejoin for {user_id}"
+                        )
+                        channel_url = invite_link_obj.invite_link
+                        DatabaseManager.update_channel_join_status(user_id, False)
+                        logger.info(f"Створено новий invite link для каналу для користувача {user_id}")
+                    except Exception as e:
+                        logger.error(f"Помилка створення invite link для каналу: {e}")
+            except Exception as e:
+                logger.warning(f"Не вдалося перевірити членство в каналі: {e}")
+            
+            # Перевіряємо чат
+            try:
+                chat_member = await self.bot.get_chat_member(
+                    chat_id=settings.private_chat_id,
+                    user_id=user_id
+                )
+                is_member_chat = chat_member.status in ['member', 'administrator', 'creator']
+                if not is_member_chat and chat_url:
+                    # Користувач вийшов - створюємо новий invite link
+                    try:
+                        invite_link_obj = await self.bot.create_chat_invite_link(
+                            chat_id=settings.private_chat_id,
+                            member_limit=1,
+                            name=f"Auto-rejoin for {user_id}"
+                        )
+                        chat_url = invite_link_obj.invite_link
+                        DatabaseManager.update_chat_join_status(user_id, False)
+                        logger.info(f"Створено новий invite link для чату для користувача {user_id}")
+                    except Exception as e:
+                        logger.error(f"Помилка створення invite link для чату: {e}")
+            except Exception as e:
+                logger.warning(f"Не вдалося перевірити членство в чаті: {e}")
+        
+        # Fallback якщо посилання не знайдені
+        if not channel_url:
+            from config import settings
+            channel_url = f"https://t.me/c/{settings.private_channel_id.replace('-100', '')}"
+        if not chat_url:
+            from config import settings
+            chat_url = f"https://t.me/c/{settings.private_chat_id.replace('-100', '')}"
+        
         # Рахуємо дні членства
         days_member = (datetime.utcnow() - user.member_since).days
         
@@ -596,7 +663,7 @@ class UpgradeStudioBot:
                 menu_text = f"<b>Підписку призупинено</b> ⏸️\n\nДоступ до студії та спільноти залишається до <b>{subscription_end_date.strftime('%d.%m')}</b>"
             else:
                 menu_text = f"<b>Підписку призупинено</b> ⏸️"
-            keyboard = get_main_menu_keyboard()
+            keyboard = get_main_menu_keyboard(channel_url, chat_url)
         elif user.subscription_cancelled:
             # Підписка скасована - показуємо меню БЕЗ керування підпискою
             subscription_end_date = user.subscription_end_date
@@ -604,11 +671,11 @@ class UpgradeStudioBot:
                 menu_text = f"<b>Підписку скасовано</b> ❌\n\nДоступ до студії та спільноти залишається до <b>{subscription_end_date.strftime('%d.%m')}</b>"
             else:
                 menu_text = f"<b>Підписку скасовано</b> ❌"
-            keyboard = get_cancelled_subscription_keyboard()
+            keyboard = get_cancelled_subscription_keyboard(channel_url, chat_url)
         else:
             # Підписка активна
             menu_text = f"<b>Підписка активна</b> ✅\n\nТи зі мною вже: <b>{days_member} днів</b>"
-            keyboard = get_main_menu_keyboard()
+            keyboard = get_main_menu_keyboard(channel_url, chat_url)
         
         await self.bot.send_message(
             chat_id=user_id,
@@ -1050,17 +1117,8 @@ class UpgradeStudioBot:
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
         else:
-            # Користувач вже є членом - відкриваємо посилання автоматично
-            try:
-                await query.answer(url=channel_link.invite_link)
-            except Exception:
-                # Якщо не спрацювало - показуємо кнопку
-                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-                keyboard = [[InlineKeyboardButton("🩵 Перейти в студію", url=channel_link.invite_link)]]
-                await query.edit_message_text(
-                    "Натисни кнопку нижче 🎀",
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
+            # Користувач вже є членом - просто показуємо alert
+            await query.answer("Переходжу в студію... 🩵", show_alert=False)
     
     async def handle_go_to_community(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Перейти в спільноту з перевіркою членства"""
@@ -1138,17 +1196,8 @@ class UpgradeStudioBot:
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
         else:
-            # Користувач вже є членом - відкриваємо посилання автоматично
-            try:
-                await query.answer(url=chat_link.invite_link)
-            except Exception:
-                # Якщо не спрацювало - показуємо кнопку
-                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-                keyboard = [[InlineKeyboardButton("💬 Перейти в спільноту", url=chat_link.invite_link)]]
-                await query.edit_message_text(
-                    "Натисни кнопку нижче 🎀",
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
+            # Користувач вже є членом - просто показуємо alert
+            await query.answer("Переходжу в спільноту... 💬", show_alert=False)
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Загальний обробник callback запитів"""
@@ -1225,11 +1274,7 @@ class UpgradeStudioBot:
             await self.handle_channel_access_request(update, context)
         elif data == "join_chat_access":
             await self.handle_chat_access_request(update, context)
-        elif data == "go_to_studio":
-            await self.handle_go_to_studio(update, context)
-        elif data == "go_to_community":
-            await self.handle_go_to_community(update, context)
-        elif data == "go_to_channel" or data == "go_to_chat":
+        elif data == "go_to_studio" or data == "go_to_community" or data == "go_to_channel" or data == "go_to_chat":
             # Застаріла кнопка - оновлюємо меню
             await query.answer()
             user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
