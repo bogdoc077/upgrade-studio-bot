@@ -81,7 +81,9 @@ class BroadcastHandler:
                         # Перевіряємо чи є message_blocks для відправки кількох повідомлень
                         if broadcast.message_blocks:
                             import json
+                            logger.info(f"Raw message_blocks from DB: {broadcast.message_blocks[:500]}...")  # Перші 500 символів
                             blocks = json.loads(broadcast.message_blocks)
+                            logger.info(f"Parsed {len(blocks)} blocks: {[b.get('type') for b in blocks]}")
                             success = await self._send_multiple_messages(
                                 telegram_id=item.telegram_id,
                                 blocks=blocks
@@ -279,10 +281,14 @@ class BroadcastHandler:
     async def _send_multiple_messages(self, telegram_id: int, blocks: list) -> bool:
         """Відправити кілька повідомлень на основі блоків"""
         try:
+            logger.info(f"Processing {len(blocks)} blocks for user {telegram_id}")
+            
             text_blocks = [b for b in blocks if b.get('type') == 'text']
             media_blocks = [b for b in blocks if b.get('type') in ('image', 'video', 'document')]
             button_blocks = [b for b in blocks if b.get('type') == 'button']
             subscription_button_blocks = [b for b in blocks if b.get('type') == 'subscription_button']
+            
+            logger.info(f"Found: {len(text_blocks)} text, {len(media_blocks)} media, {len(button_blocks)} button, {len(subscription_button_blocks)} subscription_button blocks")
             
             # Якщо є кнопка підписки, створюємо спеціальне посилання на бот з callback
             subscription_button = None
@@ -292,6 +298,7 @@ class BroadcastHandler:
                 bot_username = (await self.bot.get_me()).username
                 subscription_button_url = f"https://t.me/{bot_username}?start=subscription_offer"
                 subscription_button_text = subscription_button.get('buttonText', 'Оформити підписку')
+                logger.info(f"Subscription button: text='{subscription_button_text}', url='{subscription_button_url}'")
             
             # Якщо є текст та медіа, відправляємо перше повідомлення з текстом + перше медіа + кнопка
             if text_blocks and media_blocks:

@@ -1591,7 +1591,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             await self.send_tech_notification(
                 f"⏸️ <b>Підписку призупинено</b>\n\n"
                 f"Користувач: {user_info}\n"
-                f"ID: `{query.from_user.id}`\n"
+                f"ID: {query.from_user.id}\n"
                 f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
                 f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
@@ -1736,7 +1736,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             await self.send_tech_notification(
                 f"▶️ <b>Підписка поновлена</b>\n\n"
                 f"Користувач: {user_info}\n"
-                f"ID: `{query.from_user.id}`\n"
+                f"ID: {query.from_user.id}\n"
                 f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
                 f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             )
@@ -1908,7 +1908,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 chat_id=query.from_user.id,
                 text="Підписку скасовано ❌\n\n"
                      "Дякую, що була зі мною 🕊️\n\n"
-                     "Буду вдячна, якщо поділишся, що тобі сподобалося в студії та що можна покращити.",
+                     "Буду вдячна, якщо поділишся, що тобі сподобалося в студії та що можна покращити:",
                 parse_mode='HTML'
             )
         else:

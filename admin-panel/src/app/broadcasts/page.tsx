@@ -28,6 +28,7 @@ interface Broadcast {
   attachment_url?: string;
   button_text?: string;
   button_url?: string;
+  message_blocks?: string; // JSON string
   status: string;
   total_recipients: number;
   sent_count: number;
@@ -540,129 +541,322 @@ export default function BroadcastsPage() {
                     boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
                     overflow: 'hidden'
                   }}>
-                    {/* Media Attachment */}
-                    {selectedBroadcast.attachment_type && selectedBroadcast.attachment_url && (
-                      <div style={{
-                        position: 'relative',
-                        width: '100%',
-                        maxHeight: '400px',
-                        overflow: 'hidden',
-                        backgroundColor: '#000'
-                      }}>
-                        {selectedBroadcast.attachment_type === 'image' && (
-                          <img 
-                            src={selectedBroadcast.attachment_url.startsWith('/uploads') 
-                              ? `/api${selectedBroadcast.attachment_url}` 
-                              : selectedBroadcast.attachment_url}
-                            alt="Preview"
-                            style={{
-                              width: '100%',
-                              height: 'auto',
-                              display: 'block'
-                            }}
-                          />
-                        )}
-                        {selectedBroadcast.attachment_type === 'video' && (
-                          <video 
-                            src={selectedBroadcast.attachment_url.startsWith('/uploads') 
-                              ? `/api${selectedBroadcast.attachment_url}` 
-                              : selectedBroadcast.attachment_url}
-                            controls
-                            style={{
-                              width: '100%',
-                              height: 'auto',
-                              display: 'block'
-                            }}
-                          />
-                        )}
-                        {selectedBroadcast.attachment_type === 'document' && (
+                    {/* Render blocks if available */}
+                    {selectedBroadcast.message_blocks ? (() => {
+                      try {
+                        const blocks: MessageBlock[] = JSON.parse(selectedBroadcast.message_blocks);
+                        return blocks.map((block, index) => {
+                          // Text block
+                          if (block.type === 'text' && block.text) {
+                            return (
+                              <div key={index} style={{
+                                padding: '12px 16px',
+                                color: '#fff',
+                                fontSize: '15px',
+                                lineHeight: '1.5',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word'
+                              }}>
+                                {block.text}
+                              </div>
+                            );
+                          }
+                          
+                          // Image block
+                          if (block.type === 'image' && block.url) {
+                            return (
+                              <div key={index} style={{
+                                position: 'relative',
+                                width: '100%',
+                                maxHeight: '400px',
+                                overflow: 'hidden',
+                                backgroundColor: '#000'
+                              }}>
+                                <img 
+                                  src={block.url.startsWith('/uploads') 
+                                    ? `/api${block.url}` 
+                                    : block.url}
+                                  alt="Preview"
+                                  style={{
+                                    width: '100%',
+                                    height: 'auto',
+                                    display: 'block'
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
+                          
+                          // Video block
+                          if (block.type === 'video' && block.url) {
+                            return (
+                              <div key={index} style={{
+                                position: 'relative',
+                                width: '100%',
+                                maxHeight: '400px',
+                                overflow: 'hidden',
+                                backgroundColor: '#000'
+                              }}>
+                                <video 
+                                  src={block.url.startsWith('/uploads') 
+                                    ? `/api${block.url}` 
+                                    : block.url}
+                                  controls
+                                  style={{
+                                    width: '100%',
+                                    height: 'auto',
+                                    display: 'block'
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
+                          
+                          // Document block
+                          if (block.type === 'document' && block.url) {
+                            return (
+                              <div key={index} style={{
+                                padding: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                backgroundColor: '#1c2733'
+                              }}>
+                                <div style={{
+                                  width: '48px',
+                                  height: '48px',
+                                  borderRadius: '8px',
+                                  backgroundColor: '#2b5278',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '24px'
+                                }}>
+                                  📄
+                                </div>
+                                <div style={{
+                                  flex: 1,
+                                  minWidth: 0
+                                }}>
+                                  <div style={{
+                                    color: '#fff',
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {block.url.split('/').pop()}
+                                  </div>
+                                  <div style={{
+                                    color: '#8a96a5',
+                                    fontSize: '13px',
+                                    marginTop: '2px'
+                                  }}>
+                                    Документ
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          
+                          // Button block
+                          if (block.type === 'button' && block.buttonText && block.buttonUrl) {
+                            return (
+                              <div key={index} style={{
+                                padding: '0 12px 12px 12px',
+                                display: 'flex',
+                                gap: '8px'
+                              }}>
+                                <div style={{
+                                  flex: 1,
+                                  backgroundColor: '#2b5278',
+                                  color: '#64b5f6',
+                                  padding: '10px 16px',
+                                  borderRadius: '8px',
+                                  textAlign: 'center',
+                                  fontSize: '14px',
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                  transition: 'background-color 0.2s',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px'
+                                }}>
+                                  {block.buttonText}
+                                  <span style={{fontSize: '12px'}}>🔗</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          
+                          // Subscription button block
+                          if (block.type === 'subscription_button') {
+                            const buttonText = block.buttonText || 'Оформити підписку';
+                            return (
+                              <div key={index} style={{
+                                padding: '0 12px 12px 12px',
+                                display: 'flex',
+                                gap: '8px'
+                              }}>
+                                <div style={{
+                                  flex: 1,
+                                  backgroundColor: '#2b5278',
+                                  color: '#64b5f6',
+                                  padding: '10px 16px',
+                                  borderRadius: '8px',
+                                  textAlign: 'center',
+                                  fontSize: '14px',
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                  transition: 'background-color 0.2s',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px'
+                                }}>
+                                  {buttonText}
+                                  <span style={{fontSize: '12px'}}>💳</span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          
+                          return null;
+                        });
+                      } catch (e) {
+                        console.error('Error parsing message_blocks:', e);
+                        return null;
+                      }
+                    })() : (
+                      <>
+                        {/* Fallback to old fields */}
+                        {/* Media Attachment */}
+                        {selectedBroadcast.attachment_type && selectedBroadcast.attachment_url && (
                           <div style={{
-                            padding: '16px',
+                            position: 'relative',
+                            width: '100%',
+                            maxHeight: '400px',
+                            overflow: 'hidden',
+                            backgroundColor: '#000'
+                          }}>
+                            {selectedBroadcast.attachment_type === 'image' && (
+                              <img 
+                                src={selectedBroadcast.attachment_url.startsWith('/uploads') 
+                                  ? `/api${selectedBroadcast.attachment_url}` 
+                                  : selectedBroadcast.attachment_url}
+                                alt="Preview"
+                                style={{
+                                  width: '100%',
+                                  height: 'auto',
+                                  display: 'block'
+                                }}
+                              />
+                            )}
+                            {selectedBroadcast.attachment_type === 'video' && (
+                              <video 
+                                src={selectedBroadcast.attachment_url.startsWith('/uploads') 
+                                  ? `/api${selectedBroadcast.attachment_url}` 
+                                  : selectedBroadcast.attachment_url}
+                                controls
+                                style={{
+                                  width: '100%',
+                                  height: 'auto',
+                                  display: 'block'
+                                }}
+                              />
+                            )}
+                            {selectedBroadcast.attachment_type === 'document' && (
+                              <div style={{
+                                padding: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                backgroundColor: '#1c2733'
+                              }}>
+                                <div style={{
+                                  width: '48px',
+                                  height: '48px',
+                                  borderRadius: '8px',
+                                  backgroundColor: '#2b5278',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '24px'
+                                }}>
+                                  📄
+                                </div>
+                                <div style={{
+                                  flex: 1,
+                                  minWidth: 0
+                                }}>
+                                  <div style={{
+                                    color: '#fff',
+                                    fontSize: '14px',
+                                    fontWeight: 500,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {selectedBroadcast.attachment_url.split('/').pop()}
+                                  </div>
+                                  <div style={{
+                                    color: '#8a96a5',
+                                    fontSize: '13px',
+                                    marginTop: '2px'
+                                  }}>
+                                    Документ
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Message Text */}
+                        {selectedBroadcast.message_text && (
+                          <div style={{
+                            padding: selectedBroadcast.attachment_type ? '12px 16px 16px 16px' : '12px 16px',
+                            color: '#fff',
+                            fontSize: '15px',
+                            lineHeight: '1.5',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word'
+                          }}>
+                            {selectedBroadcast.message_text}
+                          </div>
+                        )}
+
+                        {/* Inline Button */}
+                        {selectedBroadcast.button_text && selectedBroadcast.button_url && (
+                          <div style={{
+                            padding: selectedBroadcast.message_text || selectedBroadcast.attachment_type ? '0 12px 12px 12px' : '12px',
                             display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            backgroundColor: '#1c2733'
+                            gap: '8px'
                           }}>
                             <div style={{
-                              width: '48px',
-                              height: '48px',
-                              borderRadius: '8px',
+                              flex: 1,
                               backgroundColor: '#2b5278',
+                              color: '#64b5f6',
+                              padding: '10px 16px',
+                              borderRadius: '8px',
+                              textAlign: 'center',
+                              fontSize: '14px',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontSize: '24px'
+                              gap: '6px'
                             }}>
-                              📄
-                            </div>
-                            <div style={{
-                              flex: 1,
-                              minWidth: 0
-                            }}>
-                              <div style={{
-                                color: '#fff',
-                                fontSize: '14px',
-                                fontWeight: 500,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}>
-                                {selectedBroadcast.attachment_url.split('/').pop()}
-                              </div>
-                              <div style={{
-                                color: '#8a96a5',
-                                fontSize: '13px',
-                                marginTop: '2px'
-                              }}>
-                                Документ
-                              </div>
+                              {selectedBroadcast.button_text}
+                              <span style={{fontSize: '12px'}}>🔗</span>
                             </div>
                           </div>
                         )}
-                      </div>
-                    )}
-
-                    {/* Message Text */}
-                    {selectedBroadcast.message_text && (
-                      <div style={{
-                        padding: selectedBroadcast.attachment_type ? '12px 16px 16px 16px' : '12px 16px',
-                        color: '#fff',
-                        fontSize: '15px',
-                        lineHeight: '1.5',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word'
-                      }}>
-                        {selectedBroadcast.message_text}
-                      </div>
-                    )}
-
-                    {/* Inline Button */}
-                    {selectedBroadcast.button_text && selectedBroadcast.button_url && (
-                      <div style={{
-                        padding: selectedBroadcast.message_text || selectedBroadcast.attachment_type ? '0 12px 12px 12px' : '12px',
-                        display: 'flex',
-                        gap: '8px'
-                      }}>
-                        <div style={{
-                          flex: 1,
-                          backgroundColor: '#2b5278',
-                          color: '#64b5f6',
-                          padding: '10px 16px',
-                          borderRadius: '8px',
-                          textAlign: 'center',
-                          fontSize: '14px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          transition: 'background-color 0.2s',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
-                        }}>
-                          {selectedBroadcast.button_text}
-                          <span style={{fontSize: '12px'}}>🔗</span>
-                        </div>
-                      </div>
+                      </>
                     )}
 
                     {/* Message Footer */}
