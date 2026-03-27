@@ -1583,7 +1583,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         await query.answer()
         
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
-        if not user or not user.stripe_subscription_id:
+        if not user or not user.subscription_active:
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Активна підписка не знайдена"
@@ -1623,7 +1623,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         await query.answer()
         
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
-        if not user or not user.stripe_subscription_id:
+        if not user or not user.subscription_active:
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Активна підписка не знайдена"
@@ -1631,7 +1631,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             return
         
         # Перевіряємо, чи це адмін з тестовими даними
-        if user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
+        if user.stripe_subscription_id and user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
             # Імітуємо призупинення для адміна
             # Встановлюємо дату закінчення через 30 днів (тестовий період)
             subscription_end_date = datetime.utcnow() + timedelta(days=30)
@@ -1665,51 +1665,52 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         # Отримуємо поточну дату закінчення підписки (до якої оплачено)
         subscription_end_date = user.subscription_end_date or user.next_billing_date
         if not subscription_end_date:
-            # Якщо немає дати - встановлюємо 30 днів
             subscription_end_date = datetime.utcnow() + timedelta(days=30)
         
-        success = await StripeManager.pause_subscription(user.stripe_subscription_id)
-        logger.info(f"Результат призупинення підписки в Stripe: {success}")
+        # Оновлюємо статус в БД ОДРАЗУ (незалежно від результату Stripe)
+        with DatabaseManager() as db:
+            db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
+            if db_user:
+                db_user.subscription_active = True
+                db_user.subscription_paused = True
+                db_user.subscription_cancelled = False
+                db_user.subscription_end_date = subscription_end_date
+                db_user.next_billing_date = None
+                db_user.auto_payment_enabled = False
+                db.commit()
+                logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
+            else:
+                logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
         
-        if success:
-            # Оновлюємо статус в базі - підписка залишається активною до кінця періоду
-            with DatabaseManager() as db:
-                db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
-                if db_user:
-                    db_user.subscription_active = True  # Залишаємо активною
-                    db_user.subscription_paused = True  # Позначаємо як призупинену
-                    db_user.subscription_cancelled = False
-                    db_user.subscription_end_date = subscription_end_date  # Доступ до цієї дати
-                    db_user.next_billing_date = None  # Скасовуємо наступне списання
-                    db_user.auto_payment_enabled = False  # Деактивуємо автоплатіж
-                    db.commit()
-                    logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
-                else:
-                    logger.error(f"Користувач {query.from_user.id} не знайдений в базі при призупиненні підписки")
-            
-            # Видаляємо попереднє повідомлення з кнопками
+        # Намагаємось призупинити в Stripe (best effort)
+        if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
             try:
-                await query.message.delete()
+                stripe_success = await StripeManager.pause_subscription(user.stripe_subscription_id)
+                if not stripe_success:
+                    logger.error(f"Stripe pause failed for user {query.from_user.id}, sub_id={user.stripe_subscription_id}")
+                else:
+                    logger.info(f"Stripe pause successful for user {query.from_user.id}")
             except Exception as e:
-                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
-            
-            # Відправляємо повідомлення в Tech групу
-            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
-            await self.send_tech_notification(
-                f"⏸️ <b>Підписку призупинено</b>\n\n"
-                f"Користувач: {user_info}\n"
-                f"ID: {query.from_user.id}\n"
-                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
-                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-            )
-            
-            # Показуємо базове меню з новим статусом
-            await self.show_active_subscription_menu(query.from_user.id)
-        else:
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text="Помилка при призупиненні підписки"
-            )
+                logger.error(f"Stripe pause exception for user {query.from_user.id}: {e}")
+        
+        # Видаляємо попереднє повідомлення з кнопками
+        try:
+            await query.message.delete()
+        except Exception as e:
+            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Відправляємо повідомлення в Tech групу
+        user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
+        await self.send_tech_notification(
+            f"⏸️ <b>Підписку призупинено</b>\n\n"
+            f"Користувач: {user_info}\n"
+            f"ID: {query.from_user.id}\n"
+            f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
+            f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+        )
+        
+        # Показуємо базове меню з новим статусом
+        await self.show_active_subscription_menu(query.from_user.id)
     
     async def resume_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Поновити підписку"""
@@ -1717,15 +1718,15 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         await query.answer()
         
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
-        if not user or not user.stripe_subscription_id:
+        if not user or (not user.subscription_paused and not user.subscription_cancelled):
             await self.bot.send_message(
                 chat_id=query.from_user.id,
-                text="Підписка не знайдена"
+                text="Призупинена або скасована підписка не знайдена"
             )
             return
         
         # Перевіряємо, чи це адмін з тестовими даними
-        if user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
+        if user.stripe_subscription_id and user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
             # Перевіряємо чи був втрачений доступ
             had_no_access = not user.subscription_active
             
@@ -1780,78 +1781,81 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         # Перевіряємо чи був втрачений доступ (щоб потім автоматично додати назад)
         had_no_access = not user.subscription_active
         
-        success = await StripeManager.resume_subscription(user.stripe_subscription_id)
+        # Оновлюємо статус в БД ОДРАЗУ (незалежно від результату Stripe)
+        with DatabaseManager() as db:
+            db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
+            if db_user:
+                db_user.subscription_active = True
+                db_user.subscription_paused = False
+                db_user.subscription_cancelled = False
+                db_user.subscription_end_date = None
+                db_user.auto_payment_enabled = True
+                db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
+                db.commit()
+                logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True")
         
-        if success:
-            # Оновлюємо статус в базі
-            with DatabaseManager() as db:
-                db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
-                if db_user:
-                    db_user.subscription_paused = False
-                    db_user.subscription_cancelled = False
-                    db_user.subscription_end_date = None
-                    db_user.auto_payment_enabled = True
-                    
-                    # Отримуємо дату наступного платежу з Stripe
-                    try:
-                        subscription_obj = await StripeManager.get_subscription_info(user.stripe_subscription_id)
-                        if subscription_obj and 'current_period_end' in subscription_obj:
-                            db_user.next_billing_date = datetime.fromtimestamp(subscription_obj['current_period_end'])
-                        else:
-                            db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
-                    except:
-                        db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
-                    
-                    db.commit()
-                    logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True, next_billing={db_user.next_billing_date}")
-            
-            # Якщо доступ був втрачений - відправляємо запрошення для приєднання
-            if had_no_access:
-                logger.info(f"Користувач {query.from_user.id} втратив доступ, відправляємо запрошення для приєднання")
-                await self.send_join_invitations(query.from_user.id)
-                # Не показуємо повідомлення про поновлення зараз, воно буде після приєднання
-                return
-            
-            # Видаляємо попереднє повідомлення з кнопками
+        # Намагаємось поновити в Stripe (best effort)
+        if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
             try:
-                await query.message.delete()
+                stripe_success = await StripeManager.resume_subscription(user.stripe_subscription_id)
+                if stripe_success:
+                    # Оновлюємо дату наступного платежу зі Stripe
+                    try:
+                        subscription_obj = await StripeManager.get_subscription(user.stripe_subscription_id)
+                        if subscription_obj and 'current_period_end' in subscription_obj:
+                            with DatabaseManager() as db:
+                                db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
+                                if db_user:
+                                    db_user.next_billing_date = datetime.utcfromtimestamp(subscription_obj['current_period_end'])
+                                    db.commit()
+                    except Exception as e:
+                        logger.warning(f"Не вдалося оновити дату платежу зі Stripe: {e}")
+                else:
+                    logger.error(f"Stripe resume failed for user {query.from_user.id}, sub_id={user.stripe_subscription_id}")
             except Exception as e:
-                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
-            
-            # Отримуємо оновлені дані користувача для показу дати
-            user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
-            next_billing_str = "найближчим часом"
-            if user and user.next_billing_date:
-                next_billing_str = user.next_billing_date.strftime('%d.%m')
-            
-            # Відправляємо повідомлення про поновлення з кнопкою
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✨ Головне меню", callback_data="main_menu")]
-            ])
-            
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text=f"Підписку поновлено ✅\n\n"
-                     f"Наступний платіж відбудеться {next_billing_str}",
-                reply_markup=keyboard
-            )
-            
-            # Відправляємо повідомлення в Tech групу
-            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
-            await self.send_tech_notification(
-                f"▶️ <b>Підписка поновлена</b>\n\n"
-                f"Користувач: {user_info}\n"
-                f"ID: {query.from_user.id}\n"
-                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
-                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-            )
-        else:
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text="Помилка при поновленні підписки"
-            )
+                logger.error(f"Stripe resume exception for user {query.from_user.id}: {e}")
+        
+        # Якщо доступ був втрачений - відправляємо запрошення для приєднання
+        if had_no_access:
+            logger.info(f"Користувач {query.from_user.id} втратив доступ, відправляємо запрошення для приєднання")
+            await self.send_join_invitations(query.from_user.id)
+            return
+        
+        # Видаляємо попереднє повідомлення з кнопками
+        try:
+            await query.message.delete()
+        except Exception as e:
+            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Отримуємо оновлені дані користувача для показу дати
+        user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
+        next_billing_str = "найближчим часом"
+        if user and user.next_billing_date:
+            next_billing_str = user.next_billing_date.strftime('%d.%m')
+        
+        # Відправляємо повідомлення про поновлення з кнопкою
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✨ Головне меню", callback_data="main_menu")]
+        ])
+        
+        await self.bot.send_message(
+            chat_id=query.from_user.id,
+            text=f"Підписку поновлено ✅\n\n"
+                 f"Наступний платіж відбудеться {next_billing_str}",
+            reply_markup=keyboard
+        )
+        
+        # Відправляємо повідомлення в Tech групу
+        user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
+        await self.send_tech_notification(
+            f"▶️ <b>Підписка поновлена</b>\n\n"
+            f"Користувач: {user_info}\n"
+            f"ID: {query.from_user.id}\n"
+            f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
+            f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+        )
     
     async def cancel_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показати підтвердження скасування підписки"""
@@ -1859,7 +1863,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         await query.answer()
         
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
-        if not user or not user.stripe_subscription_id:
+        if not user or not user.subscription_active:
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Активна підписка не знайдена"
@@ -1899,7 +1903,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         await query.answer()
         
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
-        if not user or not user.stripe_subscription_id:
+        if not user or not user.subscription_active:
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Активна підписка не знайдена"
@@ -1907,7 +1911,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             return
         
         # Перевіряємо, чи це адмін з тестовими даними
-        if user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
+        if user.stripe_subscription_id and user.is_admin() and user.stripe_subscription_id.startswith("sub_test_"):
             # Імітуємо скасування для адміна
             # Для скасованої підписки - доступ до next_billing_date (БЕЗ +2 днів)
             subscription_end_date = user.next_billing_date or (datetime.utcnow() + timedelta(days=30))
@@ -1952,77 +1956,75 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             subscription_end_date = datetime.utcnow() + timedelta(days=30)
             logger.warning(f"Використано fallback дату закінчення: {subscription_end_date.strftime('%Y-%m-%d')}")
         
-        success = await StripeManager.cancel_subscription(user.stripe_subscription_id)
+        # Оновлюємо статус в БД ОДРАЗУ (незалежно від результату Stripe)
+        with DatabaseManager() as db:
+            db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
+            if db_user:
+                db_user.subscription_paused = False
+                db_user.subscription_cancelled = True
+                db_user.subscription_end_date = subscription_end_date
+                db_user.next_billing_date = None
+                db_user.auto_payment_enabled = False
+                db.commit()
+                logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date.strftime('%Y-%m-%d')}")
+            else:
+                logger.error(f"Користувач {query.from_user.id} не знайдений в базі при скасуванні підписки")
         
-        logger.info(f"Результат скасування підписки в Stripe: {success}")
-        
-        if success:
-            # Оновлюємо статус в базі
-            # При скасуванні підписки доступ до current_period_end (БЕЗ +2 днів на спроби оплати)
-            with DatabaseManager() as db:
-                db_user = db.query(User).filter(User.telegram_id == query.from_user.id).first()
-                if db_user:
-                    logger.info(f"До скасування: paused={db_user.subscription_paused}, cancelled={db_user.subscription_cancelled}, auto_payment={db_user.auto_payment_enabled}, end_date={db_user.subscription_end_date}")
-                    db_user.subscription_paused = False
-                    db_user.subscription_cancelled = True
-                    # Встановлюємо дату закінчення БЕЗ +2 днів (бо не буде спроб автооплати)
-                    db_user.subscription_end_date = subscription_end_date
-                    db_user.next_billing_date = None
-                    db_user.auto_payment_enabled = False
-                    db.commit()
-                    logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date.strftime('%Y-%m-%d')}")
-                else:
-                    logger.error(f"Користувач {query.from_user.id} не знайдений в базі при скасуванні підписки")
-            
-            # Видаляємо попереднє повідомлення з кнопками
+        # Намагаємось скасувати в Stripe (best effort)
+        if user.stripe_subscription_id and not user.stripe_subscription_id.startswith("sub_test_"):
             try:
-                await query.message.delete()
+                stripe_success = await StripeManager.cancel_subscription(user.stripe_subscription_id)
+                if not stripe_success:
+                    logger.error(f"Stripe cancel failed for user {query.from_user.id}, sub_id={user.stripe_subscription_id}")
+                else:
+                    logger.info(f"Stripe cancel successful for user {query.from_user.id}")
             except Exception as e:
-                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
-            
-            # Підраховуємо кількість успішних оплат для повідомлення в Tech групу
-            from database.models import Payment
-            payment_count = 0
-            with DatabaseManager() as db:
-                payment_count = db.query(Payment).filter(
-                    Payment.user_id == user.id,
-                    Payment.status.in_(["succeeded", "completed"])
-                ).count()
-            
-            # Відправляємо повідомлення в Tech групу одразу (без фідбеку)
-            user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
-            await self.send_tech_notification(
-                f"❌ <b>Скасована клієнтом</b>\n\n"
-                f"Користувач: {user_info}\n"
-                f"ID: {query.from_user.id}\n"
-                f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
-                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
-                f"Успішних оплат: {payment_count}"
-            )
-            
-            # Зберігаємо дані для відправки фідбеку (якщо користувач його надасть)
-            context.user_data['cancel_subscription_date'] = subscription_end_date.isoformat() if subscription_end_date else None
-            context.user_data['cancel_date'] = datetime.now().isoformat()
-            
-            # Встановлюємо стан очікування фідбеку
-            DatabaseManager.update_user_state(query.from_user.id, UserState.WAITING_CANCEL_FEEDBACK)
-            
-            # Зберігаємо час запиту фідбеку в контексті користувача
-            context.user_data['cancel_feedback_requested_at'] = datetime.now().isoformat()
-            
-            # Відправляємо повідомлення з проханням фідбеку
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text="Підписку скасовано ❌\n\n"
-                     "Дякую, що була зі мною 🕊️\n\n"
-                     "Буду вдячна, якщо поділишся, що тобі сподобалося в студії та що можна покращити:",
-                parse_mode='HTML'
-            )
-        else:
-            await self.bot.send_message(
-                chat_id=query.from_user.id,
-                text="Помилка при скасуванні підписки"
-            )
+                logger.error(f"Stripe cancel exception for user {query.from_user.id}: {e}")
+        
+        # Видаляємо попереднє повідомлення з кнопками
+        try:
+            await query.message.delete()
+        except Exception as e:
+            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Підраховуємо кількість успішних оплат для повідомлення в Tech групу
+        from database.models import Payment
+        payment_count = 0
+        with DatabaseManager() as db:
+            payment_count = db.query(Payment).filter(
+                Payment.user_id == user.id,
+                Payment.status.in_(["succeeded", "completed"])
+            ).count()
+        
+        # Відправляємо повідомлення в Tech групу одразу (без фідбеку)
+        user_info = f"@{query.from_user.username}" if query.from_user.username else query.from_user.full_name
+        await self.send_tech_notification(
+            f"❌ <b>Скасована клієнтом</b>\n\n"
+            f"Користувач: {user_info}\n"
+            f"ID: {query.from_user.id}\n"
+            f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
+            f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+            f"Успішних оплат: {payment_count}"
+        )
+        
+        # Зберігаємо дані для відправки фідбеку (якщо користувач його надасть)
+        context.user_data['cancel_subscription_date'] = subscription_end_date.isoformat() if subscription_end_date else None
+        context.user_data['cancel_date'] = datetime.now().isoformat()
+        
+        # Встановлюємо стан очікування фідбеку
+        DatabaseManager.update_user_state(query.from_user.id, UserState.WAITING_CANCEL_FEEDBACK)
+        
+        # Зберігаємо час запиту фідбеку в контексті користувача
+        context.user_data['cancel_feedback_requested_at'] = datetime.now().isoformat()
+        
+        # Відправляємо повідомлення з проханням фідбеку
+        await self.bot.send_message(
+            chat_id=query.from_user.id,
+            text="Підписку скасовано ❌\n\n"
+                 "Дякую, що була зі мною 🕊️\n\n"
+                 "Буду вдячна, якщо поділишся, що тобі сподобалося в студії та що можна покращити:",
+            parse_mode='HTML'
+        )
     
     async def change_payment_method(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Змінити платіжний метод через Stripe Billing Portal"""
