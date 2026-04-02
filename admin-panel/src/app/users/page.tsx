@@ -58,8 +58,8 @@ export default function UsersPage() {
   // Допоміжна функція для форматування дат UTC без конвертації в локальний час
   const formatUTCDate = (dateString: string | null | undefined) => {
     if (!dateString) return '-';
-    // Парсимо дату як UTC і форматуємо тільки день.місяць.рік
-    const date = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
+    // API тепер повертає ISO з Z — парсимо як UTC
+    const date = new Date(dateString);
     const day = String(date.getUTCDate()).padStart(2, '0');
     const month = String(date.getUTCMonth() + 1).padStart(2, '0');
     const year = date.getUTCFullYear();

@@ -131,7 +131,7 @@ async def health_check():
         
         return {
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + 'Z',
             "version": "1.0.0",
             "services": {
                 "database": "connected",
@@ -141,7 +141,7 @@ async def health_check():
     except Exception as e:
         return {
             "status": "unhealthy",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + 'Z',
             "version": "1.0.0",
             "error": str(e),
             "services": {
@@ -460,18 +460,21 @@ async def get_users(
         
         users = cursor.fetchall() or []
         
-        # Convert datetime objects to ISO strings
+        # Convert datetime objects to ISO strings with explicit UTC (Z suffix)
+        # БД зберігає naive datetime (без timezone), але всі дати — UTC за замовчуванням
         for user in users:
             if user.get('created_at'):
-                user['created_at'] = user['created_at'].isoformat()
+                user['created_at'] = user['created_at'].isoformat() + 'Z'
             if user.get('updated_at'):
-                user['updated_at'] = user['updated_at'].isoformat()
+                user['updated_at'] = user['updated_at'].isoformat() + 'Z'
             if user.get('subscription_end_date'):
-                user['subscription_end_date'] = user['subscription_end_date'].isoformat()
+                # Це DATE з БД — форматуємо як UTC midnight
+                user['subscription_end_date'] = user['subscription_end_date'].isoformat() + 'Z'
             if user.get('next_billing_date'):
-                user['next_billing_date'] = user['next_billing_date'].isoformat()
+                # Це DATE з БД — форматуємо як UTC midnight
+                user['next_billing_date'] = user['next_billing_date'].isoformat() + 'Z'
             if user.get('member_since'):
-                user['member_since'] = user['member_since'].isoformat()
+                user['member_since'] = user['member_since'].isoformat() + 'Z'
         
         total_pages = (total_users + limit - 1) // limit if total_users > 0 else 1
         
@@ -662,14 +665,14 @@ async def get_payments(
         
         payments = cursor.fetchall() or []
         
-        # Convert datetime objects to ISO strings (суми вже в євро)
+        # Convert datetime objects to ISO strings with Z (UTC)
         for payment in payments:
             if payment.get('created_at'):
-                payment['created_at'] = payment['created_at'].isoformat()
+                payment['created_at'] = payment['created_at'].isoformat() + 'Z'
             if payment.get('updated_at'):
-                payment['updated_at'] = payment['updated_at'].isoformat()
+                payment['updated_at'] = payment['updated_at'].isoformat() + 'Z'
             if payment.get('paid_at'):
-                payment['paid_at'] = payment['paid_at'].isoformat()
+                payment['paid_at'] = payment['paid_at'].isoformat() + 'Z'
             # Сума вже в євро, тільки конвертуємо в float
             if payment.get('amount'):
                 payment['amount'] = float(payment['amount'])
@@ -991,8 +994,8 @@ async def update_user(
                     "injuries": user[6],
                     "subscription_active": user[7],
                     "subscription_paused": user[8],
-                    "subscription_end_date": user[9].isoformat() if user[9] else None,
-                    "next_billing_date": user[10].isoformat() if user[10] else None,
+                    "subscription_end_date": user[9].isoformat() + 'Z' if user[9] else None,
+                    "next_billing_date": user[10].isoformat() + 'Z' if user[10] else None,
                 }
             }
         else:
@@ -1092,9 +1095,9 @@ async def get_admins(admin: Dict = Depends(get_current_admin_from_token)):
         # Форматуємо дати
         for admin_item in admins:
             if admin_item.get('created_at'):
-                admin_item['created_at'] = admin_item['created_at'].isoformat()
+                admin_item['created_at'] = admin_item['created_at'].isoformat() + 'Z'
             if admin_item.get('last_login_at'):
-                admin_item['last_login_at'] = admin_item['last_login_at'].isoformat()
+                admin_item['last_login_at'] = admin_item['last_login_at'].isoformat() + 'Z'
         
         return {"admins": admins}
         
@@ -1318,9 +1321,9 @@ async def get_all_settings(admin: Dict = Depends(get_current_admin_from_token)):
                 setting["decrypted_value"] = "***HIDDEN***"
             
             if setting.get('created_at'):
-                setting['created_at'] = setting['created_at'].isoformat()
+                setting['created_at'] = setting['created_at'].isoformat() + 'Z'
             if setting.get('updated_at'):
-                setting['updated_at'] = setting['updated_at'].isoformat()
+                setting['updated_at'] = setting['updated_at'].isoformat() + 'Z'
         
         return {"settings": settings_list}
         
@@ -1955,7 +1958,7 @@ async def get_system_logs(
         # Convert datetime objects to ISO strings
         for log in logs:
             if log.get('created_at'):
-                log['created_at'] = log['created_at'].isoformat()
+                log['created_at'] = log['created_at'].isoformat() + 'Z'
             # Parse JSON details if exists
             if log.get('details'):
                 try:
