@@ -1649,6 +1649,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.subscription_end_date = subscription_end_date
                     db_user.next_billing_date = None  # Скасовуємо наступне списання
                     db_user.auto_payment_enabled = False  # Деактивуємо автоплатіж
+                    db.flush()
                     db.commit()
                     logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
             
@@ -1657,6 +1658,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 await query.message.delete()
             except Exception as e:
                 logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+            
+            # Невелика затримка
+            await asyncio.sleep(0.1)
             
             # Показуємо базове меню з новим статусом
             await self.show_active_subscription_menu(query.from_user.id)
@@ -1680,6 +1684,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db_user.subscription_end_date = subscription_end_date
                 db_user.next_billing_date = None
                 db_user.auto_payment_enabled = False
+                db.flush()  # Гарантуємо що зміни записані в БД перед commit
                 db.commit()
                 logger.info(f"Призупинено підписку для {query.from_user.id}: active=True, paused=True, end_date={subscription_end_date}, auto_payment=False")
             else:
@@ -1714,6 +1719,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
         )
         
+        # Невелика затримка щоб гарантувати що БД транзакція видима в новій сесії
+        await asyncio.sleep(0.1)
+        
         # Показуємо базове меню з новим статусом
         await self.show_active_subscription_menu(query.from_user.id)
     
@@ -1746,6 +1754,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.auto_payment_enabled = True
                     # Встановлюємо дату наступного платежу (через 30 днів)
                     db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
+                    db.flush()
                     db.commit()
                     logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True, next_billing={db_user.next_billing_date}")
             
@@ -1796,6 +1805,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db_user.subscription_end_date = None
                 db_user.auto_payment_enabled = True
                 db_user.next_billing_date = datetime.utcnow() + timedelta(days=30)
+                db.flush()
                 db.commit()
                 logger.info(f"Поновлено підписку для {query.from_user.id}: paused=False, cancelled=False, auto_payment=True")
         
@@ -1836,6 +1846,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             await query.message.delete()
         except Exception as e:
             logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+        
+        # Невелика затримка щоб гарантувати що БД транзакція видима в новій сесії
+        await asyncio.sleep(0.1)
         
         # Отримуємо оновлені дані користувача для показу дати
         user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
@@ -1934,6 +1947,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     db_user.subscription_end_date = subscription_end_date
                     db_user.next_billing_date = None
                     db_user.auto_payment_enabled = False
+                    db.flush()
                     db.commit()
                     logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date}")
             
@@ -1975,6 +1989,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 db_user.subscription_end_date = subscription_end_date
                 db_user.next_billing_date = None
                 db_user.auto_payment_enabled = False
+                db.flush()
                 db.commit()
                 logger.info(f"Скасовано підписку для {query.from_user.id}: cancelled=True, next_billing=None, auto_payment=False, end_date={subscription_end_date.strftime('%Y-%m-%d')}")
             else:
