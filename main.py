@@ -2952,14 +2952,38 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             
             # Перевіряємо, чи користувач має активну підписку
             user = DatabaseManager.get_user_by_telegram_id(user_id)
-            if not user or not user.subscription_active:
-                logger.warning(f"Користувач {user_id} не має активної підписки, відхиляємо запит")
+            if not user:
+                logger.warning(f"Користувач {user_id} не знайдений в базі, відхиляємо запит")
+                await chat_join_request.decline()
+                return
+            
+            # Перевіряємо доступ: активна підписка АБО паузована/скасована але в межах оплаченого періоду
+            has_access = user.subscription_active
+            if not has_access and user.subscription_end_date:
+                # Якщо підписка не активна, перевіряємо чи не закінчився оплачений період
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc)
+                # Якщо subscription_end_date не має timezone, додаємо UTC
+                end_date = user.subscription_end_date
+                if end_date.tzinfo is None:
+                    end_date = end_date.replace(tzinfo=timezone.utc)
+                has_access = now < end_date
+            
+            logger.info(f"Користувач {user_id}: subscription_active={user.subscription_active}, "
+                       f"subscription_end_date={user.subscription_end_date}, has_access={has_access}")
+            
+            if not has_access:
+                logger.warning(f"Користувач {user_id} не має доступу, відхиляємо запит")
                 await chat_join_request.decline()
                 return
             
             # Схвалюємо запит
-            await chat_join_request.approve()
-            logger.info(f"Запит на приєднання від користувача {user_id} до {chat_title} схвалено")
+            try:
+                await chat_join_request.approve()
+                logger.info(f"✅ Запит на приєднання від користувача {user_id} до {chat_title} успішно схвалено")
+            except Exception as approve_error:
+                logger.error(f"❌ Помилка при схваленні запиту від користувача {user_id}: {approve_error}")
+                # Продовжуємо виконання, щоб оновити статус в базі
             
             # Визначаємо тип чату (канал чи група)
             is_channel = chat_join_request.chat.type in ['channel', 'supergroup']
