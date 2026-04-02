@@ -2162,6 +2162,10 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     if telegram_id not in self.join_step_messages:
                         self.join_step_messages[telegram_id] = []
                     self.join_step_messages[telegram_id].append(msg.message_id)
+                    
+                    # Встановлюємо стан очікування приєднання до каналу
+                    DatabaseManager.update_user_state(telegram_id, UserState.CHANNEL_JOIN_PENDING)
+                    logger.info(f"Встановлено стан CHANNEL_JOIN_PENDING для користувача {telegram_id}")
                 else:
                     # Fallback
                     channel_username = settings.private_channel_id.replace('-100', '')
@@ -2208,6 +2212,10 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     if telegram_id not in self.join_step_messages:
                         self.join_step_messages[telegram_id] = []
                     self.join_step_messages[telegram_id].append(msg.message_id)
+                    
+                    # Встановлюємо стан очікування приєднання до чату
+                    DatabaseManager.update_user_state(telegram_id, UserState.CHAT_JOIN_PENDING)
+                    logger.info(f"Встановлено стан CHAT_JOIN_PENDING для користувача {telegram_id} (вже в каналі)")
             
             # Якщо вже в обох групах (повторний підписник ще в межах свого попереднього доступу)
             if not send_channel_invite and not send_chat_invite:
@@ -2796,12 +2804,12 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                 if db_user:
                     # Визначаємо чи це повторне приєднання (підписник що вийшов і повернувся)
                     # vs перше приєднання нового підписника
-                    # Перше приєднання: стан CHANNEL_JOIN_PENDING або CHAT_JOIN_PENDING
-                    # Повторне: будь-який інший стан (наприклад ACTIVE_SUBSCRIPTION)
-                    is_rejoin = user.subscription_active and user.state not in [
-                        UserState.CHANNEL_JOIN_PENDING,
-                        UserState.CHAT_JOIN_PENDING
-                    ]
+                    # Перше приєднання: joined_channel=False І стан CHANNEL_JOIN_PENDING
+                    # Повторне: joined_channel був True раніше (користувач виходив) АБО стан не CHANNEL_JOIN_PENDING
+                    is_rejoin = (
+                        user.joined_channel or  # Вже був в каналі раніше
+                        user.state not in [UserState.CHANNEL_JOIN_PENDING, UserState.CHAT_JOIN_PENDING]
+                    )
                     
                     if str(chat_id) == str(settings.private_channel_id):
                         # Це канал
@@ -2860,9 +2868,16 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                             if user_id not in self.join_step_messages:
                                 self.join_step_messages[user_id] = []
                             self.join_step_messages[user_id].append(msg.message_id)
+                            
+                            # Встановлюємо стан очікування приєднання до чату
+                            DatabaseManager.update_user_state(user_id, UserState.CHAT_JOIN_PENDING)
+                            logger.info(f"Встановлено стан CHAT_JOIN_PENDING для користувача {user_id}")
                     
                     elif str(chat_id) == str(settings.private_chat_id):
                         # Це група/чат
+                        # Визначаємо is_rejoin: вже був в чаті раніше АБО стан не CHAT_JOIN_PENDING
+                        is_rejoin = user.joined_chat or user.state != UserState.CHAT_JOIN_PENDING
+                        
                         db_user.joined_chat = True
                         db.commit()
                         logger.info(f"Оновлено joined_chat=True для користувача {user_id}, is_rejoin={is_rejoin}")
