@@ -1510,18 +1510,29 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
         
         # Перевіряємо, чи це адмін (тестовий режим)
         if user and user.is_admin():
-            await query.edit_message_text("Тестовий режим для адміна - імітуємо успішну оплату...")
-            
-            # Видаляємо повідомлення з кнопкою оплати через кілька секунд
+            # Видаляємо попереднє повідомлення
             try:
-                await asyncio.sleep(2)  # Невелика затримка, щоб користувач побачив повідомлення
                 await query.message.delete()
             except Exception as e:
-                logger.warning(f"Не вдалося видалити повідомлення оплати: {e}")
+                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
+            
+            await self.bot.send_message(
+                chat_id=user_id,
+                text="Тестовий режим для адміна - імітуємо успішну оплату..."
+            )
+            
+            # Невелика затримка
+            await asyncio.sleep(2)
             
             # Імітуємо успішну оплату для адміна
             await self.simulate_successful_payment(user_id)
             return
+        
+        # Видаляємо попереднє повідомлення з кнопкою (з розсилки або опитування)
+        try:
+            await query.message.delete()
+        except Exception as e:
+            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
         
         # URL для повернення після оплати
         bot_username = "upgrade21studio_bot" # Правильний username бота
@@ -1566,7 +1577,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
             ])
             
-            payment_msg = await query.edit_message_text(
+            # Відправляємо нове повідомлення замість редагування
+            payment_msg = await self.bot.send_message(
+                chat_id=user_id,
                 text=subscription_text,
                 reply_markup=payment_keyboard,
                 parse_mode='HTML'
@@ -1576,8 +1589,9 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             self.payment_message_ids[user_id] = payment_msg.message_id
             logger.info(f"Збережено ID повідомлення оплати {payment_msg.message_id} для користувача {user_id}")
         else:
-            await query.edit_message_text(
-                "Виникла помилка при створенні платежу. Спробуйте пізніше або зверніться до підтримки."
+            await self.bot.send_message(
+                chat_id=user_id,
+                text="Виникла помилка при створенні платежу. Спробуйте пізніше або зверніться до підтримки."
             )
     
     async def pause_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
