@@ -412,6 +412,13 @@ async def get_users(
             if subscription_status == "active":
                 # Активна - активна підписка (включає тих у кого йдуть спроби оплати)
                 where_conditions.append("subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0")
+            elif subscription_status == "with_access":
+                # З доступом зараз - активні + призупинені/скасовані але ще в межах періоду
+                where_conditions.append("""(
+                    (subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0)
+                    OR (subscription_cancelled = 1 AND subscription_end_date >= NOW())
+                    OR (subscription_paused = 1 AND subscription_end_date >= NOW())
+                )""")
             elif subscription_status == "cancelled":
                 # Скасована - автоматично або сам скасував
                 where_conditions.append("subscription_cancelled = 1")

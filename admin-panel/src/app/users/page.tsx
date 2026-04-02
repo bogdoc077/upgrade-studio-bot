@@ -382,8 +382,9 @@ export default function UsersPage() {
                 onFocus={(e) => e.target.style.borderColor = '#6366f1'}
                 onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               >
-                <option value="Всі">Всі</option>
+                <option value="">Всі</option>
                 <option value="active">Активна</option>
+                <option value="with_access">З доступом зараз</option>
                 <option value="no_subscription">Без підписки</option>
                 <option value="paused">Призупинена</option>
                 <option value="cancelled">Скасована</option>
