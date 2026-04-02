@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { 
   PhotoIcon, 
-  VideoCameraIcon, 
   DocumentIcon, 
   ChatBubbleLeftIcon,
   LinkIcon,
@@ -91,7 +90,6 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
     switch (type) {
       case 'text': return <ChatBubbleLeftIcon className="w-5 h-5" />;
       case 'image': return <PhotoIcon className="w-5 h-5" />;
-      case 'video': return <VideoCameraIcon className="w-5 h-5" />;
       case 'document': return <DocumentIcon className="w-5 h-5" />;
       case 'button': return <LinkIcon className="w-5 h-5" />;
       case 'subscription_button': return <LinkIcon className="w-5 h-5" />;
@@ -102,7 +100,6 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
     switch (type) {
       case 'text': return 'Текст';
       case 'image': return 'Зображення';
-      case 'video': return 'Відео';
       case 'document': return 'Документ';
       case 'button': return 'Кнопка';
       case 'subscription_button': return 'Кнопка підписки';
@@ -208,7 +205,7 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
             />
           )}
 
-          {(block.type === 'image' || block.type === 'video' || block.type === 'document') && (
+          {(block.type === 'image' || block.type === 'document') && (
             <div>
               {!block.fileUrl ? (
                 <div>
@@ -222,7 +219,6 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
                     }}
                     accept={
                       block.type === 'image' ? 'image/*' :
-                      block.type === 'video' ? 'video/*' :
                       '.pdf,.zip,.doc,.docx,.xls,.xlsx'
                     }
                     disabled={uploading === block.id}
@@ -248,7 +244,7 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
                       <>
                         <PlusIcon className="w-5 h-5" style={{ color: '#6b7280' }} />
                         <span style={{ color: '#6b7280', fontSize: '14px' }}>
-                          Виберіть {block.type === 'image' ? 'зображення' : block.type === 'video' ? 'відео' : 'файл'}
+                          Виберіть {block.type === 'image' ? 'зображення' : 'файл'}
                         </span>
                       </>
                     )}
@@ -265,13 +261,6 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
                     <img
                       src={`/api${block.fileUrl}`}
                       alt="Preview"
-                      style={{ width: '100%', height: 'auto', display: 'block' }}
-                    />
-                  )}
-                  {block.type === 'video' && block.fileUrl && (
-                    <video
-                      src={`/api${block.fileUrl}`}
-                      controls
                       style={{ width: '100%', height: 'auto', display: 'block' }}
                     />
                   )}
@@ -426,7 +415,6 @@ export default function MessageBuilder({ blocks, onChange, onFileUpload }: Messa
                 {[
                   { type: 'text' as const, label: 'Текст', icon: ChatBubbleLeftIcon },
                   { type: 'image' as const, label: 'Зображення', icon: PhotoIcon },
-                  { type: 'video' as const, label: 'Відео', icon: VideoCameraIcon },
                   { type: 'document' as const, label: 'Документ', icon: DocumentIcon },
                   { type: 'button' as const, label: 'Кнопка', icon: LinkIcon },
                   { type: 'subscription_button' as const, label: '💳 Кнопка підписки', icon: LinkIcon },
