@@ -377,9 +377,9 @@ async def handle_customer_subscription_updated(subscription):
                         db_user.subscription_end_date = period_end
                         db_user.next_billing_date = None  # Немає наступного списання
                     elif status == 'paused':
-                        # Для призупинених підписок - доступ до period_end + 2 дні
-                        # Бо після відновлення можуть бути спроби оплати
-                        db_user.subscription_end_date = period_end + timedelta(days=2)
+                        # Для призупинених підписок - доступ тільки до period_end (БЕЗ +2 днів)
+                        # Бо не буде спроб автооплати поки призупинено
+                        db_user.subscription_end_date = period_end
                         db_user.next_billing_date = None  # Немає списання поки призупинено
                 
                 db_user.updated_at = datetime.utcnow()
