@@ -5,7 +5,7 @@ import json
 import stripe
 import logging
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from telegram import Bot, Update
@@ -16,6 +16,14 @@ from stripe.error import StripeError
 from config import settings
 from payments import StripeManager
 from database import DatabaseManager, User, Payment
+
+
+# Helper функція для отримання київського часу
+def get_kyiv_time():
+    """Отримати поточний час у київському часовому поясі (Europe/Kiev)"""
+    kyiv_tz = timezone(timedelta(hours=3))  # UTC+3 (літній час)
+    return datetime.now(kyiv_tz)
+
 
 # Створюємо FastAPI додаток
 app = FastAPI(title="Upgrade Studio Bot Webhooks")
@@ -289,7 +297,7 @@ async def handle_checkout_session_completed(session):
                         f"Користувач: {user_info}\n"
                         f"ID: {telegram_id}\n"
                         f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                        f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+                        f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}\n"
                         f"Успішних оплат: {payment_count}"
                     )
                     
@@ -426,7 +434,7 @@ async def handle_customer_subscription_updated(subscription):
                              f"Користувач: {user_info}\n"
                              f"ID: `{user.telegram_id}`\n"
                              f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+                             f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}\n"
                              f"Успішних оплат: {payment_count}",
                         parse_mode='Markdown'
                     )
@@ -557,7 +565,7 @@ async def handle_payment_method_attached(payment_method):
                          f"Користувач: {user_info}\n"
                          f"ID: {user.telegram_id}\n"
                          f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                         f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                         f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}",
                     parse_mode='HTML'
                 )
                 logger.info(f"Повідомлення про зміну платіжного методу надіслано в Tech групу")
@@ -644,7 +652,7 @@ async def handle_invoice_payment_failed(invoice):
                      f"Сума: {amount:.2f} {currency}\n"
                      f"Спроба: {attempt_count}\n"
                      f"Наступна спроба: {next_attempt_str}\n"
-                     f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                     f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}",
                 parse_mode='Markdown'
             )
             logger.info(f"Повідомлення про невдалу оплату надіслано в Tech групу")
@@ -772,7 +780,7 @@ async def handle_invoice_payment_succeeded(invoice):
                              f"Користувач: {user_info}\n"
                              f"ID: `{user.telegram_id}`\n"
                              f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                             f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+                             f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}\n"
                              f"Успішних оплат: {payment_count}",
                         parse_mode='Markdown'
                     )

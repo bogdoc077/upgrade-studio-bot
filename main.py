@@ -4,7 +4,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
@@ -35,6 +35,13 @@ logger = logging.getLogger(__name__)
 
 # Стани розмови
 CHOOSING_GOAL, CHOOSING_INJURY = range(2)
+
+
+# Helper функція для отримання київського часу
+def get_kyiv_time():
+    """Отримати поточний час у київському часовому поясі (Europe/Kiev)"""
+    kyiv_tz = timezone(timedelta(hours=3))  # UTC+3 (літній час)
+    return datetime.now(kyiv_tz)
 
 
 class UpgradeStudioBot:
@@ -189,7 +196,7 @@ class UpgradeStudioBot:
                 f"Користувач: {user_info}\n"
                 f"ID: {user.id}\n"
                 f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}"
             )
         
         # Перевірка на застарілий запит фідбеку (7 днів)
@@ -964,7 +971,7 @@ class UpgradeStudioBot:
         days_member = (datetime.utcnow() - user.member_since).days
         
         # Додаємо часову мітку для відстеження оновлень
-        current_time = datetime.now().strftime("%H:%M")
+        current_time = get_kyiv_time().strftime("%H:%M")
         
         dashboard_text = f"""<b>Ваша статистика</b> (оновлено о {current_time})
 
@@ -1388,7 +1395,7 @@ class UpgradeStudioBot:
                 ).count()
             
             # Отримуємо дату скасування з контексту
-            cancel_date_str = datetime.now().strftime('%d.%m.%Y %H:%M')
+            cancel_date_str = get_kyiv_time().strftime('%d.%m.%Y %H:%M')
             if 'cancel_date' in context.user_data:
                 try:
                     cancel_date = datetime.fromisoformat(context.user_data['cancel_date'])
@@ -1760,7 +1767,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             f"Користувач: {user_info}\n"
             f"ID: {query.from_user.id}\n"
             f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
-            f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}"
         )
         
         # Невелика затримка щоб гарантувати що БД транзакція видима в новій сесії
@@ -1921,7 +1928,7 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             f"Користувач: {user_info}\n"
             f"ID: {query.from_user.id}\n"
             f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
-            f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}"
         )
     
     async def cancel_subscription(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2093,19 +2100,19 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             f"Користувач: {user_info}\n"
             f"ID: {query.from_user.id}\n"
             f"Ім'я: {query.from_user.first_name} {query.from_user.last_name or ''}\n"
-            f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
+            f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}\n"
             f"Успішних оплат: {payment_count}"
         )
         
         # Зберігаємо дані для відправки фідбеку (якщо користувач його надасть)
         context.user_data['cancel_subscription_date'] = subscription_end_date.isoformat() if subscription_end_date else None
-        context.user_data['cancel_date'] = datetime.now().isoformat()
+        context.user_data['cancel_date'] = get_kyiv_time().isoformat()
         
         # Встановлюємо стан очікування фідбеку
         DatabaseManager.update_user_state(query.from_user.id, UserState.WAITING_CANCEL_FEEDBACK)
         
         # Зберігаємо час запиту фідбеку в контексті користувача
-        context.user_data['cancel_feedback_requested_at'] = datetime.now().isoformat()
+        context.user_data['cancel_feedback_requested_at'] = get_kyiv_time().isoformat()
         
         # Відправляємо повідомлення з проханням фідбеку
         await self.bot.send_message(
