@@ -2235,30 +2235,76 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     DatabaseManager.update_user_state(telegram_id, UserState.CHANNEL_JOIN_PENDING)
                     logger.info(f"Встановлено стан CHANNEL_JOIN_PENDING для користувача {telegram_id}")
                 else:
-                    # Fallback
-                    channel_username = settings.private_channel_id.replace('-100', '')
-                    keyboard = [
-                        [InlineKeyboardButton(
-                            text="🎀 Приєднатися до студії",
-                            url=f"https://t.me/c/{channel_username}"
-                        )]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    await self.bot.send_message(
-                        chat_id=telegram_id,
-                        text="✨ <b>Вітаю! Твою підписку активовано!</b>\n\n"
-                             "Тепер ти — частина UPGRADE.21 🩵\n\n"
-                             "<b>Крок 1:</b>\n"
-                             "Натисні кнопку нижче та надішли запит на приєднання до онлайн-студії, де ти будеш тренуватися.",
-                        reply_markup=reply_markup,
-                        parse_mode='HTML'
-                    )
+                    # Fallback: створюємо новий invite link через Telegram API
+                    try:
+                        invite_link = await self.bot.create_chat_invite_link(
+                            chat_id=settings.private_channel_id,
+                            creates_join_request=True,
+                            name=f"Channel invite for user {telegram_id}"
+                        )
+                        
+                        # Отримуємо інформацію про канал
+                        chat_info = await self.bot.get_chat(settings.private_channel_id)
+                        
+                        # Зберігаємо в базу
+                        DatabaseManager.create_invite_link(
+                            chat_id=settings.private_channel_id,
+                            chat_type="channel",
+                            invite_link=invite_link.invite_link,
+                            chat_title=chat_info.title
+                        )
+                        
+                        keyboard = [
+                            [InlineKeyboardButton(
+                                text="🎀 Приєднатися до студії",
+                                url=invite_link.invite_link
+                            )]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        
+                        msg = await self.bot.send_message(
+                            chat_id=telegram_id,
+                            text="✨ <b>Вітаю! Твою підписку активовано!</b>\n\n"
+                                 "Тепер ти — частина UPGRADE.21 🩵\n\n"
+                                 "<b>Крок 1:</b>\n"
+                                 "Натисни кнопку нижче та надішли запит на приєднання до онлайн-студії, де ти будеш тренуватися.",
+                            reply_markup=reply_markup,
+                            parse_mode='HTML'
+                        )
+                        # Зберігаємо ID повідомлення
+                        if telegram_id not in self.join_step_messages:
+                            self.join_step_messages[telegram_id] = []
+                        self.join_step_messages[telegram_id].append(msg.message_id)
+                        
+                        # Встановлюємо стан очікування приєднання до каналу
+                        DatabaseManager.update_user_state(telegram_id, UserState.CHANNEL_JOIN_PENDING)
+                        logger.info(f"Встановлено стан CHANNEL_JOIN_PENDING для користувача {telegram_id} (створено новий invite link)")
+                    except Exception as e:
+                        logger.error(f"Помилка створення invite link для каналу: {e}")
+                        # Якщо не вдалося створити invite link, використовуємо пряме посилання
+                        channel_username = settings.private_channel_id.replace('-100', '')
+                        keyboard = [
+                            [InlineKeyboardButton(
+                                text="🎀 Приєднатися до студії",
+                                url=f"https://t.me/c/{channel_username}"
+                            )]
+                        ]
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        
+                        await self.bot.send_message(
+                            chat_id=telegram_id,
+                            text="✨ <b>Вітаю! Твою підписку активовано!</b>\n\n"
+                                 "Тепер ти — частина UPGRADE.21 🩵\n\n"
+                                 "<b>Крок 1:</b>\n"
+                                 "Натисні кнопку нижче та надішли запит на приєднання до онлайн-студії, де ти будеш тренуватися.",
+                            reply_markup=reply_markup,
+                            parse_mode='HTML'
+                        )
             elif send_chat_invite:
                 # Якщо вже приєднався до каналу, але не до чату
                 chat_link = None
                 for link in active_links:
-                    if link.link_type == "group":
+                    if link.link_type == "group" or link.link_type == "chat":
                         chat_link = link
                         break
                 
@@ -2284,6 +2330,57 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                     # Встановлюємо стан очікування приєднання до чату
                     DatabaseManager.update_user_state(telegram_id, UserState.CHAT_JOIN_PENDING)
                     logger.info(f"Встановлено стан CHAT_JOIN_PENDING для користувача {telegram_id} (вже в каналі)")
+                else:
+                    # Fallback: створюємо новий invite link через Telegram API
+                    try:
+                        invite_link = await self.bot.create_chat_invite_link(
+                            chat_id=settings.private_chat_id,
+                            creates_join_request=True,
+                            name=f"Chat invite for user {telegram_id}"
+                        )
+                        
+                        # Отримуємо інформацію про чат
+                        chat_info = await self.bot.get_chat(settings.private_chat_id)
+                        
+                        # Зберігаємо в базу
+                        DatabaseManager.create_invite_link(
+                            chat_id=settings.private_chat_id,
+                            chat_type="group",
+                            invite_link=invite_link.invite_link,
+                            chat_title=chat_info.title
+                        )
+                        
+                        keyboard = [
+                            [InlineKeyboardButton(
+                                text="💬 Приєднатися до спільноти",
+                                url=invite_link.invite_link
+                            )]
+                        ]
+                        
+                        msg = await self.bot.send_message(
+                            chat_id=telegram_id,
+                            text="🎉 <b>Чудово! Ти в студії!</b>\n\n"
+                                 "<b>Крок 2:</b>\n"
+                                 "Приєднайся до чату спільноти, де ми разом практикуємо, підтримуємо одна одну та ділимося досягненнями!",
+                            reply_markup=InlineKeyboardMarkup(keyboard),
+                            parse_mode='HTML'
+                        )
+                        if telegram_id not in self.join_step_messages:
+                            self.join_step_messages[telegram_id] = []
+                        self.join_step_messages[telegram_id].append(msg.message_id)
+                        
+                        # Встановлюємо стан очікування приєднання до чату
+                        DatabaseManager.update_user_state(telegram_id, UserState.CHAT_JOIN_PENDING)
+                        logger.info(f"Встановлено стан CHAT_JOIN_PENDING для користувача {telegram_id} (створено новий invite link)")
+                    except Exception as e:
+                        logger.error(f"Помилка створення invite link для чату: {e}")
+                        # Якщо не вдалося створити invite link, показуємо повідомлення про помилку
+                        await self.bot.send_message(
+                            chat_id=telegram_id,
+                            text="⚠️ Виникла тимчасова помилка при створенні посилання для приєднання до спільноти.\n\n"
+                                 "Будь ласка, зверніться до адміністратора.",
+                            parse_mode='HTML'
+                        )
             
             # Якщо вже в обох групах (повторний підписник ще в межах свого попереднього доступу)
             if not send_channel_invite and not send_chat_invite:
@@ -2916,13 +3013,42 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                                     )]
                                 ]
                             else:
-                                chat_username = settings.private_chat_id.replace('-100', '')
-                                keyboard = [
-                                    [InlineKeyboardButton(
-                                        text="💬 Приєднатися до спільноти",
-                                        url=f"https://t.me/c/{chat_username}"
-                                    )]
-                                ]
+                                # Fallback: створюємо новий invite link через Telegram API
+                                try:
+                                    invite_link_obj = await self.bot.create_chat_invite_link(
+                                        chat_id=settings.private_chat_id,
+                                        creates_join_request=True,
+                                        name=f"Chat invite for user {user_id}"
+                                    )
+                                    
+                                    # Отримуємо інформацію про чат
+                                    chat_info = await self.bot.get_chat(settings.private_chat_id)
+                                    
+                                    # Зберігаємо в базу
+                                    DatabaseManager.create_invite_link(
+                                        chat_id=settings.private_chat_id,
+                                        chat_type="group",
+                                        invite_link=invite_link_obj.invite_link,
+                                        chat_title=chat_info.title
+                                    )
+                                    
+                                    keyboard = [
+                                        [InlineKeyboardButton(
+                                            text="💬 Приєднатися до спільноти",
+                                            url=invite_link_obj.invite_link
+                                        )]
+                                    ]
+                                    logger.info(f"Створено новий invite link для чату для користувача {user_id}")
+                                except Exception as e:
+                                    logger.error(f"Помилка створення invite link для чату: {e}")
+                                    # Якщо не вдалося створити invite link, використовуємо пряме посилання (не рекомендується)
+                                    chat_username = settings.private_chat_id.replace('-100', '')
+                                    keyboard = [
+                                        [InlineKeyboardButton(
+                                            text="💬 Приєднатися до спільноти",
+                                            url=f"https://t.me/c/{chat_username}"
+                                        )]
+                                    ]
                             
                             reply_markup = InlineKeyboardMarkup(keyboard)
                             
