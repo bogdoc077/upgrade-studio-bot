@@ -12,7 +12,7 @@ interface DashboardStats {
   total_users: number;
   active_users: number;
   inactive_users: number;
-  total_revenue: number;
+  with_access: number;
   payments_today: number;
 }
 
@@ -38,7 +38,7 @@ export default function Dashboard() {
     total_users: 0,
     active_users: 0,
     inactive_users: 0,
-    total_revenue: 0,
+    with_access: 0,
     payments_today: 0
   });
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
@@ -99,10 +99,10 @@ export default function Dashboard() {
       changeType: 'neutral' as const
     },
     {
-      title: 'Загальний дохід',
-      value: `€${(stats.total_revenue / 100).toFixed(2)}`,
-      icon: CreditCardIcon,
-      change: 'Успішні платежі',
+      title: 'З доступом зараз',
+      value: stats.with_access.toLocaleString(),
+      icon: CheckBadgeIcon,
+      change: 'Мають бути в чаті/спільноті',
       changeType: 'positive' as const
     },
     {

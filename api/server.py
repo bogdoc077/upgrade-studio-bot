@@ -347,6 +347,19 @@ async def get_dashboard(admin: Dict = Depends(get_current_admin_flexible)) -> Di
         result = cursor.fetchone()
         payments_today = result["count"] if result else 0
         
+        # Users with access (активні + скасовані/призупинені але ще в межах періоду)
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM users 
+            WHERE (
+                (subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0)
+                OR (subscription_cancelled = 1 AND subscription_end_date >= NOW())
+                OR (subscription_paused = 1 AND subscription_end_date >= NOW())
+            )
+        """)
+        result = cursor.fetchone()
+        with_access_count = result["count"] if result else 0
+        
         cursor.close()
         db.close()
         
@@ -354,7 +367,7 @@ async def get_dashboard(admin: Dict = Depends(get_current_admin_flexible)) -> Di
             "total_users": total_users,
             "active_users": active_users,
             "inactive_users": inactive_users,
-            "total_revenue": total_revenue,  # Вже в євро
+            "with_access": with_access_count,
             "payments_today": payments_today
         }
     except Exception as e:
