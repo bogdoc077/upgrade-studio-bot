@@ -1593,10 +1593,25 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
             )
             return
         
-        # Отримуємо дату закінчення доступу
-        subscription_end_date = user.subscription_end_date or user.next_billing_date
+        # Отримуємо точну дату закінчення поточного періоду зі Stripe
+        subscription_end_date = None
+        if user.stripe_subscription_id:
+            try:
+                subscription_info = await StripeManager.get_subscription(user.stripe_subscription_id)
+                if subscription_info and 'current_period_end' in subscription_info:
+                    subscription_end_date = datetime.utcfromtimestamp(subscription_info['current_period_end'])
+                    logger.info(f"Отримано current_period_end зі Stripe для превʼю паузи: {subscription_end_date.strftime('%Y-%m-%d')}")
+            except Exception as e:
+                logger.warning(f"Не вдалося отримати дані зі Stripe: {e}")
+        
+        # Fallback на дані з БД якщо Stripe недоступний
         if not subscription_end_date:
-            subscription_end_date = datetime.utcnow() + timedelta(days=30)
+            subscription_end_date = user.subscription_end_date or user.next_billing_date
+            if subscription_end_date:
+                logger.warning(f"Використано дату з БД (fallback): {subscription_end_date.strftime('%Y-%m-%d')}")
+            else:
+                subscription_end_date = datetime.utcnow() + timedelta(days=30)
+                logger.warning(f"Використано fallback дату: {subscription_end_date.strftime('%Y-%m-%d')}")
         
         # Видаляємо попереднє повідомлення
         try:
