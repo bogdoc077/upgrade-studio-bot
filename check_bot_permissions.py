@@ -11,7 +11,13 @@ from database import DatabaseManager
 async def check_permissions():
     bot = Bot(token=settings.telegram_bot_token)
     
-    print("🔍 Перевірка прав бота...\n")
+    # Ініціалізуємо бота
+    async with bot:
+        print("🔍 Перевірка прав бота...\n")
+        await _check_permissions(bot)
+
+async def _check_permissions(bot):
+    """Внутрішня функція для перевірки"""
     
     # Перевіряємо канал
     print(f"📺 Канал (ID: {settings.private_channel_id}):")
