@@ -2947,8 +2947,10 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             user_id = chat_join_request.from_user.id
             chat_id = chat_join_request.chat.id
             chat_title = chat_join_request.chat.title
+            chat_type = chat_join_request.chat.type
             
-            logger.info(f"Отримано запит на приєднання від користувача {user_id} до чату {chat_id} ({chat_title})")
+            logger.info(f"🔔 Отримано запит на приєднання від користувача {user_id} до чату {chat_id} ({chat_title}), тип: {chat_type}")
+            logger.info(f"Налаштування: CHANNEL_ID={settings.private_channel_id}, CHAT_ID={settings.private_chat_id}")
             
             # Перевіряємо, чи користувач має активну підписку
             user = DatabaseManager.get_user_by_telegram_id(user_id)
@@ -3003,6 +3005,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                     
                     if str(chat_id) == str(settings.private_channel_id):
                         # Це канал
+                        logger.info(f"Обробка приєднання до КАНАЛУ для користувача {user_id}")
                         db_user.joined_channel = True
                         db.commit()
                         logger.info(f"Оновлено joined_channel=True для користувача {user_id}, is_rejoin={is_rejoin}")
@@ -3094,8 +3097,12 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                     
                     elif str(chat_id) == str(settings.private_chat_id):
                         # Це група/чат
+                        logger.info(f"Обробка приєднання до ЧАТУ для користувача {user_id}")
                         # Визначаємо is_rejoin: вже був в чаті раніше АБО стан не CHAT_JOIN_PENDING
-                        is_rejoin = user.joined_chat or user.state != UserState.CHAT_JOIN_PENDING
+                        # Використовуємо db_user замість user для актуального стану
+                        is_rejoin = db_user.joined_chat or db_user.state != UserState.CHAT_JOIN_PENDING.value
+                        
+                        logger.info(f"Статус до оновлення: joined_chat={db_user.joined_chat}, state={db_user.state}, is_rejoin={is_rejoin}")
                         
                         db_user.joined_chat = True
                         db.commit()
@@ -3138,9 +3145,9 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                             # Встановлюємо стан активної підписки
                             DatabaseManager.update_user_state(user_id, UserState.ACTIVE_SUBSCRIPTION)
                     else:
-                        logger.warning(f"Невідомий chat_id: {chat_id}")
+                        logger.warning(f"Невідомий chat_id: {chat_id}, очікувалось {settings.private_channel_id} (канал) або {settings.private_chat_id} (чат)")
                 else:
-                    logger.error(f"Користувач {user_id} не знайдений при оновленні joined статусу")
+                    logger.error(f"Користувач {user_id} не знайдений в базі при оновленні joined статусу")
             
         except Exception as e:
             logger.error(f"Помилка при обробці запиту на приєднання: {e}")
