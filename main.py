@@ -2985,7 +2985,8 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                 logger.info(f"✅ Запит на приєднання від користувача {user_id} до {chat_title} успішно схвалено")
             except Exception as approve_error:
                 logger.error(f"❌ Помилка при схваленні запиту від користувача {user_id}: {approve_error}")
-                # Продовжуємо виконання, щоб оновити статус в базі
+                # Не продовжуємо - користувач не приєднався
+                return
             
             # Визначаємо тип чату (канал чи група)
             is_channel = chat_join_request.chat.type in ['channel', 'supergroup']
