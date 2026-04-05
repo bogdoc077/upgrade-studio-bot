@@ -946,8 +946,13 @@ async def shutdown_event():
     """Очищення при зупинці сервера"""
     if TELEGRAM_BOT_AVAILABLE and bot_instance.application:
         logger.info("Зупинка Telegram bot application...")
-        await bot_instance.application.stop()
-        await bot_instance.application.shutdown()
+        try:
+            # Перевіряємо чи application запущено перед зупинкою
+            if bot_instance.application.running:
+                await bot_instance.application.stop()
+            await bot_instance.application.shutdown()
+        except Exception as e:
+            logger.warning(f"Помилка при зупинці application: {e}")
 
 
 app.add_event_handler("startup", startup_event)
