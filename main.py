@@ -3100,7 +3100,8 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                         logger.info(f"Обробка приєднання до ЧАТУ для користувача {user_id}")
                         # Визначаємо is_rejoin: вже був в чаті раніше АБО стан не CHAT_JOIN_PENDING
                         # Використовуємо db_user замість user для актуального стану
-                        is_rejoin = db_user.joined_chat or db_user.state != UserState.CHAT_JOIN_PENDING.value
+                        # db_user.state вже є рядком, не потрібно .value
+                        is_rejoin = db_user.joined_chat or db_user.state != "chat_join_pending"
                         
                         logger.info(f"Статус до оновлення: joined_chat={db_user.joined_chat}, state={db_user.state}, is_rejoin={is_rejoin}")
                         
