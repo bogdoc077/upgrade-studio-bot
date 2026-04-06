@@ -504,9 +504,16 @@ async def handle_payment_method_attached(payment_method):
             return True
         
         # Перевіряємо чи користувач вже має активну підписку
-        # Якщо підписка НЕ активна - це перша оплата, не відправляємо повідомлення про зміну методу
-        if not user.subscription_active:
-            logger.info(f"Пропускаємо повідомлення про зміну платіжного методу - це перша оплата для користувача {user.telegram_id}")
+        # Перевіряємо кількість платежів щоб визначити чи це перша оплата
+        with DatabaseManager() as db:
+            payment_count = db.query(Payment).filter(
+                Payment.user_id == user.id,
+                Payment.status.in_(["succeeded", "completed"])
+            ).count()
+        
+        # Якщо це перша оплата (0 або 1 платіж), пропускаємо обробку
+        if payment_count <= 1:
+            logger.info(f"Пропускаємо payment_method.attached - це перша оплата для користувача {user.telegram_id} (payments={payment_count})")
             return True
         
         # Синхронізуємо дати зі Stripe при зміні платіжного методу
@@ -548,29 +555,18 @@ async def handle_payment_method_attached(payment_method):
         )
         
         # Відправляємо повідомлення в Tech групу
-        # Але тільки якщо це не перша оплата (перевіряємо кількість платежів)
         try:
-            with DatabaseManager() as db:
-                payment_count = db.query(Payment).filter(
-                    Payment.user_id == user.id,
-                    Payment.status.in_(["succeeded", "completed"])
-                ).count()
-            
-            # Якщо є хоча б один платіж, значить це зміна методу, а не перша оплата
-            if payment_count > 0:
-                user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
-                await telegram_bot.send_message(
-                    chat_id=settings.tech_notifications_chat_id,
-                    text=f"💳 <b>Платіжний метод оновлено</b>\n\n"
-                         f"Користувач: {user_info}\n"
-                         f"ID: {user.telegram_id}\n"
-                         f"Ім'я: {user.first_name} {user.last_name or ''}\n"
-                         f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}",
-                    parse_mode='HTML'
-                )
-                logger.info(f"Повідомлення про зміну платіжного методу надіслано в Tech групу")
-            else:
-                logger.info(f"Пропускаємо повідомлення про зміну методу - це перша оплата (payment_count={payment_count})")
+            user_info = f"@{user.username}" if user.username else user.full_name or f"ID: {user.telegram_id}"
+            await telegram_bot.send_message(
+                chat_id=settings.tech_notifications_chat_id,
+                text=f"💳 <b>Платіжний метод оновлено</b>\n\n"
+                     f"Користувач: {user_info}\n"
+                     f"ID: {user.telegram_id}\n"
+                     f"Ім'я: {user.first_name} {user.last_name or ''}\n"
+                     f"Дата: {get_kyiv_time().strftime('%d.%m.%Y %H:%M')}",
+                parse_mode='HTML'
+            )
+            logger.info(f"Повідомлення про зміну платіжного методу надіслано в Tech групу")
         except Exception as e:
             logger.error(f"Помилка відправки повідомлення в Tech групу: {e}")
         
