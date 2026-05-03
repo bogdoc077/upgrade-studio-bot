@@ -314,13 +314,13 @@ async def get_dashboard(admin: Dict = Depends(get_current_admin_flexible)) -> Di
         result = cursor.fetchone()
         total_users = result["total"] if result else 0
         
-        # Active users (subscription_active = 1)
-        cursor.execute("SELECT COUNT(*) as active FROM users WHERE subscription_active = 1")
+        # Active users (з увімкненим автоплатежем)
+        cursor.execute("SELECT COUNT(*) as active FROM users WHERE subscription_active = 1 AND auto_payment_enabled = 1")
         result = cursor.fetchone()
         active_users = result["active"] if result else 0
         
-        # Inactive users (subscription_active = 0)
-        cursor.execute("SELECT COUNT(*) as inactive FROM users WHERE subscription_active = 0")
+        # Inactive users (без активної підписки або без автоплатежу)
+        cursor.execute("SELECT COUNT(*) as inactive FROM users WHERE subscription_active = 0 OR auto_payment_enabled = 0")
         result = cursor.fetchone()
         inactive_users = result["inactive"] if result else 0
         
@@ -347,12 +347,12 @@ async def get_dashboard(admin: Dict = Depends(get_current_admin_flexible)) -> Di
         result = cursor.fetchone()
         payments_today = result["count"] if result else 0
         
-        # Users with access (активні + скасовані/призупинені але ще в межах періоду)
+        # Users with access (з доступом до студії зараз - активні з автоплатежем + скасовані/призупинені але ще в межах періоду)
         cursor.execute("""
             SELECT COUNT(*) as count 
             FROM users 
             WHERE (
-                (subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0)
+                (subscription_active = 1 AND auto_payment_enabled = 1)
                 OR (subscription_cancelled = 1 AND subscription_end_date >= NOW())
                 OR (subscription_paused = 1 AND subscription_end_date >= NOW())
             )
@@ -410,12 +410,12 @@ async def get_users(
         # Фільтр по статусу підписки
         if subscription_status:
             if subscription_status == "active":
-                # Активна - активна підписка (включає тих у кого йдуть спроби оплати)
-                where_conditions.append("subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0")
+                # Активна - активна підписка з увімкненим автоплатежем
+                where_conditions.append("subscription_active = 1 AND auto_payment_enabled = 1")
             elif subscription_status == "with_access":
-                # З доступом зараз - активні + призупинені/скасовані але ще в межах періоду
+                # З доступом зараз - активні з автоплатежем + призупинені/скасовані але ще в межах періоду
                 where_conditions.append("""(
-                    (subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0)
+                    (subscription_active = 1 AND auto_payment_enabled = 1)
                     OR (subscription_cancelled = 1 AND subscription_end_date >= NOW())
                     OR (subscription_paused = 1 AND subscription_end_date >= NOW())
                 )""")
@@ -451,7 +451,7 @@ async def get_users(
         stats_sql = """
             SELECT 
                 COUNT(*) as total,
-                SUM(CASE WHEN subscription_active = 1 AND subscription_cancelled = 0 AND subscription_paused = 0 THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN subscription_active = 1 AND auto_payment_enabled = 1 THEN 1 ELSE 0 END) as active,
                 SUM(CASE WHEN subscription_paused = 1 THEN 1 ELSE 0 END) as paused,
                 SUM(CASE WHEN subscription_cancelled = 1 THEN 1 ELSE 0 END) as cancelled,
                 SUM(CASE WHEN subscription_active = 0 AND subscription_cancelled = 0 AND subscription_paused = 0 THEN 1 ELSE 0 END) as no_subscription
@@ -2043,9 +2043,6 @@ async def test_check_upcoming_payment(data: dict, admin: Dict = Depends(get_curr
             user = db.query(User).filter(User.telegram_id == telegram_id).first()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
-            
-            if not user.subscription_active or user.subscription_cancelled or user.subscription_paused:
-                raise HTTPException(status_code=400, detail="User subscription is not active/valid for this test")
         
         bot = Bot(token=settings.telegram_bot_token)
         
@@ -2056,7 +2053,7 @@ async def test_check_upcoming_payment(data: dict, admin: Dict = Depends(get_curr
         
         await bot.send_message(
             chat_id=telegram_id,
-            text="🧡 Підписка буде автоматично продовжена через 7 днів.",
+            text="🩵 Підписка буде автоматично продовжена через 7 днів.",
             reply_markup=keyboard,
             parse_mode='Markdown'
         )
@@ -2204,20 +2201,12 @@ async def test_join_reminder(data: dict, admin: Dict = Depends(get_current_admin
             
             keyboard = []
             for link in invite_links:
-                if link.link_type == "channel":
-                    keyboard.append([InlineKeyboardButton(
-                        text="🩵 Приєднатися до студії",
-                        url=link.invite_link
-                    )])
-                elif link.link_type == "group":
-                    keyboard.append([InlineKeyboardButton(
-                        text="💬 Приєднатися до спільноти",
-                        url=link.invite_link
-                    )])
-            
-            # Додаємо кнопки підтвердження
-            keyboard.append([InlineKeyboardButton("Я приєднався до каналу", callback_data="channel_joined")])
-            keyboard.append([InlineKeyboardButton("Я приєднався до чату", callback_data="chat_joined")])
+                if link.chat_type == "channel":
+                    button_text = "🩵 Приєднатися до каналу"
+                    keyboard.append([InlineKeyboardButton(text=button_text, url=link.invite_link)])
+                elif link.chat_type == "group" or link.link_type == "group":
+                    button_text = "💬 Приєднатися до чату"
+                    keyboard.append([InlineKeyboardButton(text=button_text, url=link.invite_link)])
             
             bot = Bot(token=settings.telegram_bot_token)
             

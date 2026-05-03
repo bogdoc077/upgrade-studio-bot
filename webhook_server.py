@@ -348,15 +348,29 @@ async def handle_customer_subscription_updated(subscription):
                     return True
                 status = subscription.get('status')
                 cancel_at_period_end = subscription.get('cancel_at_period_end', False)
+                pause_collection = subscription.get('pause_collection')
+                
+                # Логування для діагностики
+                logger.info(f"Webhook subscription data for {user.telegram_id}: status={status}, cancel_at_period_end={cancel_at_period_end}, pause_collection={pause_collection}")
+                
+                # Перевіряємо чи підписка призупинена через pause_collection
+                is_paused = pause_collection is not None and pause_collection != ''
                 
                 if status == 'active':
                     db_user.subscription_active = True
-                    db_user.subscription_paused = False
                     db_user.subscription_status = 'active'
-                    if not cancel_at_period_end:
-                        db_user.subscription_cancelled = False
-                        db_user.auto_payment_enabled = True  # Включаємо автоплатіж при активації
-                    logger.info(f"Webhook: Статус підписки 'active' для користувача {user.telegram_id}")
+                    
+                    # Встановлюємо паузу тільки якщо pause_collection встановлено
+                    if is_paused:
+                        db_user.subscription_paused = True
+                        db_user.auto_payment_enabled = False
+                        logger.info(f"Webhook: Підписка активна, але призупинена (pause_collection) для користувача {user.telegram_id}")
+                    else:
+                        db_user.subscription_paused = False
+                        if not cancel_at_period_end:
+                            db_user.subscription_cancelled = False
+                            db_user.auto_payment_enabled = True  # Включаємо автоплатіж при активації
+                        logger.info(f"Webhook: Статус підписки 'active' для користувача {user.telegram_id}")
                 elif status == 'paused':
                     db_user.subscription_paused = True
                     db_user.auto_payment_enabled = False  # Вимикаємо автоплатіж при паузі
@@ -373,14 +387,14 @@ async def handle_customer_subscription_updated(subscription):
                 # Оновлюємо дати
                 if 'current_period_end' in subscription:
                     period_end = datetime.utcfromtimestamp(subscription['current_period_end'])
-                    if status == 'active' and not cancel_at_period_end:
-                        # Для активних підписок:
+                    if status == 'active' and not cancel_at_period_end and not is_paused:
+                        # Для активних підписок без паузи:
                         # next_billing_date - коли буде спроба оплати (дата зі Stripe)
                         db_user.next_billing_date = period_end
                         # subscription_end_date - коли кікнуть після невдалих спроб (+2 дні для 3 спроб)
                         db_user.subscription_end_date = period_end + timedelta(days=2)
-                    elif cancel_at_period_end or status in ['canceled', 'cancelled']:
-                        # Для скасованих підписок - доступ тільки до period_end (БЕЗ +2 днів)
+                    elif cancel_at_period_end or status in ['canceled', 'cancelled'] or is_paused:
+                        # Для скасованих або призупинених підписок - доступ тільки до period_end (БЕЗ +2 днів)
                         # Бо не буде спроб автооплати
                         db_user.subscription_end_date = period_end
                         db_user.next_billing_date = None  # Немає наступного списання
@@ -447,7 +461,7 @@ async def handle_customer_subscription_updated(subscription):
                         "❌ Автоматичне продовження вимкнено\n\n"
                         "Ви можете поновити підписку у будь-який момент!"
                     )
-                elif status == 'paused':
+                elif status == 'paused' or is_paused:
                     await send_telegram_notification(
                         user.telegram_id,
                         f"⏸️ **Підписку призупинено**\n\n"

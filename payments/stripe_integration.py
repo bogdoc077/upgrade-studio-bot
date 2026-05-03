@@ -181,11 +181,24 @@ class StripeManager:
     async def resume_subscription(subscription_id: str) -> bool:
         """Поновити підписку (прибирає паузу або cancel_at_period_end)"""
         try:
+            # Спочатку отримуємо підписку щоб перевірити чи вона призупинена
+            subscription = await StripeManager._stripe_call(
+                stripe.Subscription.retrieve,
+                subscription_id
+            )
+            
+            modify_params = {
+                'cancel_at_period_end': False  # Скасовуємо відкладене скасування
+            }
+            
+            # Якщо є pause_collection, видаляємо його
+            if subscription.get('pause_collection'):
+                modify_params['pause_collection'] = None
+            
             result = await StripeManager._stripe_call(
                 stripe.Subscription.modify,
                 subscription_id,
-                pause_collection='',  # Прибираємо паузу
-                cancel_at_period_end=False  # Скасовуємо відкладене скасування
+                **modify_params
             )
             logger.info(f"Підписку {subscription_id} поновлено в Stripe, status={result.status}")
             return True

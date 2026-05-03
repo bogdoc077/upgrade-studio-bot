@@ -262,6 +262,9 @@ class UpgradeStudioBot:
         
         # Логіка для існуючих користувачів
         if telegram_user.subscription_active:
+            # Логування для діагностики
+            logger.info(f"/start для {user.id}: active={telegram_user.subscription_active}, paused={telegram_user.subscription_paused}, cancelled={telegram_user.subscription_cancelled}, joined_channel={telegram_user.joined_channel}, joined_chat={telegram_user.joined_chat}")
+            
             # Перевіряємо чи користувач приєднався до каналу та чату
             if not telegram_user.joined_channel or not telegram_user.joined_chat:
                 # Користувач має підписку, але не приєднався - запускаємо процес приєднання
@@ -583,6 +586,9 @@ class UpgradeStudioBot:
         if not user:
             return
         
+        # Логування статусу користувача для діагностики
+        logger.info(f"show_active_subscription_menu для {user_id}: active={user.subscription_active}, paused={user.subscription_paused}, cancelled={user.subscription_cancelled}")
+        
         # Отримуємо посилання на канал та чат з бази даних
         invite_links = DatabaseManager.get_active_invite_links()
         channel_url = None
@@ -865,11 +871,23 @@ class UpgradeStudioBot:
                         subscription_info = await StripeManager.get_subscription(user.stripe_subscription_id)
                         if subscription_info:
                             # Отримуємо актуальну дату наступного платежу зі Stripe (використовуємо UTC)
-                            next_billing_date = datetime.utcfromtimestamp(subscription_info['current_period_end'])
-                            # subscription_end_date - дата кінцевого кіку після 3 невдалих спроб (+2 дні)
-                            subscription_end_date = next_billing_date + timedelta(days=2)
+                            period_end = datetime.utcfromtimestamp(subscription_info['current_period_end'])
                             
-                            logger.info(f"Отримано актуальні дані зі Stripe для користувача {user_id}: next_billing={next_billing_date.strftime('%d.%m.%Y')}, end_date={subscription_end_date.strftime('%d.%m.%Y')}")
+                            # Перевіряємо чи підписка призупинена або скасована
+                            cancel_at_period_end = subscription_info.get('cancel_at_period_end', False)
+                            pause_collection = subscription_info.get('pause_collection')
+                            is_paused = pause_collection is not None and pause_collection != ''
+                            
+                            if user.subscription_paused or user.subscription_cancelled or cancel_at_period_end or is_paused:
+                                # Для призупинених/скасованих - доступ тільки до period_end (БЕЗ +2 днів)
+                                subscription_end_date = period_end
+                                next_billing_date = None
+                            else:
+                                # Для активних підписок - дата кіку після невдалих спроб (+2 дні)
+                                next_billing_date = period_end
+                                subscription_end_date = period_end + timedelta(days=2)
+                            
+                            logger.info(f"Отримано актуальні дані зі Stripe для користувача {user_id}: paused={user.subscription_paused}, cancelled={user.subscription_cancelled}, period_end={period_end.strftime('%d.%m.%Y')}, end_date={subscription_end_date.strftime('%d.%m.%Y')}")
                     except Exception as e:
                         logger.warning(f"Не вдалося отримати дані зі Stripe для користувача {user_id}: {e}")
                 
@@ -1216,6 +1234,37 @@ class UpgradeStudioBot:
         
         # Логуємо callback для діагностики
         logger.info(f"Отримано callback: {data} від користувача {query.from_user.id}")
+        
+        # Перевіряємо чи користувач існує в системі
+        user = DatabaseManager.get_user_by_telegram_id(query.from_user.id)
+        if not user:
+            # Користувача немає в системі - відправляємо його на початок
+            logger.info(f"Користувач {query.from_user.id} не знайдений в системі, відправляємо на /start")
+            await query.answer("Користувача не знайдено. Розпочинаємо спочатку...")
+            
+            # Видаляємо старе повідомлення
+            try:
+                await query.message.delete()
+            except Exception as e:
+                logger.warning(f"Не вдалося видалити старе повідомлення: {e}")
+            
+            # Створюємо користувача та запускаємо початкове привітання
+            telegram_user = DatabaseManager.get_or_create_user(
+                telegram_id=query.from_user.id,
+                username=query.from_user.username,
+                first_name=query.from_user.first_name,
+                last_name=query.from_user.last_name
+            )
+            
+            # Відправляємо привітальне повідомлення
+            await self.bot.send_message(
+                chat_id=query.from_user.id,
+                text="Вітаю! 👋\n\n"
+                     "Схоже, ми ще не знайомі. Давайте почнемо спочатку!\n\n"
+                     "Відправте /start щоб розпочати.",
+                parse_mode='HTML'
+            )
+            return
         
         if data.startswith("goal_"):
             await self.handle_goal_selection(update, context)
@@ -2315,6 +2364,18 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                             url=chat_link.invite_link
                         )]
                     ]
+                    
+                    # Видаляємо попереднє повідомлення про Крок 1 перед відправкою Крок 2
+                    if telegram_id in self.join_step_messages:
+                        for message_id in self.join_step_messages[telegram_id]:
+                            try:
+                                await self.bot.delete_message(chat_id=telegram_id, message_id=message_id)
+                                logger.info(f"Видалено повідомлення Крок 1 (ID: {message_id}) для користувача {telegram_id}")
+                            except Exception as e:
+                                logger.warning(f"Не вдалося видалити повідомлення {message_id}: {e}")
+                        # Очищаємо список
+                        self.join_step_messages[telegram_id] = []
+                    
                     msg = await self.bot.send_message(
                         chat_id=telegram_id,
                         text="🎉 <b>Чудово! Ти в студії!</b>\n\n"
@@ -2356,6 +2417,17 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                                 url=invite_link.invite_link
                             )]
                         ]
+                        
+                        # Видаляємо попереднє повідомлення про Крок 1 перед відправкою Крок 2
+                        if telegram_id in self.join_step_messages:
+                            for message_id in self.join_step_messages[telegram_id]:
+                                try:
+                                    await self.bot.delete_message(chat_id=telegram_id, message_id=message_id)
+                                    logger.info(f"Видалено повідомлення Крок 1 (ID: {message_id}) для користувача {telegram_id}")
+                                except Exception as e:
+                                    logger.warning(f"Не вдалося видалити повідомлення {message_id}: {e}")
+                            # Очищаємо список
+                            self.join_step_messages[telegram_id] = []
                         
                         msg = await self.bot.send_message(
                             chat_id=telegram_id,
@@ -3080,6 +3152,17 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                             
                             reply_markup = InlineKeyboardMarkup(keyboard)
                             
+                            # Видаляємо попереднє повідомлення про Крок 1 перед відправкою Крок 2
+                            if user_id in self.join_step_messages:
+                                for message_id in self.join_step_messages[user_id]:
+                                    try:
+                                        await self.bot.delete_message(chat_id=user_id, message_id=message_id)
+                                        logger.info(f"Видалено повідомлення Крок 1 (ID: {message_id}) для користувача {user_id}")
+                                    except Exception as e:
+                                        logger.warning(f"Не вдалося видалити повідомлення {message_id}: {e}")
+                                # Очищаємо список
+                                self.join_step_messages[user_id] = []
+                            
                             msg = await self.bot.send_message(
                                 chat_id=user_id,
                                 text="<b>Крок 2:</b>\n\n"
@@ -3087,7 +3170,7 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
                                 reply_markup=reply_markup,
                                 parse_mode='HTML'
                             )
-                            # Зберігаємо ID повідомлення
+                            # Зберігаємо ID повідомлення про Крок 2
                             if user_id not in self.join_step_messages:
                                 self.join_step_messages[user_id] = []
                             self.join_step_messages[user_id].append(msg.message_id)
@@ -3316,12 +3399,17 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             return
         
         # Перше приєднання - відправляємо повідомлення про успішне схвалення каналу
-        await self.bot.send_message(
+        success_msg = await self.bot.send_message(
             chat_id=user_id,
             text="<b>Відмінно!</b> Ви приєдналися до каналу!\n\n"
                  "Тепер у вас є доступ до всіх тренувань та корисної інформації ",
             parse_mode='HTML'
         )
+        
+        # Зберігаємо ID повідомлення
+        if user_id not in self.join_step_messages:
+            self.join_step_messages[user_id] = []
+        self.join_step_messages[user_id].append(success_msg.message_id)
         
         # Встановлюємо стан очікування приєднання до чату
         DatabaseManager.update_user_state(user_id, UserState.CHAT_JOIN_PENDING)
@@ -3355,7 +3443,18 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await self.bot.send_message(
+        # Видаляємо попереднє повідомлення "Відмінно!" перед відправкою Крок 2
+        if user_id in self.join_step_messages:
+            for message_id in self.join_step_messages[user_id]:
+                try:
+                    await self.bot.delete_message(chat_id=user_id, message_id=message_id)
+                    logger.info(f"Видалено попереднє повідомлення (ID: {message_id}) для користувача {user_id}")
+                except Exception as e:
+                    logger.warning(f"Не вдалося видалити повідомлення {message_id}: {e}")
+            # Очищаємо список
+            self.join_step_messages[user_id] = []
+        
+        step2_msg = await self.bot.send_message(
             chat_id=user_id,
             text="<b>Крок 2:</b>\n\n"
                  "Приєднайся до спільноти. Тут проходить практика з нутріціологом, ми спілкуємось, також я ділюсь важливою інформацією.\n\n"
@@ -3363,6 +3462,11 @@ PRIVATE_CHANNEL_ID={forward_chat.id}"""
             reply_markup=reply_markup,
             parse_mode='HTML'
         )
+        
+        # Зберігаємо ID повідомлення Крок 2
+        if user_id not in self.join_step_messages:
+            self.join_step_messages[user_id] = []
+        self.join_step_messages[user_id].append(step2_msg.message_id)
 
     async def handle_chat_joined(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обробити підтвердження приєднання до чату"""
