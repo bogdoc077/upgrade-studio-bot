@@ -2084,17 +2084,17 @@ async def test_expired_subscription(data: dict, admin: Dict = Depends(get_curren
         
         bot = Bot(token=settings.telegram_bot_token)
         
-# Повідомлення про закінчення підписки з пропозицією оформлення
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-                [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
-            ])
-            
-            await bot.send_message(
-                chat_id=telegram_id,
-                text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти.",
+        # Повідомлення про закінчення підписки з пропозицією оформлення
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
+            [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+        ])
+        
+        await bot.send_message(
+            chat_id=telegram_id,
+            text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти.",
             reply_markup=keyboard
         )
         
