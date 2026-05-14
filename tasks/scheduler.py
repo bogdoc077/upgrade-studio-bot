@@ -473,13 +473,13 @@ class TaskScheduler:
             # Надсилаємо повідомлення користувачу
             try:
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-                    [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+                    [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu")],
+                    [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
                 ])
                 
                 await self.bot.send_message(
                     chat_id=telegram_id,
-                    text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти.",
+                    text="🎀 Доступ до студії та спільноти обмежено.\n\nТи зможеш поновити підписку у своєму кабінеті у будь-який час.",
                     reply_markup=keyboard
                 )
             except Exception as e:

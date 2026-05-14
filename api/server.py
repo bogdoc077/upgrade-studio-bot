@@ -2084,45 +2084,23 @@ async def test_expired_subscription(data: dict, admin: Dict = Depends(get_curren
         
         bot = Bot(token=settings.telegram_bot_token)
         
-        # Реальний текст з scheduler.py _remove_user_from_chats
-        await bot.send_message(
-            chat_id=telegram_id,
-            text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти."
-        )
+        # Коротке системне повідомлення про закінчення підписки
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         
-        # Також відправляємо пропозицію підписки (як у show_subscription_offer_with_payment)
-        price_formatted = f"{settings.subscription_price:.0f}"
-        currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
-        
-        subscription_text = f"""<b>Що тебе чекає у студії �</b>
-
-• 3 тренування на тиждень які ніколи не повторюються
-• Доступ до тренувань поточного та попереднього місяця
-• Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
-• Тривалість 30–45 хв
-
-<b>Додатково:</b> 3 руханки та лекції від нутриціолога.
-
-<b>Ком'юніті неймовірних дівчат</b>
-• підтримка в чаті та натхнення
-• практика з нутріціологом
-
-Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
-
-<b>Вартість:</b> {price_formatted}{currency_symbol}/місяць 🎀
-
-Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu")],
+            [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+        ])
         
         await bot.send_message(
             chat_id=telegram_id,
-            text=subscription_text,
-            reply_markup=get_subscription_offer_keyboard(),
-            parse_mode='HTML'
+            text="🎀 Доступ до студії та спільноти обмежено.\n\nТи зможеш поновити підписку у своєму кабінеті у будь-який час.",
+            reply_markup=keyboard
         )
         
         return {
             "success": True,
-            "message": "Test scenario executed: expired subscription notification + subscription offer sent."
+            "message": "Test scenario executed: expired subscription notification sent."
         }
     except HTTPException:
         raise
@@ -2243,44 +2221,18 @@ async def test_paused_expired_renewal(data: dict, admin: Dict = Depends(get_curr
             
             bot = Bot(token=settings.telegram_bot_token)
             
-            subscription_end = user.subscription_end_date.strftime('%d.%m') if user.subscription_end_date else "невідомо"
+            # Коротке системне повідомлення про закінчення підписки
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
             
-            # Реальний текст: повідомлення про закінчення призупиненої підписки
-            # + пропозиція підписки як в show_subscription_offer_with_payment
-            price_formatted = f"{settings.subscription_price:.0f}"
-            currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
-            
-            # Спочатку повідомлення про закінчення доступу (з _remove_user_from_chats)
-            await bot.send_message(
-                chat_id=user.telegram_id,
-                text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти."
-            )
-            
-            # Потім пропозиція підписки (реальний текст з show_subscription_offer_with_payment)
-            subscription_text = f"""<b>Що тебе чекає у студії �</b>
-
-• 3 тренування на тиждень які ніколи не повторюються
-• Доступ до тренувань поточного та попереднього місяця
-• Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
-• Тривалість 30–45 хв
-
-<b>Додатково:</b> 3 руханки та лекції від нутриціолога.
-
-<b>Ком'юніті неймовірних дівчат</b>
-• підтримка в чаті та натхнення
-• практика з нутріціологом
-
-Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
-
-<b>Вартість:</b> {price_formatted}{currency_symbol}/місяць 🎀
-
-Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu")],
+                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+            ])
             
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=subscription_text,
-                reply_markup=get_subscription_offer_keyboard(),
-                parse_mode='HTML'
+                text="🎀 Доступ до студії та спільноти обмежено.\n\nТи зможеш поновити підписку у своєму кабінеті у будь-який час.",
+                reply_markup=keyboard
             )
         
         return {"success": True, "message": "Test paused-expired renewal scenario sent successfully"}
@@ -2309,40 +2261,18 @@ async def test_cancelled_expired_renewal(data: dict, admin: Dict = Depends(get_c
             
             bot = Bot(token=settings.telegram_bot_token)
             
-            price_formatted = f"{settings.subscription_price:.0f}"
-            currency_symbol = "€" if settings.subscription_currency.lower() == "eur" else settings.subscription_currency.upper()
+            # Коротке системне повідомлення про закінчення підписки
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
             
-            # Спочатку повідомлення про закінчення доступу (з _remove_user_from_chats)
-            await bot.send_message(
-                chat_id=user.telegram_id,
-                text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти."
-            )
-            
-            # Потім пропозиція підписки (реальний текст з show_subscription_offer_with_payment)
-            subscription_text = f"""<b>Що тебе чекає у студії �</b>
-
-• 3 тренування на тиждень які ніколи не повторюються
-• Доступ до тренувань поточного та попереднього місяця
-• Тренування виходять о 19:00 за Києвом (Пн, Ср, Пт)
-• Тривалість 30–45 хв
-
-<b>Додатково:</b> 3 руханки та лекції від нутриціолога.
-
-<b>Ком'юніті неймовірних дівчат</b>
-• підтримка в чаті та натхнення
-• практика з нутріціологом
-
-Підписка продовжується автоматично, а керування буде доступне у твоєму особистому кабінеті в цьому боті.
-
-<b>Вартість:</b> {price_formatted}{currency_symbol}/місяць 🎀
-
-Якщо у тебе виникнуть будь-які питання — звертайся до мене за контактами нижче✨"""
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu")],
+                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+            ])
             
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=subscription_text,
-                reply_markup=get_subscription_offer_keyboard(),
-                parse_mode='HTML'
+                text="🎀 Доступ до студії та спільноти обмежено.\n\nТи зможеш поновити підписку у своєму кабінеті у будь-який час.",
+                reply_markup=keyboard
             )
         
         return {"success": True, "message": "Test cancelled-expired renewal scenario sent successfully"}
