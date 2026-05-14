@@ -472,10 +472,28 @@ class TaskScheduler:
             
             # Надсилаємо повідомлення користувачу
             try:
-                keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("💳 Оформити підписку", callback_data="renew_subscription_direct")],
-                    [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
-                ])
+                # Створюємо checkout session для оплати
+                bot_username = "upgrade21studio_bot"
+                success_url = f"https://t.me/{bot_username}"
+                cancel_url = f"https://t.me/{bot_username}?start=payment_cancelled"
+                
+                checkout_data = await StripeManager.create_checkout_session(
+                    telegram_id=telegram_id,
+                    success_url=success_url,
+                    cancel_url=cancel_url
+                )
+                
+                if checkout_data:
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💳 Оформити підписку", url=checkout_data['url'])],
+                        [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+                    ])
+                else:
+                    # Якщо не вдалося створити checkout - використовуємо callback
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💳 Оформити підписку", callback_data="create_subscription")],
+                        [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+                    ])
                 
                 await self.bot.send_message(
                     chat_id=telegram_id,

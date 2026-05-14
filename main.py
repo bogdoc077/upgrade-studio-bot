@@ -1272,8 +1272,6 @@ class UpgradeStudioBot:
             await self.handle_injury_selection(update, context)
         elif data == "create_subscription":
             await self.create_subscription(update, context)
-        elif data == "renew_subscription_direct":
-            await self.renew_subscription_direct(update, context)
         elif data == "more_info":
             await self.show_more_info(update, context)
         elif data == "main_menu":
@@ -1641,76 +1639,6 @@ UPGRADE21 STUDIO — це не просто фітнес, це ваша тран
                 text=subscription_text,
                 reply_markup=payment_keyboard,
                 parse_mode='HTML'
-            )
-            
-            # Зберігаємо ID повідомлення з оплатою для подальшого видалення
-            self.payment_message_ids[user_id] = payment_msg.message_id
-            logger.info(f"Збережено ID повідомлення оплати {payment_msg.message_id} для користувача {user_id}")
-        else:
-            await self.bot.send_message(
-                chat_id=user_id,
-                text="Виникла помилка при створенні платежу. Спробуйте пізніше або зверніться до підтримки."
-            )
-    
-    async def renew_subscription_direct(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Поновити підписку одразу з лінком на оплату (без показу опису)"""
-        query = update.callback_query
-        await query.answer()
-        
-        user_id = query.from_user.id
-        user = DatabaseManager.get_user_by_telegram_id(user_id)
-        
-        # Перевіряємо, чи це адмін (тестовий режим)
-        if user and user.is_admin():
-            # Видаляємо попереднє повідомлення
-            try:
-                await query.message.delete()
-            except Exception as e:
-                logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
-            
-            await self.bot.send_message(
-                chat_id=user_id,
-                text="Тестовий режим для адміна - імітуємо успішну оплату..."
-            )
-            
-            # Невелика затримка
-            await asyncio.sleep(2)
-            
-            # Імітуємо успішну оплату для адміна
-            await self.simulate_successful_payment(user_id)
-            return
-        
-        # Видаляємо попереднє повідомлення
-        try:
-            await query.message.delete()
-        except Exception as e:
-            logger.warning(f"Не вдалося видалити попереднє повідомлення: {e}")
-        
-        # URL для повернення після оплати
-        bot_username = "upgrade21studio_bot"
-        success_url = f"https://t.me/{bot_username}"
-        cancel_url = f"https://t.me/{bot_username}?start=payment_cancelled"
-        
-        # Створюємо Checkout Session
-        checkout_data = await StripeManager.create_checkout_session(
-            telegram_id=user_id,
-            success_url=success_url,
-            cancel_url=cancel_url
-        )
-        
-        if checkout_data:
-            # Відправляємо лише кнопку оплати без додаткового опису
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            
-            payment_keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 Оплатити", url=checkout_data['url'])],
-                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
-            ])
-            
-            payment_msg = await self.bot.send_message(
-                chat_id=user_id,
-                text="Натисни кнопку нижче щоб оформити підписку:",
-                reply_markup=payment_keyboard
             )
             
             # Зберігаємо ID повідомлення з оплатою для подальшого видалення
