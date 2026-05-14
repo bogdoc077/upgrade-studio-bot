@@ -2087,8 +2087,7 @@ async def test_expired_subscription(data: dict, admin: Dict = Depends(get_curren
         # Реальний текст з scheduler.py _remove_user_from_chats
         await bot.send_message(
             chat_id=telegram_id,
-            text="⚠️ **Ваша підписка закінчилась**\n\nДоступ до приватних каналів та чатів було закрито.\n\nЩоб продовжити користуватися сервісом:\n1. Поновіть підписку через /start\n2. Або зв'яжіться з підтримкою\n\nДякуємо, що були з нами! 💙",
-            parse_mode='Markdown'
+            text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти."
         )
         
         # Також відправляємо пропозицію підписки (як у show_subscription_offer_with_payment)
@@ -2254,8 +2253,7 @@ async def test_paused_expired_renewal(data: dict, admin: Dict = Depends(get_curr
             # Спочатку повідомлення про закінчення доступу (з _remove_user_from_chats)
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text="⚠️ **Ваша підписка закінчилась**\n\nДоступ до приватних каналів та чатів було закрито.\n\nДякуємо, що були з нами! 💙",
-                parse_mode='Markdown'
+                text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти."
             )
             
             # Потім пропозиція підписки (реальний текст з show_subscription_offer_with_payment)
@@ -2317,8 +2315,7 @@ async def test_cancelled_expired_renewal(data: dict, admin: Dict = Depends(get_c
             # Спочатку повідомлення про закінчення доступу (з _remove_user_from_chats)
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text="⚠️ **Ваша підписка закінчилась**\n\nДоступ до приватних каналів та чатів було закрито.\n\nДякуємо, що були з нами! 💙",
-                parse_mode='Markdown'
+                text="🎀 Твоя підписка закінчилась.\n\nЩоб відновити доступ до студії та спільноти, потрібно оформити нову підписку. Якщо у тебе виникли будь-які питання — буду рада відповісти."
             )
             
             # Потім пропозиція підписки (реальний текст з show_subscription_offer_with_payment)
