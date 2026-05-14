@@ -2124,30 +2124,20 @@ async def test_paused_subscription_reminder(data: dict, admin: Dict = Depends(ge
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             
-            if not user.subscription_paused:
-                raise HTTPException(status_code=400, detail="User subscription is not paused")
-            
-            days_left = 0
-            if user.subscription_end_date:
-                days_left = (user.subscription_end_date - datetime.utcnow()).days
-            
-            end_date_str = user.subscription_end_date.strftime('%d.%m.%Y') if user.subscription_end_date else "невідомо"
-            
             bot = Bot(token=settings.telegram_bot_token)
             
-            # Реальний текст з scheduler.py check_expired_subscriptions (paused batch)
+            # Нагадування за 7 днів до закінчення доступу до студії та спільноти
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu")],
+                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+            ])
+            
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=f"""⚠️ **Нагадування про підписку**
-
-Ваша підписка закінчується через **{days_left} {'день' if days_left == 1 else 'дні'}** ({end_date_str}).
-
-❌ Автоматичне продовження вимкнене (підписка призупинена)
-
-Щоб продовжити доступ:
-1. Відновіть підписку в особистому кабінеті
-2. Або зверніться до підтримки""",
-                parse_mode='Markdown'
+                text="🎀 Доступ до студії та спільноти закінчиться через 7 днів.\n\nЩоб продовжити доступ понови підписку у своєму кабінеті.",
+                reply_markup=keyboard
             )
         
         return {"success": True, "message": "Test reminder sent successfully"}

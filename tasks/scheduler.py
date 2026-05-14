@@ -580,26 +580,21 @@ class TaskScheduler:
                     for user in paused_batch:
                         try:
                             days_left = (user.subscription_end_date - now).days
-                            if 0 <= days_left <= 3:
-                                # Нагадуємо тільки якщо залишилось 0-3 дні
+                            if days_left == 7:
+                                # Нагадуємо за 7 днів до закінчення доступу
                                 paused_reminded_count += 1
                                 logger.info(f"Призупинена підписка користувача {user.telegram_id} закінчується через {days_left} днів")
                                 
                                 try:
+                                    keyboard = InlineKeyboardMarkup([
+                                        [InlineKeyboardButton("✨ В головне меню", callback_data="main_menu")],
+                                        [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
+                                    ])
+                                    
                                     await self.bot.send_message(
                                         chat_id=user.telegram_id,
-                                        text=f"""⚠️ **Нагадування про підписку**
-
-Ваша підписка закінчується через **{days_left} {'день' if days_left == 1 else 'дні'}** ({user.subscription_end_date.strftime('%d.%m.%Y')}).
-
-❌ Автоматичне продовження вимкнене (підписка призупинена)
-
-Щоб продовжити доступ:
-1. Відновіть підписку через /subscription
-2. Або зв'яжіться з підтримкою
-
-📞 Підтримка: @{settings.support_username if hasattr(settings, 'support_username') else 'support'}""",
-                                        parse_mode='Markdown'
+                                        text="🎀 Доступ до студії та спільноти закінчиться через 7 днів.\n\nЩоб продовжити доступ понови підписку у своєму кабінеті.",
+                                        reply_markup=keyboard
                                     )
                                     
                                     # Затримка між повідомленнями (100ms) - 10 msg/sec
