@@ -473,8 +473,8 @@ class TaskScheduler:
             # Надсилаємо повідомлення користувачу
             try:
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-                    [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+                    [InlineKeyboardButton("💳 Оформити підписку", callback_data="renew_subscription_direct")],
+                    [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
                 ])
                 
                 await self.bot.send_message(

@@ -2088,8 +2088,8 @@ async def test_expired_subscription(data: dict, admin: Dict = Depends(get_curren
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-            [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+            [InlineKeyboardButton("💳 Оформити підписку", callback_data="renew_subscription_direct")],
+            [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
         ])
         
         await bot.send_message(
@@ -2215,8 +2215,8 @@ async def test_paused_expired_renewal(data: dict, admin: Dict = Depends(get_curr
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-                [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+                [InlineKeyboardButton("💳 Оформити підписку", callback_data="renew_subscription_direct")],
+                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
             ])
             
             await bot.send_message(
@@ -2255,8 +2255,8 @@ async def test_cancelled_expired_renewal(data: dict, admin: Dict = Depends(get_c
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Оформити підписку", callback_data="create_subscription")],
-                [InlineKeyboardButton("Задати питання", url="https://t.me/alionakovaliova")]
+                [InlineKeyboardButton("💳 Оформити підписку", callback_data="renew_subscription_direct")],
+                [InlineKeyboardButton("❓ Задати питання", url="https://t.me/alionakovaliova")]
             ])
             
             await bot.send_message(
